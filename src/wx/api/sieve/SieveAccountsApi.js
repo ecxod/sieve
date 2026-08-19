@@ -33,6 +33,26 @@
   }
 
   /**
+   * Returns the first non-empty value from the given candidates.
+   *
+   * @param {...string} values
+   *   the values to inspect.
+   * @returns {string}
+   *   the first non-empty string or an empty string.
+   */
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (typeof (value) !== "string")
+        continue;
+
+      if (value !== "")
+        return value;
+    }
+
+    return "";
+  }
+
+  /**
    * Implements a webextension api for sieve session and connection management.
    */
   class SieveAccountsApi extends ExtensionCommon.ExtensionAPI {
@@ -61,11 +81,15 @@
             },
 
             async getUsername(id) {
-              return await getIncomingServer(id).realUsername;
+              const server = getIncomingServer(id);
+
+              return await firstDefined(server.realUsername, server.username);
             },
 
             async getHostname(id) {
-              return await getIncomingServer(id).realHostName;
+              const server = getIncomingServer(id);
+
+              return await firstDefined(server.realHostName, server.hostName);
             }
           }
         }

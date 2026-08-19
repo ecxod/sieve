@@ -15,7 +15,7 @@ upstream project remains unchanged.
 The installable package is
 [`releases/sieve-0.6.2-cram-md5.xpi`](releases/sieve-0.6.2-cram-md5.xpi).
 
-SHA-256: `a9c7fee578f89c0dcd03e287e0ddb1d5d88b1249169b0d776c41befad5e960d2`
+SHA-256: `db206754362139f270a554486c97569d5420ef6f90cb476074ce9151234d99dd`
 
 ## Windows installer
 
