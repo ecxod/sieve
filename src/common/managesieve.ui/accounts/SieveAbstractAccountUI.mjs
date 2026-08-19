@@ -126,27 +126,33 @@ class SieveAbstractAccountUI {
     const account = await this.send("account-get-settings");
 
 
+    const hostname = account.hostname || "";
+    const port = account.port || "";
+    const username = account.username || "";
+    const mechanism = account.mechanism || "";
+    const fingerprint = account.fingerprint || "";
+
     elm.querySelector(".sieve-settings-hostname")
-      .textContent = account.hostname;
+      .textContent = hostname;
     elm.querySelector(".sieve-settings-port")
-      .textContent = account.port;
+      .textContent = port;
 
     if (!account.security)
       elm.querySelector(".sieve-settings-secure").style.display = 'none';
 
     elm.querySelector(".sieve-settings-username")
-      .textContent = account.username;
+      .textContent = username;
 
     if (elm.querySelector(".sieve-settings-mechanism")) {
       elm.querySelector(".sieve-settings-mechanism")
-        .textContent = account.mechanism;
+        .textContent = mechanism;
     }
 
     if (elm.querySelector(".sieve-settings-fingerprint")) {
       elm.querySelector(".sieve-settings-fingerprint")
-        .textContent = account.fingerprint;
+        .textContent = fingerprint;
 
-      if (account.fingerprint !== "")
+      if (fingerprint !== "")
         elm.querySelector(".sieve-settings-fingerprint-item").classList.remove("d-none");
     }
 

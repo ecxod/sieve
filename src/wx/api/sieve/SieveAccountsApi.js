@@ -42,14 +42,54 @@
    */
   function firstDefined(...values) {
     for (const value of values) {
-      if (typeof (value) !== "string")
+      if (typeof (value) === "undefined" || value === null)
         continue;
 
-      if (value !== "")
-        return value;
+      const result = `${value}`;
+
+      if (result !== "")
+        return result;
     }
 
     return "";
+  }
+
+  /**
+   * Gets a property from a XPCOM object without failing if it does not exist.
+   *
+   * @param {object} item
+   *   The object which should be inspected.
+   * @param {string} name
+   *   The property's name.
+   * @returns {string}
+   *   The property's string value or an empty string.
+   */
+  function getProperty(item, name) {
+    try {
+      return firstDefined(item[name]);
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Extracts a hostname from an IMAP/POP server URI.
+   *
+   * @param {string} uri
+   *   The server URI.
+   * @returns {string}
+   *   The hostname or an empty string.
+   */
+  function getHostnameFromUri(uri) {
+    if (uri === "")
+      return "";
+
+    try {
+      const url = new URL(uri);
+      return url.hostname;
+    } catch {
+      return "";
+    }
   }
 
   /**
@@ -83,13 +123,23 @@
             async getUsername(id) {
               const server = getIncomingServer(id);
 
-              return await firstDefined(server.realUsername, server.username);
+              return await firstDefined(
+                getProperty(server, "realUsername"),
+                getProperty(server, "username"),
+                getProperty(server, "userName"));
             },
 
             async getHostname(id) {
               const server = getIncomingServer(id);
 
-              return await firstDefined(server.realHostName, server.hostName);
+              return await firstDefined(
+                getProperty(server, "realHostName"),
+                getProperty(server, "hostName"),
+                getProperty(server, "realHostname"),
+                getProperty(server, "hostname"),
+                getHostnameFromUri(getProperty(server, "serverURI")),
+                getHostnameFromUri(getProperty(server, "serverUri")),
+                getHostnameFromUri(getProperty(server, "URI")));
             }
           }
         }
