@@ -16,3 +16,10 @@ The installable package is
 [`releases/sieve-0.6.2-cram-md5.xpi`](releases/sieve-0.6.2-cram-md5.xpi).
 
 SHA-256: `a9c7fee578f89c0dcd03e287e0ddb1d5d88b1249169b0d776c41befad5e960d2`
+
+## Windows installer
+
+The installable Windows package is
+[`releases/install_sieve_0.6.2.exe`](releases/install_sieve_0.6.2.exe).
+
+SHA-256: `6b2902159a9f170f59738ce75559ac53f91c0a120182b2124db0debc2aa637c6`
