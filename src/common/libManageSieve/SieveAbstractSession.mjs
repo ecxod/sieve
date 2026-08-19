@@ -15,6 +15,7 @@ import { Sieve } from "./SieveClient.mjs";
 import {
   SieveSaslPlainRequest,
   SieveSaslLoginRequest,
+  SieveSaslCramMd5Request,
   SieveSaslScramSha1Request,
   SieveSaslScramSha256Request,
   SieveSaslScramSha512Request,
@@ -229,6 +230,9 @@ class SieveAbstractSession {
       switch (mechanisms.shift()) {
         case "PLAIN":
           return new SieveSaslPlainRequest();
+
+        case "CRAM-MD5":
+          return new SieveSaslCramMd5Request();
 
         case "SCRAM-SHA-1":
           return new SieveSaslScramSha1Request();

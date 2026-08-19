@@ -795,6 +795,51 @@ class SieveSaslLoginResponse extends SieveStateFullResponse {
   }
 }
 
+const STATE_CRAM_CHALLENGE = 0;
+const STATE_CRAM_VERIFICATION = 1;
+const STATE_CRAM_COMPLETED = 4;
+
+/**
+ * Parses the challenge and final status of a SASL CRAM-MD5 exchange.
+ */
+class SieveSaslCramMd5Response extends SieveStateFullResponse {
+
+  /**
+   * Returns the decoded server challenge.
+   *
+   * @returns {string}
+   *   the decoded challenge.
+   */
+  getChallenge() {
+    if (this.state < STATE_CRAM_VERIFICATION)
+      throw new Error("CRAM-MD5 challenge has not been received");
+
+    return this.challenge;
+  }
+
+  /**
+   * @inheritdoc
+   */
+  parse(parser) {
+    if ((this.state === STATE_CRAM_CHALLENGE) && parser.isString()) {
+      this.challenge = (new SieveBase64Decoder(parser.extractString())).toUtf8();
+      parser.extractLineBreak();
+      this.state = STATE_CRAM_VERIFICATION;
+      return this;
+    }
+
+    if (this.state === STATE_CRAM_VERIFICATION) {
+      this.state = STATE_CRAM_COMPLETED;
+      super.parse(parser);
+      return this;
+    }
+
+    super.parse(parser);
+    this.state = STATE_CRAM_COMPLETED;
+    return this;
+  }
+}
+
 const SHA_STATE_FIRST_MESSAGE = 0;
 const SHA_STATE_FINAL_MESSAGE = 1;
 const SHA_STATE_SIEVE_RESPONSE = 2;
@@ -1119,6 +1164,7 @@ export {
   SieveCapabilitiesResponse,
   SieveListScriptsResponse,
   SieveSaslLoginResponse,
+  SieveSaslCramMd5Response,
   SieveGetScriptResponse,
   SieveSaslScramShaResponse
 };

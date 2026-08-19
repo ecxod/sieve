@@ -10,13 +10,14 @@
  */
 
 
-// eslint-disable-next-line no-magic-numbers
+/* eslint-disable no-magic-numbers */
+
+const HASH_MD5_LENGTH = 16 * 8;
 const HASH_SHA1_LENGTH = 20 * 8;
-// eslint-disable-next-line no-magic-numbers
 const HASH_SHA256_LENGTH = 32 * 8;
-// eslint-disable-next-line no-magic-numbers
 const HASH_SHA512_LENGTH = 64 * 8;
 
+const HASH_MD5 = "MD5";
 const HASH_SHA1 = "SHA-1";
 const HASH_SHA256 = "SHA-256";
 const HASH_SHA512 = "SHA-512";
@@ -38,7 +39,8 @@ class SieveWebCrypto {
    */
   constructor(name) {
 
-    if ((name !== HASH_SHA1) && (name !== HASH_SHA256) && (name !== HASH_SHA512))
+    if ((name !== HASH_MD5) && (name !== HASH_SHA1) &&
+      (name !== HASH_SHA256) && (name !== HASH_SHA512))
       throw new Error(`Unknown Hash algorithm ${name}`);
 
     this.name = name;
@@ -79,6 +81,9 @@ class SieveWebCrypto {
    *   the hash length in bits
    */
   getCryptoHashLength() {
+    if (this.getCryptoHash() === HASH_MD5)
+      return HASH_MD5_LENGTH;
+
     if (this.getCryptoHash() === HASH_SHA1)
       return HASH_SHA1_LENGTH;
 
@@ -154,6 +159,163 @@ class SieveWebCrypto {
   }
 
   /**
+   * Converts strings and byte array variants into a plain byte array.
+   *
+   * @param {byte[]|Uint8Array|string} value
+   *   the value to convert.
+   * @returns {byte[]}
+   *   the converted value.
+   */
+  toByteArray(value) {
+    if (Array.isArray(value))
+      return [...value];
+
+    if (value instanceof Uint8Array)
+      return [...value];
+
+    return [...(new TextEncoder()).encode(value)];
+  }
+
+  /**
+   * Rotates a 32 bit integer to the left.
+   *
+   * @param {int} value
+   *   the integer to rotate.
+   * @param {int} count
+   *   the number of bits to rotate.
+   * @returns {int}
+   *   the rotated integer.
+   */
+  rotateLeft(value, count) {
+    return ((value << count) | (value >>> (32 - count))) >>> 0;
+  }
+
+  /**
+   * Calculates an MD5 digest. MD5 is intentionally implemented locally because
+   * WebCrypto does not provide it, while CRAM-MD5 requires this legacy digest.
+   *
+   * @param {byte[]|Uint8Array|string} value
+   *   the value to hash.
+   * @returns {byte[]}
+   *   the 16 byte MD5 digest.
+   */
+  md5(value) {
+    const bytes = this.toByteArray(value);
+    const bitLength = bytes.length * 8;
+    const data = [...bytes, 0x80];
+
+    while ((data.length % 64) !== 56)
+      data.push(0);
+
+    const lowLength = bitLength >>> 0;
+    const highLength = Math.floor(bitLength / 0x100000000) >>> 0;
+
+    for (let i = 0; i < 4; i++)
+      data.push((lowLength >>> (i * 8)) & 0xff);
+
+    for (let i = 0; i < 4; i++)
+      data.push((highLength >>> (i * 8)) & 0xff);
+
+    const shifts = [
+      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+      5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+    ];
+
+    const constants = [];
+    for (let i = 0; i < 64; i++)
+      constants.push(Math.floor(Math.abs(Math.sin(i + 1)) * 0x100000000) >>> 0);
+
+    let a0 = 0x67452301;
+    let b0 = 0xefcdab89;
+    let c0 = 0x98badcfe;
+    let d0 = 0x10325476;
+
+    for (let offset = 0; offset < data.length; offset += 64) {
+      const words = [];
+      for (let i = 0; i < 16; i++) {
+        const index = offset + (i * 4);
+        words.push((data[index] |
+          (data[index + 1] << 8) |
+          (data[index + 2] << 16) |
+          (data[index + 3] << 24)) >>> 0);
+      }
+
+      let a = a0;
+      let b = b0;
+      let c = c0;
+      let d = d0;
+
+      for (let i = 0; i < 64; i++) {
+        let f;
+        let word;
+
+        if (i < 16) {
+          f = (b & c) | ((~b) & d);
+          word = i;
+        } else if (i < 32) {
+          f = (d & b) | ((~d) & c);
+          word = ((5 * i) + 1) % 16;
+        } else if (i < 48) {
+          f = b ^ c ^ d;
+          word = ((3 * i) + 5) % 16;
+        } else {
+          f = c ^ (b | (~d));
+          word = (7 * i) % 16;
+        }
+
+        const sum = (a + f + constants[i] + words[word]) >>> 0;
+        a = d;
+        d = c;
+        c = b;
+        b = (b + this.rotateLeft(sum, shifts[i])) >>> 0;
+      }
+
+      a0 = (a0 + a) >>> 0;
+      b0 = (b0 + b) >>> 0;
+      c0 = (c0 + c) >>> 0;
+      d0 = (d0 + d) >>> 0;
+    }
+
+    const digest = [];
+    for (const word of [a0, b0, c0, d0])
+      for (let i = 0; i < 4; i++)
+        digest.push((word >>> (i * 8)) & 0xff);
+
+    return digest;
+  }
+
+  /**
+   * Calculates HMAC-MD5 for CRAM-MD5 authentication.
+   *
+   * @param {byte[]|Uint8Array|string} key
+   *   the HMAC key.
+   * @param {byte[]|Uint8Array|string} value
+   *   the data to authenticate.
+   * @returns {byte[]}
+   *   the 16 byte HMAC-MD5 digest.
+   */
+  hmacMd5(key, value) {
+    const blockLength = 64;
+    key = this.toByteArray(key);
+
+    if (key.length > blockLength)
+      key = this.md5(key);
+
+    while (key.length < blockLength)
+      key.push(0);
+
+    const inner = key.map((item) => { return item ^ 0x36; });
+    const outer = key.map((item) => { return item ^ 0x5c; });
+
+    return this.md5([
+      ...outer,
+      ...this.md5([...inner, ...this.toByteArray(value)])
+    ]);
+  }
+
+  /**
    * Hi() is a PBKDF2 [RFC2898] implementation with HMAC() as the pseudo random
    * function (PRF) and with dkLen == output length of HMAC() == output
    * length of H().
@@ -211,6 +373,15 @@ class SieveWebCrypto {
    */
   async HMAC(key, bytes, output) {
 
+    if (this.getCryptoHash() === HASH_MD5) {
+      const signature = this.hmacMd5(key, bytes);
+
+      if (typeof (output) !== "undefined" && output === "hex")
+        return this.byteArrayToHexString(signature);
+
+      return signature;
+    }
+
     if (!Array.isArray(key) && !(key instanceof Uint8Array))
       key = (new TextEncoder()).encode(key);
 
@@ -248,6 +419,15 @@ class SieveWebCrypto {
    *   the calculated hash value for the input string as byte array or hex string.
    */
   async H(bytes, output) {
+
+    if (this.getCryptoHash() === HASH_MD5) {
+      const hash = this.md5(bytes);
+
+      if (typeof (output) !== "undefined" && output === "hex")
+        return this.byteArrayToHexString(hash);
+
+      return hash;
+    }
 
     if (!Array.isArray(bytes)) {
       // bytes = this.strToByteArray(bytes);

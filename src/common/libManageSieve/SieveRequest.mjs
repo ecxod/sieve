@@ -35,6 +35,7 @@ import {
   SieveCapabilitiesResponse,
   SieveListScriptsResponse,
   SieveSaslLoginResponse,
+  SieveSaslCramMd5Response,
   SieveGetScriptResponse,
   SieveSaslScramShaResponse
 } from "./SieveResponse.mjs";
@@ -47,6 +48,10 @@ const STATE_LOGIN_INITIALIZED = 0;
 const STATE_LOGIN_USERNAME = 1;
 const STATE_LOGIN_PASSWORD = 2;
 const STATE_LOGIN_COMPLETED = 4;
+
+const STATE_CRAM_INITIALIZED = 0;
+const STATE_CRAM_CHALLENGE = 1;
+const STATE_CRAM_COMPLETED = 4;
 
 const RESPONSE_OK = 0;
 const RESPONSE_BYE = 1;
@@ -1093,6 +1098,73 @@ class SieveSaslLoginRequest extends SieveAbstractSaslRequest {
   }
 }
 
+/**
+ * Implements the SASL CRAM-MD5 challenge-response mechanism from RFC 2195.
+ * The password is never transmitted, but the mechanism should still be used
+ * over TLS because MD5 is a legacy digest.
+ *
+ * Client > AUTHENTICATE "CRAM-MD5"
+ * Server < base64(challenge)
+ * Client > base64(username SP HMAC-MD5(challenge, password))
+ * Server < OK
+ */
+class SieveSaslCramMd5Request extends SieveAbstractSaslRequest {
+
+  /**
+   * @inheritdoc
+   */
+  constructor() {
+    super();
+    this.response = new SieveSaslCramMd5Response();
+  }
+
+  /**
+   * @inheritdoc
+   */
+  async getNextRequest(builder) {
+    switch (this.response.getState()) {
+      case STATE_CRAM_INITIALIZED:
+        return builder
+          .addLiteral("AUTHENTICATE")
+          .addQuotedString("CRAM-MD5");
+
+      case STATE_CRAM_CHALLENGE: {
+        const digest = await (new SieveCrypto("MD5")).HMAC(
+          this._password, this.response.getChallenge(), "hex");
+
+        return builder.addQuotedBase64(`${this._username} ${digest}`);
+      }
+    }
+
+    throw new Error("Unknown state in SASL CRAM-MD5");
+  }
+
+  /**
+   * @inheritdoc
+   */
+  hasNextRequest() {
+    if (this.response.hasError())
+      return false;
+
+    if (this.response.getState() === STATE_CRAM_COMPLETED)
+      return false;
+
+    return true;
+  }
+
+  /**
+   * @inheritdoc
+   */
+  async onResponse(parser) {
+    await this.response.parse(parser);
+
+    if (this.hasNextRequest())
+      return this;
+
+    return await(super.onResponse(this.response));
+  }
+}
+
 const SHA_STATE_FIRST_MESSAGE = 0;
 const SHA_STATE_FINAL_MESSAGE = 1;
 const SHA_STATE_EMPTY_MESSAGE = 2;
@@ -1480,6 +1552,7 @@ export {
   SieveInitRequest,
   SieveSaslPlainRequest,
   SieveSaslLoginRequest,
+  SieveSaslCramMd5Request,
   SieveSaslScramSha1Request,
   SieveSaslScramSha256Request,
   SieveSaslScramSha512Request,

@@ -46,5 +46,28 @@ suite.add("Crypto SHA1 Hi()", async function () {
   suite.assertEquals(saltedPassword.toString(), DEFAULT_SALTED_PASSWORD.toString());
 });
 
+suite.add("Crypto MD5", async function () {
+  const crypto = new SieveCrypto("MD5");
+
+  suite.assertEquals(
+    await crypto.H("", "hex"),
+    "d41d8cd98f00b204e9800998ecf8427e");
+
+  suite.assertEquals(
+    await crypto.H("abc", "hex"),
+    "900150983cd24fb0d6963f7d28e17f72");
+});
+
+suite.add("Crypto HMAC-MD5 RFC 2195", async function () {
+  const crypto = new SieveCrypto("MD5");
+
+  suite.assertEquals(
+    await crypto.HMAC(
+      "tanstaaftanstaaf",
+      "<1896.697170952@postoffice.reston.mci.net>",
+      "hex"),
+    "b913a602c7eda7a495b4e6e7334d3890");
+});
+
 suite.add("Normalize(str)", function () {
 });

@@ -21,11 +21,13 @@ import {
   SieveSaslScramSha1Request,
   SieveSaslScramSha256Request,
   SieveSaslExternalRequest,
-  SieveSaslLoginRequest
+  SieveSaslLoginRequest,
+  SieveSaslCramMd5Request
 } from "./../SieveRequest.mjs";
 
 import { SieveRequestBuilder } from "./../SieveRequestBuilder.mjs";
 import { SieveResponseParser } from "./../SieveResponseParser.mjs";
+import { SieveCompatibility } from "./../SieveCompatibility.mjs";
 
 const SIMPLE_PASSWORD = "pencil";
 const COMPLEX_PASSWORD = "abc§123";
@@ -567,6 +569,38 @@ suite.add("SASL Scram SHA256 - Long - Invalid Verification", async function () {
 
   await expectFailingResponse(request,
     `OK\r\n`);
+});
+
+suite.add("SASL CRAM-MD5 RFC 2195", async function () {
+  const request = new SieveSaslCramMd5Request();
+
+  suite.assertFalse(request.isAuthorizable());
+  suite.assertTrue(request.hasPassword());
+
+  request.setUsername("tim");
+  request.setPassword("tanstaaftanstaaf");
+
+  await expectRequest(request, false,
+    `AUTHENTICATE "CRAM-MD5"\r\n`);
+
+  await expectResponse(request,
+    `"PDE4OTYuNjk3MTcwOTUyQHBvc3RvZmZpY2UucmVzdG9uLm1jaS5uZXQ+"\r\n`);
+
+  await expectRequest(request, false,
+    `"dGltIGI5MTNhNjAyYzdlZGE3YTQ5NWI0ZTZlNzMzNGQzODkw"\r\n`);
+
+  await expectResponse(request, `OK\r\n`);
+
+  suite.assertFalse(request.hasNextRequest());
+});
+
+suite.add("SASL CRAM-MD5 is preferred over PLAIN and LOGIN", function () {
+  const compatibility = new SieveCompatibility();
+  compatibility.sasl = ["PLAIN", "LOGIN", "CRAM-MD5"];
+
+  suite.assertEquals(
+    compatibility.getSaslMechanisms().toString(),
+    ["CRAM-MD5", "PLAIN", "LOGIN"].toString());
 });
 
 suite.add("SASL External", async function () {

@@ -7,6 +7,8 @@
  *   Thomas Schmid <schmid-thomas@gmx.net>
  */
 
+const NEXT_ITEM = 1;
+
 /**
  * Stores a session's server compatibility settings.
  */
@@ -117,7 +119,22 @@ class SieveCompatibility {
   getSaslMechanisms() {
     // We want our member to be immutable thus we need to return a
     // copy of the array containing the sasl mechanisms.
-    return [...this.sasl];
+    const mechanisms = [...this.sasl];
+    const cramIndex = mechanisms.indexOf("CRAM-MD5");
+    const plainIndex = mechanisms.findIndex(
+      (item) => { return (item === "PLAIN") || (item === "LOGIN"); });
+
+    // Prefer challenge-response over mechanisms which send reusable
+    // credentials. Preserve the server order for everything else.
+    if ((cramIndex < 0) || (plainIndex < 0) || (cramIndex < plainIndex))
+      return mechanisms;
+
+    return [
+      ...mechanisms.slice(0, plainIndex),
+      "CRAM-MD5",
+      ...mechanisms.slice(plainIndex, cramIndex),
+      ...mechanisms.slice(cramIndex + NEXT_ITEM)
+    ];
   }
 }
 
