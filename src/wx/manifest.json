@@ -1,7 +1,7 @@
 {
   "name": "Sieve",
   "description": "__MSG_extensionDescription__",
-  "version": "0.6.2",
+  "version": "0.6.1.1",
   "icons": {
     "64": "libs/icons/linux.png"
   },
@@ -13,7 +13,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "sieve@mozdev.org",
-      "update_url": "https://thsmi.github.io/sieve/update.json",
+      "update_url": "https://raw.githubusercontent.com/ecxod/sieve/master/docs/update.json",
       "strict_min_version": "68.0a1"
     }
   },

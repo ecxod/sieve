@@ -25,6 +25,16 @@ jobs:
           VERSION="$(sed -n 's/  "version": "\([^"]*\)",/\1/p' package.json | head -1)"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure GitHub release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "Sieve ${{ steps.version.outputs.tag }} CRAM-MD5" \
+              --notes "Fork build with CRAM-MD5 support."
+          fi
+
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

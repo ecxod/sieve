@@ -48,6 +48,12 @@ suite.add("Patch Version Bump", function () {
   suite.assertFalse((new SieveUpdater()).isOlder("6.5.c", "6.5.4"));
 });
 
+suite.add("Build Version Bump", function () {
+  suite.assertFalse((new SieveUpdater()).isOlder("0.6.1.1", "0.6.1"));
+  suite.assertFalse((new SieveUpdater()).isOlder("0.6.1.2", "0.6.1.1"));
+  suite.assertTrue((new SieveUpdater()).isOlder("0.6.1.1", "0.6.1.2"));
+});
+
 suite.add("No Version Bump", function () {
   suite.assertTrue((new SieveUpdater()).isOlder("6.5.4", "6.5.4"));
 });
@@ -95,6 +101,21 @@ suite.add("Manifest - Same version", function () {
   };
 
   suite.assertFalse((new SieveUpdater()).compare(manifest, "5.6.7"));
+});
+
+suite.add("Manifest - Has newer build version", function () {
+  const manifest = {
+    "addons": {
+      "sieve@mozdev.org": {
+        "updates": [
+          { "version": "0.6.1.1" }
+        ]
+      }
+    }
+  };
+
+  suite.assertTrue((new SieveUpdater()).compare(manifest, "0.6.1"));
+  suite.assertFalse((new SieveUpdater()).compare(manifest, "0.6.1.1"));
 });
 
 suite.add("Manifest - Only older versions", function () {

@@ -1,6 +1,6 @@
 {
   "name": "sieve",
-  "version": "0.6.2",
+  "version": "0.6.1.1",
   "description": "Configures server-side sieve email filters",
   "main": "main_esm.js",
   "directories": {
@@ -32,12 +32,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/thsmi/sieve.git"
+    "url": "git+https://github.com/ecxod/sieve.git"
   },
   "author": "Thomas Schmid <schmid-thomas@gmx.net>",
   "license": "AGPL-3.0",
   "bugs": {
-    "url": "https://github.com/thsmi/sieve/issues"
+    "url": "https://github.com/ecxod/sieve/issues"
   },
-  "homepage": "https://github.com/thsmi/sieve#readme"
+  "homepage": "https://github.com/ecxod/sieve#readme"
 }

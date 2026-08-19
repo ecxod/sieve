@@ -10,10 +10,7 @@
  */
 
 
-const SIEVE_GITHUB_UPDATE_URL = "https://thsmi.github.io/sieve/update.json";
-const MAJOR_VERSION = 0;
-const MINOR_VERSION = 1;
-const PATCH_VERSION = 2;
+const SIEVE_GITHUB_UPDATE_URL = "https://raw.githubusercontent.com/ecxod/sieve/master/docs/update.json";
 
 /**
  * Checks for Updates on github.
@@ -103,26 +100,18 @@ class SieveUpdater {
   isOlder(next, current) {
     current = current.split(".");
     next = next.split(".");
+    const length = Math.max(current.length, next.length);
 
-    // In case the new major is larger, then this version is definitely older.
-    if (this.isGreaterThan(next[MAJOR_VERSION], current[MAJOR_VERSION]))
-      return false;
-    // In case the new major is smaller, then this version is definitely newer.
-    if (this.isLessThan(next[MAJOR_VERSION], current[MAJOR_VERSION]))
-      return true;
+    for (let idx = 0; idx < length; idx++) {
+      const nextComponent = next[idx] ?? "0";
+      const currentComponent = current[idx] ?? "0";
 
-    // In case it is equal we need to check at the minor version
-    // In case the new minor is larger, then this version is definitely older.
-    if (this.isGreaterThan(next[MINOR_VERSION], current[MINOR_VERSION]))
-      return false;
-    // In case the new minor is smaller, then this version is definitely newer.
-    if (this.isLessThan(next[MINOR_VERSION], current[MINOR_VERSION]))
-      return true;
+      if (this.isGreaterThan(nextComponent, currentComponent))
+        return false;
 
-    // In case it is equal we need to check the patch level.
-    // It is newer if it is larger
-    if (this.isGreaterThan(next[PATCH_VERSION], current[PATCH_VERSION]))
-      return false;
+      if (this.isLessThan(nextComponent, currentComponent))
+        return true;
+    }
 
     // Otherwise in case it is less or equal, the version is older or the same.
     return true;

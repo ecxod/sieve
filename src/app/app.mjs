@@ -57,7 +57,7 @@ import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
     },
 
     "update-goto-url": () => {
-      shell.openExternal('https://github.com/thsmi/sieve/releases/latest');
+      shell.openExternal('https://github.com/ecxod/sieve/releases/latest');
     },
 
     "import-thunderbird": function () {
