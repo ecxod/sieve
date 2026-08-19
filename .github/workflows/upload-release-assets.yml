@@ -21,13 +21,15 @@ jobs:
 
       - name: Resolve release tag
         id: version
-        run: echo "tag=v$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="$(sed -n 's/  "version": "\([^"]*\)",/\1/p' package.json | head -1)"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
+          VERSION="$(sed -n 's/  "version": "\([^"]*\)",/\1/p' package.json | head -1)"
           gh release upload "${{ steps.version.outputs.tag }}" \
             "releases/sieve-${VERSION}-cram-md5.xpi" \
             "releases/install_sieve_${VERSION}.exe" \
