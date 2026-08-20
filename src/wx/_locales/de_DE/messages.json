@@ -1,6 +1,6 @@
 {
   "extensionDescription": {
-    "message": "Verwaltet Sieve Filter",
+    "message": "Verwaltet serverseitige Sieve-Filter sicher mit CRAM-MD5. Fehler bitte unter https://github.com/ecxod/sieve/issues melden.",
     "description": "Description of the extension."
   },
   "menuTitle": {

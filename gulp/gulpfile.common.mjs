@@ -354,7 +354,7 @@ async function updateVersion() {
 
   const data = JSON.parse(await readFile("./docs/update.json", 'utf8'));
 
-  data["addons"]["sieve@mozdev.org"]["updates"].unshift({
+  data["addons"]["sieve-cram-md5@ecxod.github.io"]["updates"].unshift({
     "version" : version,
     "update_link": `https://github.com/ecxod/sieve/releases/download/v${version}/sieve-${version}-cram-md5.xpi`,
     "update_info_url": `https://github.com/ecxod/sieve/releases/tag/v${version}`,

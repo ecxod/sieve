@@ -128,7 +128,7 @@ class SieveUpdater {
    *   true in case the manifest contains a newer version definition.
    */
   compare(manifest, currentVersion) {
-    const items = manifest["addons"]["sieve@mozdev.org"]["updates"];
+    const items = manifest["addons"]["sieve-cram-md5@ecxod.github.io"]["updates"];
 
     // There are no updates if all entries are less or equal to the current version
     for (const item of items) {

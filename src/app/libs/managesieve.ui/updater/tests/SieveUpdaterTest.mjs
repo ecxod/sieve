@@ -62,7 +62,7 @@ suite.add("No Version Bump", function () {
 suite.add("Manifest - Does not contain any versions", function () {
   const manifest = {
     "addons": {
-      "sieve@mozdev.org": {
+      "sieve-cram-md5@ecxod.github.io": {
         "updates": []
       }
     }
@@ -74,7 +74,7 @@ suite.add("Manifest - Does not contain any versions", function () {
 suite.add("Manifest - Has newer version", function () {
   const manifest = {
     "addons": {
-      "sieve@mozdev.org": {
+      "sieve-cram-md5@ecxod.github.io": {
         "updates": [
           { "version": "5.6.7" },
           { "version": "1.2.3" },
@@ -90,7 +90,7 @@ suite.add("Manifest - Has newer version", function () {
 suite.add("Manifest - Same version", function () {
   const manifest = {
     "addons": {
-      "sieve@mozdev.org": {
+      "sieve-cram-md5@ecxod.github.io": {
         "updates": [
           { "version": "5.6.7" },
           { "version": "1.2.3" },
@@ -106,22 +106,22 @@ suite.add("Manifest - Same version", function () {
 suite.add("Manifest - Has newer build version", function () {
   const manifest = {
     "addons": {
-      "sieve@mozdev.org": {
+      "sieve-cram-md5@ecxod.github.io": {
         "updates": [
-          { "version": "0.6.1.8" }
+          { "version": "0.6.1.9" }
         ]
       }
     }
   };
 
   suite.assertTrue((new SieveUpdater()).compare(manifest, "0.6.1"));
-  suite.assertFalse((new SieveUpdater()).compare(manifest, "0.6.1.8"));
+  suite.assertFalse((new SieveUpdater()).compare(manifest, "0.6.1.9"));
 });
 
 suite.add("Manifest - Only older versions", function () {
   const manifest = {
     "addons": {
-      "sieve@mozdev.org": {
+      "sieve-cram-md5@ecxod.github.io": {
         "updates": [
           { "version": "5.6.7" },
           { "version": "1.2.3" },

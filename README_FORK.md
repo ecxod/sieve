@@ -53,6 +53,11 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Version `0.6.1.8` fixes the global **Settings** tab so its appearance and
   Sentry controls are rendered instead of an empty page. Initialization errors
   are shown visibly instead of leaving the settings view blank.
+- Version `0.6.1.9` gives the Thunderbird fork its own extension ID,
+  `sieve-cram-md5@ecxod.github.io`, and identifies the extension as **Sieve
+  CRAM-MD5** by `ecxod`. Its homepage, update source, and issue tracker all
+  point to `ecxod/sieve`; Thunderbird can therefore no longer merge upstream
+  catalogue metadata or upstream releases into this fork.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -68,14 +73,23 @@ The obsolete `src/TODO.md` file has also been removed.
 
 ## Thunderbird package
 
-The installable package is
-[`releases/sieve-0.6.1.8-cram-md5.xpi`](releases/sieve-0.6.1.8-cram-md5.xpi).
+### Migration from 0.6.1.8 and older
 
-SHA-256: `b1a11fa7db677bcc49207b5cd95ff742f36a3d747746d85f15e5644cf585cca5`
+Versions through `0.6.1.8` used the upstream extension ID. Thunderbird cannot
+change an installed extension's ID during an automatic update. Remove the old
+**Sieve** extension and install `0.6.1.9` once; subsequent fork releases update
+normally under the new ID. Do not keep both extensions installed at the same
+time. Extension preferences are stored per ID, so custom Sieve connection
+settings may need to be entered again after this one-time migration.
+
+The installable package is
+[`releases/sieve-0.6.1.9-cram-md5.xpi`](releases/sieve-0.6.1.9-cram-md5.xpi).
+
+SHA-256: `bddf8db2bec8cff059895b6370dbb36278d3957056045c11f04d1ba87cea4a7c`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.8.exe`](releases/install_sieve_0.6.1.8.exe).
+[`releases/install_sieve_0.6.1.9.exe`](releases/install_sieve_0.6.1.9.exe).
 
-SHA-256: `2c3e5f0513177dcbd365b49c7f47d92128e7e45ee5b7884cd7b124ae62a4bd32`
+SHA-256: `087786b159b887fb4a04b9d509a16938ca18e91efc3708163d9eff7a207ec916`

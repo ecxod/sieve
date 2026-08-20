@@ -1,7 +1,13 @@
 {
-  "name": "Sieve",
+  "name": "Sieve CRAM-MD5",
   "description": "__MSG_extensionDescription__",
-  "version": "0.6.1.8",
+  "version": "0.6.1.9",
+  "author": "ecxod",
+  "developer": {
+    "name": "ecxod",
+    "url": "https://github.com/ecxod/sieve"
+  },
+  "homepage_url": "https://github.com/ecxod/sieve",
   "icons": {
     "64": "libs/icons/linux.png"
   },
@@ -12,7 +18,7 @@
   "default_locale": "en_US",
   "browser_specific_settings": {
     "gecko": {
-      "id": "sieve@mozdev.org",
+      "id": "sieve-cram-md5@ecxod.github.io",
       "update_url": "https://raw.githubusercontent.com/ecxod/sieve/master/docs/update.json",
       "strict_min_version": "68.0a1"
     }

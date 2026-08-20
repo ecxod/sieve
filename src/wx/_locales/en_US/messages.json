@@ -1,6 +1,6 @@
 {
   "extensionDescription": {
-    "message": "Manages Sieve Message Filters",
+    "message": "Securely manages server-side Sieve filters with CRAM-MD5. Report issues at https://github.com/ecxod/sieve/issues",
     "description": "Description of the extension."
   },
 
