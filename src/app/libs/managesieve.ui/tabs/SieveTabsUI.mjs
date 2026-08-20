@@ -207,6 +207,12 @@ class SieveTabUI {
       .querySelector("#tabs-scroll-right")
       .addEventListener("click", () => { this.scrollRight(); });
 
+    const settingsTab = document.querySelector("#settings-tab-link");
+    settingsTab.addEventListener("click", (event) => {
+      event.preventDefault();
+      bootstrap.Tab.getOrCreateInstance(settingsTab).show();
+    });
+
     document
       .querySelector("#tabs-content > #accounts")
       .src = "./libs/managesieve.ui/accounts.html";

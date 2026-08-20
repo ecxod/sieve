@@ -44,6 +44,9 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   an optional user-owned Sentry DSN for error reporting. An empty DSN keeps
   tracking disabled, which is the default, and the SDK is configured not to
   send default personally identifiable information or performance traces.
+- Version `0.6.1.6` makes a collapsed server's name an additional expand
+  control and explicitly handles the fixed global **Settings** tab so its
+  appearance and Sentry options reliably open when clicked.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -60,13 +63,13 @@ The obsolete `src/TODO.md` file has also been removed.
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.5-cram-md5.xpi`](releases/sieve-0.6.1.5-cram-md5.xpi).
+[`releases/sieve-0.6.1.6-cram-md5.xpi`](releases/sieve-0.6.1.6-cram-md5.xpi).
 
-SHA-256: `99ececfe078eacdb45142289269553d619257bf9ca8813947938e6081cd7ad9b`
+SHA-256: `d2ad30c0813bd193e2d9f57527beb53bd6e9ef7b2bea8070b6df5ceb8560f350`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.5.exe`](releases/install_sieve_0.6.1.5.exe).
+[`releases/install_sieve_0.6.1.6.exe`](releases/install_sieve_0.6.1.6.exe).
 
-SHA-256: `ea91a3e29ce4c6f3dc650f2202dbbe403379ba35e44f05e97e1fc3987e5a78a9`
+SHA-256: `1a07ab167048797d50b6f202b12782cb7385f59e0639aa635840e044779d3ae5`

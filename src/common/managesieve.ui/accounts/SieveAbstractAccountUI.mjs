@@ -214,6 +214,17 @@ class SieveAbstractAccountUI {
       });
 
     elm
+      .querySelector(".sieve-accounts-tab")
+      .addEventListener("click", async () => {
+        if (elm.dataset.collapsed !== "true")
+          return;
+
+        this.setCollapsed(elm, false);
+        await this.send("account-settings-set-collapsed", { collapsed: false });
+        await this.render();
+      });
+
+    elm
       .querySelector(".siv-account-create")
       .addEventListener("click", () => { this.createScript(); });
     elm

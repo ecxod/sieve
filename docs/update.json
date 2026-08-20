@@ -3,9 +3,9 @@
     "sieve@mozdev.org": {
       "updates": [
         {
-          "version": "0.6.1.5",
-          "update_link": "https://github.com/ecxod/sieve/releases/download/v0.6.1.5/sieve-0.6.1.5-cram-md5.xpi",
-          "update_info_url": "https://github.com/ecxod/sieve/releases/tag/v0.6.1.5",
+          "version": "0.6.1.6",
+          "update_link": "https://github.com/ecxod/sieve/releases/download/v0.6.1.6/sieve-0.6.1.6-cram-md5.xpi",
+          "update_info_url": "https://github.com/ecxod/sieve/releases/tag/v0.6.1.6",
           "browser_specific_settings": {
             "gecko": {
               "strict_min_version": "68.0a1"
