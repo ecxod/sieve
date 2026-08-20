@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 ### Prerequisites
- * [ ] Tried the most recent nightly build
+ * [ ] Tried the most recent `ecxod/sieve` release
  * [ ] Checked if your issue is already reported.
 
 ### Is your feature request related to a problem? 

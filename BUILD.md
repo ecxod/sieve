@@ -13,7 +13,7 @@ and all the shared code can be found in `src/common`.
 
 To get started clone the project for github and install [node](https://nodejs.org/en/).
 
-Then use `npm install` to download the dependencies, npm is shipped with [node](https://nodejs.org/en/).
+Then use `npm ci` to download the pinned dependencies, npm is shipped with [node](https://nodejs.org/en/).
 This will download gulp as well as codemirror, bootstrap, electron and everything else which is needed.
 
 As editor I suggest [Visual Studio Code](https://code.visualstudio.com/)
@@ -25,18 +25,19 @@ This makes developing is very straight forward and easy compared to a thunderbir
 
 To package the app call:
 
-`gulp app:package`
+`npm exec -- gulp app:package`
 
 Then give it a test and start the electron:
 
 `npm run start`
 
-To speedup the development you can also use `gulp app:watch`. It will automatically
+To speedup the development you can also use `npm exec -- gulp app:watch`. It will automatically
 update all changed files. The change will be instantly available in electron.
 You may need to reload the rendering process, by going to the menu bar and
 select `View->Reload` or `View->Force Reload`
 
-To finally package the electron app just run `gulp app:package-win32` or `gulp app:package-linux`.
+To finally package the electron app run `npm exec -- gulp app:package-win32` or
+`npm exec -- gulp app:package-linux`.
 
 In case you need to inspect the UI's HTML debug the JavaScript, just select
 `View->Toggle Developer Tools`.
@@ -59,7 +60,7 @@ Experiment is special privileged code which is allowed to access XPCOM. But only
 be accessed through a predefined and very limited API from the background page.
 You can find the APIs in `src/wx/api/sieve`
 
-To build the webextension call `gulp wx:package`. It creates a build directory
+To build the webextension call `npm exec -- gulp wx:package`. It creates a build directory
 (`build\thunderbird-wx`) relative to your sources root directory.
 
 Then load the extension. Go to `Tools->Developer Tools->Debug Addons`, click on
@@ -73,5 +74,5 @@ can only access the background page and the content tabs but not the Experiments
 privileged code.
 
 In order to have the build folder updates upon changes to the source folder,
-just call `gulp wx:watch`. Gulp will monitor the source files and copies them
+just call `npm exec -- gulp wx:watch`. Gulp will monitor the source files and copies them
 upon change to the source directory.

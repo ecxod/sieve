@@ -26,7 +26,6 @@
     "start": "cd node_modules/.bin && electron ./../../build/electron/resources",
     "debug": "cd node_modules/.bin && electron ./../../build/electron/resources --debug",
     "test": "gulp \"test:package\" && node ./tests/index.js ./build/test/app",
-    "server": "node ./tools/Server/Server.js",
     "gulp": "gulp",
     "lint": "eslint"
   },

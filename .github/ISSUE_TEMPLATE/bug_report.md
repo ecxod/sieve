@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 ### Prerequisites
- * [ ] Tried the most recent nightly build
+ * [ ] Tried the most recent `ecxod/sieve` release
  * [ ] Checked if your issue is already reported.
  * [ ] Answered all the questions in this template (Or provide a working crystal ball). 
 
@@ -25,10 +25,6 @@ A clear and concise description of what the bug is.
 
 #### Logs and Traces
 If applicable, include a debug log/trace with your issue. Just go to the extensions settings and enable debugging options in the debug tab. Dumping "byte arrays" is usually not necessary. Keep in mind the line starting with "AUTHENTICATE" contains your password. So scramble this line.
-
-Detailed instructions how to access traces and enable logging can be found in the wiki:
- * https://github.com/thsmi/sieve/wiki/FAQ---Application#app-logging-and-debugging
- * https://github.com/thsmi/sieve/wiki/FAQ---WebExtension#logging--debugging
 
 If applicable and possible, include information and logs from your mail server.
 

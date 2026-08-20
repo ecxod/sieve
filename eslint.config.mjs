@@ -58,7 +58,6 @@ export default [
     ignores:  allExcept(
       "src/",
       "tests/",
-      "tools/",
       "gulp/",
       "gulpfile.mjs",
       "eslint.config.mjs")

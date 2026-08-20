@@ -31,6 +31,14 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
 
+## Repository scope
+
+Unused upstream infrastructure has been removed from the fork: Azure pipelines,
+the development-only `tools` collection, obsolete editor and service
+configuration, and stale upstream planning and governance documents. The
+`gulp` directory remains because it contains the active build, packaging, and
+test tasks for the Windows application, Thunderbird extension, and shared code.
+
 ## Thunderbird package
 
 The installable package is

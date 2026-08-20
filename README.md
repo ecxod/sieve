@@ -1,80 +1,68 @@
-# Sieve Editor
+# Sieve Editor CRAM-MD5 Fork
 
-[Sieve](http://en.wikipedia.org/wiki/Sieve_%28mail_filtering_language%29) is a
-powerful scripting language for server-side mail filtering. It is intended to
-be used with [IMAP](http://tools.ietf.org/html/rfc3501) which is ubiquitous.
-Many IMAP Servers are capable of running Sieve filters. Sieve stores and runs
-all scripts on the server-side.
+This repository contains the [`ecxod/sieve`](https://github.com/ecxod/sieve)
+fork of Sieve Editor. It provides a standalone Windows application and a
+Thunderbird extension for managing server-side Sieve mail-filter scripts over
+ManageSieve.
 
-Now there is the dilemma – you have access to a server supporting Sieve but how
-do you manage your scripts on this server?
+The fork adds CRAM-MD5 authentication and maintains a small set of documented
+usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
+from the upstream project.
 
-You can use [Telnet](https://en.wikipedia.org/wiki/Telnet) for this purpose,
-but that is far too uncomfortable, not applicable for a normal user and almost
-impossible with secure connections. Wouldn’t it be great to activate, edit,
-delete and add Sieve scripts with a convenient interface? That is exactly what this sieve editor offers…
+## Downloads
 
-![Sieve Editor showing a “Demo” script](https://user-images.githubusercontent.com/2531380/74590832-6efe1480-5012-11ea-8b4e-f7c3e8128824.png)
+The current Windows installer and Thunderbird XPI are published on the
+[`ecxod/sieve` Releases page](https://github.com/ecxod/sieve/releases/latest).
+Checksums and package names are documented in [README_FORK.md](README_FORK.md).
 
-… it provides an implementation of [A Protocol for Remotely Managing Sieve Scripts (RFC 5804)](https://wiki.tools.ietf.org/html/rfc5804) as well as a graphical editor for [Sieve: An Email Filtering Language (RFC 5228)](https://tools.ietf.org/html/rfc5228)
+## Build and test
 
+Install the pinned dependencies and run the test suite:
 
-## History
+```sh
+npm ci
+npm test
+npm run lint
+```
 
-All started in 2006 as a very simplistic [Thunderbird addon](https://addons.thunderbird.net/addon/sieve/) implementing the manage sieve protocol. But as the years passed by the plaintext editor got more and more features and evolved into a full graphical editor.
+Create the Thunderbird package:
 
-Several years ago Mozilla made a strange decision. They dropped their very flexible addon system and copied the extremely limited WebExtensions from Google Chrome. An this ultimately meant for Thunderbird that "classic" addons will go way.
+```sh
+npm exec -- gulp wx:package-xpi
+```
 
-Now in 2020 classic Thunderbird addons are dead. Which meant for the addon it needed to evolve and drop its Thunderbird dependencies. It is now a _portable standalone application_!
+Create the Windows application directory:
 
-## Status
+```sh
+npm exec -- gulp app:package-win32
+```
 
-The project is actively developed. The focus shifted from a thunderbird addon to a portable standalone app.
+The `gulp/` directory is required. It contains the active tasks that assemble
+shared sources, package the Electron application and Thunderbird extension, and
+prepare the test suite. More details are available in [BUILD.md](BUILD.md).
 
-Status and future development plans are described in the [Roadmap](https://github.com/thsmi/sieve/wiki/Roadmap). The [Capabilities page](https://github.com/thsmi/sieve/wiki/Capabilities) contains a list of all supported sieve and manage sieve features.
+## Repository structure
 
-Project statistics are available at
-[Open Hub](https://www.openhub.net/p/thsmi-sieve).
+- `src/common`: shared ManageSieve client, Sieve parser, editor, and UI
+- `src/app`: Electron standalone application
+- `src/wx`: Thunderbird WebExtension
+- `src/web`: browser-hosted application variant
+- `gulp`: build, package, and test tasks
+- `tests`: test runner and shared test definitions
+- `docs`: Thunderbird update manifest
+- `releases`: current fork release artifacts
 
-A big thank you to everyone who has [contributed](CONTRIBUTORS.md) to the project.
+## Bugs and changes
 
-## FAQ, Bugs and Contributing
+Report fork-specific problems through the
+[`ecxod/sieve` issue tracker](https://github.com/ecxod/sieve/issues).
 
-Answers for [frequently asked question](https://github.com/thsmi/sieve/wiki) can be found in the [Wiki section](https://github.com/thsmi/sieve/wiki). Please make sure you read those pages before raising a bug report.
+## License and attribution
 
-For more details on contributing refer to the
-[Contributing Guidelines](https://github.com/thsmi/sieve/blob/master/CONTRIBUTING.md).
+The source code is licensed under the
+[GNU Affero General Public License v3](LICENSE.md). Third-party licensing and
+the icon license are described in [LICENSING_INFO.md](LICENSING_INFO.md).
+Original contributors and resources remain credited in
+[CONTRIBUTORS.md](CONTRIBUTORS.md).
 
-Concerning bug reports please use the
-[issue tracker](https://github.com/thsmi/sieve/issues) or send a private email
-to `schmid-thomas at gmx.net`. Please read and understand the [Contributing Guidelines](https://github.com/thsmi/sieve/blob/master/CONTRIBUTING.md) before creating an issue.
-
-Give me 1-2 weeks for a reply. If you did not receive a reply at all, it
-might be a good idea to check your spam filter.
-
-## License
-
-The code is licensed as free and open source software. It is made available to you under the terms of the
-[GNU Affero General Public License (AGPLv3)](http://www.fsf.org/licensing/licenses/agpl-3.0.html).
-
-Refer to
-[Licensing information](https://github.com/thsmi/sieve/blob/master/LICENSING_INFO.md)
-for details about third party licenses included into this project.
-
-## Releases
-
-You are looking for the most recent release?
-
-[They are available by downloading from the Releases page (release notes can also be viewed)](https://github.com/thsmi/sieve/releases).
-
-
-You are just intrerrested how the graphical editor looks like prior installing the app or the webextension? Then head over to the demo page at https://thsmi.github.io/sieve-demo/ it features the Graphical Editor UI running inside a plain browser. But keep in mind this demo is only the graphical editor which can not connect to a sieve backend.
-
-## Continuous Builds
-
-Continuous builds are triggered upon each change to the master. You can find them in the Azure DevOp Pipeline.
-
-| Windows <br> [![Build Status](https://img.shields.io/azure-devops/tests/thsmi/sieve/4) ![Test Status](https://img.shields.io/azure-devops/build/thsmi/sieve/4)](https://dev.azure.com/thsmi/sieve/_build/latest?definitionId=4&branchName=master) | Linux <br> [![Build Status](https://img.shields.io/azure-devops/tests/thsmi/sieve/2) ![Test Status](https://img.shields.io/azure-devops/build/thsmi/sieve/2)](https://dev.azure.com/thsmi/sieve/_build/latest?definitionId=2&branchName=master) | macOS <br> [![Build Status](https://img.shields.io/azure-devops/tests/thsmi/sieve/6) ![Test Status](https://img.shields.io/azure-devops/build/thsmi/sieve/6)](https://dev.azure.com/thsmi/sieve/_build/latest?definitionId=6&branchName=master) | WebExtension <br>[![Build Status](https://img.shields.io/azure-devops/tests/thsmi/sieve/5) ![Test Status](https://img.shields.io/azure-devops/build/thsmi/sieve/5)](https://dev.azure.com/thsmi/sieve/_build/latest?definitionId=5&branchName=master) |
-|---------|-------|-------|--------------|
-
-Click on the test or build status to see more details or to [download nightly build Artifacts](https://github.com/thsmi/sieve/wiki/FAQ---General-Questions#nightly-build-artifacts). The later can be accessed by selecting a build and then clicking on "Published" in the "Related" section.
+The upstream project is [`thsmi/sieve`](https://github.com/thsmi/sieve).
