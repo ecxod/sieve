@@ -32,7 +32,43 @@ h1 {
   opacity: 0.8;
 }
 
+.sentry-options {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.4);
+}
+
+.sentry-options h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.1rem;
+}
+
+#options-sentry-description {
+  margin: 0 0 1rem;
+  opacity: 0.8;
+}
+
+#options-sentry-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+#sieve-option-sentry-dsn {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+#sieve-option-sentry-save {
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+}
+
 #options-status {
   min-height: 1.2rem;
-  margin: 1rem 0 0 1.8rem;
+  margin: 1rem 0 0;
 }

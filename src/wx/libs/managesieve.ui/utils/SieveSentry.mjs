@@ -8,7 +8,8 @@
 
 /* global browser */
 
-const SENTRY_DSN = "https://31d5a82de6c54ff7a8365bd179f394b3@sentry.zp1.net/43";
+const SENTRY_DSN_KEY = "global.sentryDsn";
+const SENTRY_DSN_HOST = "sentry.zp1.net";
 const SENTRY_PROTOCOL_VERSION = "7";
 const MAX_EXTRA_LENGTH = 2000;
 const EVENT_ID_BYTES = 16;
@@ -61,10 +62,12 @@ function normalizeError(value) {
  *
  * @param {*} value
  *   the value to sanitize.
+ * @param {string} [dsn]
+ *   the configured DSN to redact from diagnostic strings.
  * @returns {*}
  *   the sanitized value.
  */
-function sanitize(value) {
+function sanitize(value, dsn = "") {
   if (value === undefined)
     return undefined;
 
@@ -72,15 +75,19 @@ function sanitize(value) {
     return value;
 
   if (typeof value === "string") {
-    return value
-      .replace(SENTRY_DSN, "[sentry-dsn]")
+    let result = value;
+
+    if (dsn)
+      result = result.split(dsn).join("[sentry-dsn]");
+
+    return result
       .replace(/(password|passwd|pwd)=([^&\s]+)/gi, "$1=[redacted]")
       .slice(0, MAX_EXTRA_LENGTH);
   }
 
   if (Array.isArray(value))
     return value.slice(0, MAX_ARRAY_ITEMS).map((item) => {
-      return sanitize(item);
+      return sanitize(item, dsn);
     });
 
   if (typeof value === "object") {
@@ -91,12 +98,86 @@ function sanitize(value) {
         continue;
       }
 
-      result[key] = sanitize(item);
+      result[key] = sanitize(item, dsn);
     }
     return result;
   }
 
   return String(value).slice(0, MAX_EXTRA_LENGTH);
+}
+
+/**
+ * Validates and normalizes a user-provided Sentry DSN.
+ *
+ * The extension deliberately keeps its network permission limited to the
+ * fork's Sentry host. An empty value disables reporting.
+ *
+ * @param {*} value
+ *   the configured DSN.
+ * @returns {string}
+ *   the normalized DSN or an empty string when reporting is disabled.
+ * @throws {Error}
+ *   when the value is not a supported Sentry DSN.
+ */
+function normalizeSentryDsn(value) {
+  const input = typeof value === "string" ? value.trim() : "";
+
+  if (!input)
+    return "";
+
+  let dsn;
+  try {
+    dsn = new URL(input);
+  } catch {
+    throw new Error("Invalid Sentry DSN");
+  }
+
+  const path = dsn.pathname.replace(/^\/+|\/+$/g, "");
+  if (dsn.protocol !== "https:"
+      || dsn.hostname !== SENTRY_DSN_HOST
+      || !dsn.username
+      || dsn.password
+      || !path)
+    throw new Error("Invalid Sentry DSN");
+
+  dsn.hash = "";
+  dsn.search = "";
+  dsn.pathname = `/${path}`;
+  return dsn.toString();
+}
+
+/**
+ * Reads the optional Sentry DSN from extension-local storage.
+ *
+ * @returns {Promise<string>}
+ *   the normalized DSN or an empty string when reporting is disabled.
+ */
+async function getSentryDsn() {
+  try {
+    const values = await browser.storage.local.get(SENTRY_DSN_KEY);
+    return normalizeSentryDsn(values[SENTRY_DSN_KEY]);
+  } catch (ex) {
+    console.error("Could not read the Sentry configuration", ex);
+    return "";
+  }
+}
+
+/**
+ * Builds the legacy Sentry store endpoint from a validated DSN.
+ *
+ * @param {string} value
+ *   the normalized Sentry DSN.
+ * @returns {string}
+ *   the event ingestion endpoint.
+ */
+function getSentryEndpoint(value) {
+  const dsn = new URL(value);
+  const parts = dsn.pathname.split("/").filter(Boolean);
+  const projectId = parts.pop();
+  const prefix = parts.length ? `/${parts.join("/")}` : "";
+
+  return `${dsn.protocol}//${dsn.host}${prefix}/api/${projectId}/store/`
+    + `?sentry_version=${SENTRY_PROTOCOL_VERSION}&sentry_key=${encodeURIComponent(dsn.username)}`;
 }
 
 /**
@@ -160,19 +241,22 @@ function getVersion() {
  *   the Sentry event id, or null when delivery failed.
  */
 async function captureException(value, context = {}) {
+  const sentryDsn = await getSentryDsn();
+  if (!sentryDsn)
+    return null;
+
   const error = normalizeError(value);
   const eventId = createEventId();
-  const dsn = new URL(SENTRY_DSN);
-  const projectId = dsn.pathname.replace(/^\/+|\/+$/g, "");
-  const endpoint = `${dsn.protocol}//${dsn.host}/api/${projectId}/store/`
-    + `?sentry_version=${SENTRY_PROTOCOL_VERSION}&sentry_key=${encodeURIComponent(dsn.username)}`;
+  const endpoint = getSentryEndpoint(sentryDsn);
   const version = getVersion();
   const frames = parseStack(error.stack);
 
   const operation = context.action || context.source || context.stage || "unknown";
   const exception = {
     type: error.name || "Error",
-    value: sanitize(`[${component}:${operation}] ${error.message || String(error)}`)
+    value: sanitize(
+      `[${component}:${operation}] ${error.message || String(error)}`,
+      sentryDsn)
   };
 
   if (frames.length)
@@ -191,7 +275,7 @@ async function captureException(value, context = {}) {
     tags: {
       application: "thunderbird-extension",
       component: component,
-      operation: sanitize(operation)
+      operation: sanitize(operation, sentryDsn)
     },
     contexts: {
       app: {
@@ -200,7 +284,7 @@ async function captureException(value, context = {}) {
       }
     },
     exception: { values: [exception] },
-    extra: sanitize(context)
+    extra: sanitize(context, sentryDsn)
     /* eslint-enable camelcase */
   };
 
@@ -253,4 +337,4 @@ function initSentry(source) {
   });
 }
 
-export { captureException, initSentry };
+export { captureException, initSentry, normalizeSentryDsn };

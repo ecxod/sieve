@@ -28,5 +28,33 @@
 
   "optionsSaved": {
     "message": "Saved"
+  },
+
+  "optionsSentryTitle": {
+    "message": "Error reports (Sentry)"
+  },
+
+  "optionsSentryDescription": {
+    "message": "Optional. No error reports are sent without a DSN. Only HTTPS DSNs on sentry.zp1.net are accepted."
+  },
+
+  "optionsSentryLabel": {
+    "message": "Sentry DSN"
+  },
+
+  "optionsSentrySave": {
+    "message": "Save Sentry setting"
+  },
+
+  "optionsSentryInvalid": {
+    "message": "Enter a valid HTTPS DSN for sentry.zp1.net."
+  },
+
+  "optionsSentryEnabled": {
+    "message": "Sentry error reports enabled"
+  },
+
+  "optionsSentryDisabled": {
+    "message": "Sentry error reports disabled"
   }
 }

@@ -20,32 +20,6 @@ import { captureException, initSentry } from "./libs/managesieve.ui/utils/SieveS
 
 initSentry("background");
 
-/**
- * Sends one diagnostic startup event per XPI version. This distinguishes a
- * report emitted by Thunderbird from a server-side transport smoke test.
- */
-async function reportSentryStartup() {
-  const version = browser.runtime.getManifest().version;
-  const key = `sieve-sentry-startup-${version}`;
-
-  try {
-    const state = await browser.storage.local.get(key);
-    if (state[key])
-      return;
-
-    const eventId = await captureException(
-      new Error(`Sieve XPI ${version} started`),
-      { action: "xpi-startup-verification" });
-
-    if (eventId)
-      await browser.storage.local.set({ [key]: eventId });
-  } catch (ex) {
-    console.error("Could not verify the XPI Sentry transport", ex);
-  }
-}
-
-reportSentryStartup();
-
 (async function () {
 
   const ERROR_UNTRUSTED = 1;

@@ -136,6 +136,12 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   disabled by default; the per-server **Debugging** button is rendered only
   while the checkbox is enabled. The preference is stored locally and does
   not alter server configuration.
+- Version `0.7.1` removes the hard-coded Thunderbird Sentry project DSN and
+  adds an optional DSN field to the standard **Options** page. The field is
+  empty by default, so no error report is transmitted until the user enters
+  and saves a valid HTTPS DSN on `sentry.zp1.net`. Clearing and saving the
+  field disables reporting again. The synthetic per-version startup report is
+  removed; only actual errors are reported after explicit configuration.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -155,15 +161,26 @@ The obsolete `src/TODO.md` file has also been removed.
 
 Versions through `0.6.1.8` used the upstream extension ID. Thunderbird cannot
 change an installed extension's ID during an automatic update. Remove the old
-**Sieve** extension and install `0.7.0` once; subsequent fork releases update
+**Sieve** extension and install `0.7.1` once; subsequent fork releases update
 normally under the new ID. Do not keep both extensions installed at the same
 time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.7.0-cram-md5.xpi`](releases/sieve-0.7.0-cram-md5.xpi).
+[`releases/sieve-0.7.1-cram-md5.xpi`](releases/sieve-0.7.1-cram-md5.xpi).
 
-SHA-256: `ed4577f1281fb99b1913277b9454d287c58874d042d24652dbf92dde743d1599`
+SHA-256: `8d05b6ee981ba45ef8df455d726f934cb00240f8141e8c062190515f7d080f7a`
+
+### Thunderbird permission notice
+
+Thunderbird displays **Have full, unrestricted access to Thunderbird, and
+your computer** because this extension includes Experiment APIs. The
+privileged socket Experiment is required for the raw ManageSieve TCP
+connection and STARTTLS upgrade, which the standard MailExtension APIs do not
+provide. The packaged implementation does not access local files, launch
+processes, or invoke a shell. Its ordinary manifest permissions are limited to
+reading account metadata, managing its tabs and local settings, and reaching
+`https://sentry.zp1.net/` if the user explicitly configures a DSN.
 
 ## Windows installer
 

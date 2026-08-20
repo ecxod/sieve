@@ -20,6 +20,19 @@
     <p id="options-developer-description">
       Zeigt die Debuggen-Schaltfläche in den Einstellungen eines Sieve-Servers an.
     </p>
+
+    <section class="sentry-options" aria-labelledby="options-sentry-title">
+      <h2 id="options-sentry-title">Fehlerberichte (Sentry)</h2>
+      <p id="options-sentry-description">
+        Optional. Ohne DSN werden keine Fehlerberichte übertragen.
+      </p>
+      <label id="options-sentry-label" for="sieve-option-sentry-dsn">Sentry DSN</label>
+      <input type="url" id="sieve-option-sentry-dsn"
+        placeholder="https://public-key@sentry.zp1.net/project-id"
+        autocomplete="off" spellcheck="false">
+      <button type="button" id="sieve-option-sentry-save">Sentry-Einstellung speichern</button>
+    </section>
+
     <p id="options-status" role="status" aria-live="polite"></p>
   </main>
 

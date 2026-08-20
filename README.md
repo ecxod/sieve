@@ -9,9 +9,9 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Thunderbird 0.7.0
+## Thunderbird 0.7.1
 
-Release `0.7.0` is the current Thunderbird extension release. It includes:
+Release `0.7.1` is the current Thunderbird extension release. It includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
   implementation using the current asynchronous STARTTLS API
@@ -23,12 +23,15 @@ Release `0.7.0` is the current Thunderbird extension release. It includes:
   accounts or server-side Sieve scripts
 - a standard Thunderbird **Options** page with **I am a developer**; the
   per-server **Debugging** control stays hidden unless developer mode is enabled
+- optional Sentry error reporting configured by the user on the **Options**
+  page; reporting is disabled while the DSN field is empty, and the extension
+  contains no hard-coded project DSN
 
 Install the current package directly:
 
-[`releases/sieve-0.7.0-cram-md5.xpi`](releases/sieve-0.7.0-cram-md5.xpi)
+[`releases/sieve-0.7.1-cram-md5.xpi`](releases/sieve-0.7.1-cram-md5.xpi)
 
-SHA-256: `ed4577f1281fb99b1913277b9454d287c58874d042d24652dbf92dde743d1599`
+SHA-256: `8d05b6ee981ba45ef8df455d726f934cb00240f8141e8c062190515f7d080f7a`
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing

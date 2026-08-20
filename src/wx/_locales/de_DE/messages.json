@@ -22,5 +22,26 @@
   },
   "optionsSaved": {
     "message": "Gespeichert"
+  },
+  "optionsSentryTitle": {
+    "message": "Fehlerberichte (Sentry)"
+  },
+  "optionsSentryDescription": {
+    "message": "Optional. Ohne DSN werden keine Fehlerberichte übertragen. Zulässig sind ausschließlich HTTPS-DSNs auf sentry.zp1.net."
+  },
+  "optionsSentryLabel": {
+    "message": "Sentry DSN"
+  },
+  "optionsSentrySave": {
+    "message": "Sentry-Einstellung speichern"
+  },
+  "optionsSentryInvalid": {
+    "message": "Bitte eine gültige HTTPS-DSN für sentry.zp1.net eingeben."
+  },
+  "optionsSentryEnabled": {
+    "message": "Sentry-Fehlerberichte aktiviert"
+  },
+  "optionsSentryDisabled": {
+    "message": "Sentry-Fehlerberichte deaktiviert"
   }
 }
