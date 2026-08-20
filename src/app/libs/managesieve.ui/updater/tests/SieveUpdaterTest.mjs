@@ -108,14 +108,14 @@ suite.add("Manifest - Has newer build version", function () {
     "addons": {
       "sieve@mozdev.org": {
         "updates": [
-          { "version": "0.6.1.2" }
+          { "version": "0.6.1.3" }
         ]
       }
     }
   };
 
   suite.assertTrue((new SieveUpdater()).compare(manifest, "0.6.1"));
-  suite.assertFalse((new SieveUpdater()).compare(manifest, "0.6.1.2"));
+  suite.assertFalse((new SieveUpdater()).compare(manifest, "0.6.1.3"));
 });
 
 suite.add("Manifest - Only older versions", function () {

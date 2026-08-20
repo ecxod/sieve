@@ -15,6 +15,9 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   This is the fork's first deliberate editor-behaviour difference from the
   upstream project and prevents multiple open editor tabs from continuously
   starting server-side syntax checks while typing or pasting.
+- Version `0.6.1.3` keeps the syntax error panel hidden when an editor opens.
+  It becomes visible only when the manual syntax check reports an actual
+  error.
 
 Other changes are limited to fork packaging and distribution metadata, updater
 links, and the Thunderbird settings display fix.
@@ -22,13 +25,13 @@ links, and the Thunderbird settings display fix.
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.2-cram-md5.xpi`](releases/sieve-0.6.1.2-cram-md5.xpi).
+[`releases/sieve-0.6.1.3-cram-md5.xpi`](releases/sieve-0.6.1.3-cram-md5.xpi).
 
-SHA-256: `7f9388174268906e4ea8a72e38db82f4eb96c1e4791c3a926b5ff4a503813bae`
+SHA-256: `4ae6cf15b92604437b29dfc8caba351725e03a0d1ea4d3b2a1192bbc19be838c`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.2.exe`](releases/install_sieve_0.6.1.2.exe).
+[`releases/install_sieve_0.6.1.3.exe`](releases/install_sieve_0.6.1.3.exe).
 
-SHA-256: `9b1337dac0f01150325d1c2ebf0ca10ccbd8458607d04c1c3d866387d9d0f64e`
+SHA-256: `e1e212f364fc3f4992114cefe85594e68e82ba872f5213c828307572adc44ac9`
