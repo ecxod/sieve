@@ -18,7 +18,8 @@ async function main() {
   const themePreference = await SieveIpcClient.sendMessage("core", "settings-get-theme");
   SieveTheme.init(themePreference);
 
-  await SieveI18n.getInstance().load();
+  await SieveI18n.getInstance().load(
+    "default", "./libs/managesieve.ui/i18n/");
   document.title = SieveI18n.getInstance().getString("account.settings");
 
   document.querySelector(".siv-settings").append(
@@ -57,7 +58,26 @@ async function main() {
     });
 }
 
+/**
+ * Shows initialization errors instead of leaving an empty settings page.
+ *
+ * @param {Error|string} error
+ *   the settings initialization error
+ */
+function showInitializationError(error) {
+  console.error(error);
+
+  const alert = document.createElement("div");
+  alert.className = "alert alert-danger mt-4";
+  alert.setAttribute("role", "alert");
+  alert.textContent = `Settings could not be loaded: ${error?.message || error}`;
+
+  document.querySelector(".siv-settings").replaceChildren(alert);
+}
+
 if (document.readyState !== 'loading')
-  main();
+  main().catch(showInitializationError);
 else
-  document.addEventListener('DOMContentLoaded', () => { main(); }, { once: true });
+  document.addEventListener('DOMContentLoaded', () => {
+    main().catch(showInitializationError);
+  }, { once: true });

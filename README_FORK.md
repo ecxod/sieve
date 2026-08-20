@@ -50,6 +50,9 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Version `0.6.1.7` removes the separate account-collapse button: the server-name
   tab now expands and collapses the card. Connecting or disconnecting selects
   the server's script tab, and **New script** is visible only while connected.
+- Version `0.6.1.8` fixes the global **Settings** tab so its appearance and
+  Sentry controls are rendered instead of an empty page. Initialization errors
+  are shown visibly instead of leaving the settings view blank.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -66,13 +69,13 @@ The obsolete `src/TODO.md` file has also been removed.
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.7-cram-md5.xpi`](releases/sieve-0.6.1.7-cram-md5.xpi).
+[`releases/sieve-0.6.1.8-cram-md5.xpi`](releases/sieve-0.6.1.8-cram-md5.xpi).
 
-SHA-256: `273df2fb0a2418bc3d1d27505160dfd6484f8679e5fbd6510b7a826fc697d150`
+SHA-256: `b1a11fa7db677bcc49207b5cd95ff742f36a3d747746d85f15e5644cf585cca5`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.7.exe`](releases/install_sieve_0.6.1.7.exe).
+[`releases/install_sieve_0.6.1.8.exe`](releases/install_sieve_0.6.1.8.exe).
 
-SHA-256: `7d2bb72752f769f4c7f6af6c24e9cbcf81692794f9fa1576131f190b4851c83d`
+SHA-256: `2c3e5f0513177dcbd365b49c7f47d92128e7e45ee5b7884cd7b124ae62a4bd32`
