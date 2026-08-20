@@ -37,14 +37,15 @@ class SieveElectronAuthentication extends SieveAbstractAuthentication {
    *
    */
   async setUsername(username) {
-    await this.account.getConfig().setString(KEY_USERNAME, username);
+    await this.account.getConfig().setString(KEY_USERNAME, `${username}`.trim());
   }
 
   /**
    * @inheritdoc
    */
   async getUsername() {
-    return await this.account.getConfig().getString(KEY_USERNAME);
+    const username = await this.account.getConfig().getString(KEY_USERNAME, "");
+    return username.trim();
   }
 
   /**

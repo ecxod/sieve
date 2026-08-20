@@ -52,7 +52,7 @@ class SieveServerSettingsUI {
    */
   getDisplayName() {
     return this.getDialog()
-      .querySelector(".sieve-settings-displayname").value;
+      .querySelector(".sieve-settings-displayname").value.trim();
   }
 
   /**
@@ -78,7 +78,7 @@ class SieveServerSettingsUI {
    */
   getHostname() {
     return this.getDialog()
-      .querySelector(".sieve-settings-hostname").value;
+      .querySelector(".sieve-settings-hostname").value.trim();
   }
 
   /**
@@ -104,7 +104,7 @@ class SieveServerSettingsUI {
    */
   getPort() {
     return this.getDialog()
-      .querySelector(".sieve-settings-port").value;
+      .querySelector(".sieve-settings-port").value.trim();
   }
 
   /**
@@ -131,7 +131,7 @@ class SieveServerSettingsUI {
    */
   getFingerprint() {
     return this.getDialog()
-      .querySelector(".sieve-settings-fingerprint").value;
+      .querySelector(".sieve-settings-fingerprint").value.trim();
   }
 
 
@@ -160,7 +160,7 @@ class SieveServerSettingsUI {
    */
   getKeepAlive() {
     const interval = this.getDialog()
-      .querySelector(".sieve-settings-keepalive-interval").value;
+      .querySelector(".sieve-settings-keepalive-interval").value.trim();
 
     return interval * ONE_MINUTE;
   }

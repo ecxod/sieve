@@ -210,6 +210,10 @@ class SieveTabUI {
     document
       .querySelector("#tabs-content > #accounts")
       .src = "./libs/managesieve.ui/accounts.html";
+
+    document
+      .querySelector("#tabs-content > #settings")
+      .src = "./settings.html";
   }
 
   /**

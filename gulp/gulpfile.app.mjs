@@ -54,7 +54,7 @@ const PERMISSIONS_NORMAL = 0o100660;
 
 
 /**
- * Copies and updates the package.json inside the build directory.
+ * Copies the package definition and lock file into the build directory.
  * It is typically used by other tools like the electron-packager.
  *
  * @returns {Stream}
@@ -65,8 +65,20 @@ function packageDefinition() {
   const BASE_PATH = ".";
 
   return gulp.src([
-    BASE_PATH + "/package.json"
+    BASE_PATH + "/package.json",
+    BASE_PATH + "/package-lock.json"
   ], { base: BASE_PATH }).pipe(gulp.dest(BUILD_DIR_APP));
+}
+
+/**
+ * Installs only locked production dependencies into the packaged app.
+ */
+async function packageDependencies() {
+  await promisify(exec)(
+    "npm ci --omit=dev --ignore-scripts --no-audit --no-fund",
+    { cwd: BUILD_DIR_APP });
+
+  await unlink(path.join(BUILD_DIR_APP, "package-lock.json"));
 }
 
 /**
@@ -415,6 +427,7 @@ export default {
   updateVersion: updateVersion,
 
   packageDefinition: packageDefinition,
+  packageDependencies: packageDependencies,
   packageCodeMirror: packageCodeMirror,
   packageBootstrap: packageBootstrap,
   packageLicense: packageLicense,
@@ -439,6 +452,7 @@ export default {
 
   packageApp: gulp.series(
     packageDefinition,
+    packageDependencies,
     gulp.parallel(
       packageLicense,
       packageIcons,

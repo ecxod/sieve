@@ -17,23 +17,29 @@
 <body>
   <div id="ctx">
 
-    <nav id="tabs-container" class="navbar navbar-expand-md navbar-dark static-top">
+    <nav id="tabs-container" class="navbar navbar-expand-md navbar-dark static-top nav nav-tabs" role="tablist">
 
 
         <div id="tabs-scroll-left" class="navbar-text">◁</div>
         <div id="tabs-scroll-box">
-          <ul id="tabs-items" class="nav nav-tabs list" role="tablist">
+          <ul id="tabs-items" class="list">
             <li id="accounts-tab" class="nav-item">
               <a class="nav-link active" data-bs-toggle="tab" href="#accounts" role="tab">Home</a>
             </li>
           </ul>
         </div>
         <div id="tabs-scroll-right" class="navbar-text">▷</div>
+        <div id="settings-tab" class="nav-item">
+          <a id="settings-tab-link" class="nav-link" data-bs-toggle="tab" href="#settings" role="tab">
+            ⚙ <span id="settings-tab-label">Settings</span>
+          </a>
+        </div>
 
     </nav>
 
     <div class="tab-content" id="tabs-content">
       <iframe id="accounts" class="tab-pane fade show active" role="tabpanel" src="about:blank"></iframe>
+      <iframe id="settings" class="tab-pane fade" role="tabpanel" src="about:blank"></iframe>
     </div>
 
     <footer id="sieve-fork-info" class="small text-body-secondary text-center py-1">

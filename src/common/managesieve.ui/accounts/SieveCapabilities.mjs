@@ -11,6 +11,7 @@
 
 /* global bootstrap */
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { SieveI18n } from "./../utils/SieveI18n.mjs";
 
 /**
  * Implements a dialog which displays the accounts capabilities.
@@ -32,12 +33,17 @@ class SieveCapabilities {
       = capabilities.implementation;
     document.querySelector("#sieve-capabilities-version").textContent
       = capabilities.version;
+    const sasl = Object.values(capabilities.sasl || {});
     document.querySelector("#sieve-capabilities-sasl").textContent
-      = Object.values(capabilities.sasl).join(" ");
+      = sasl.length ? sasl.join(" ") : "—";
     document.querySelector("#sieve-capabilities-extensions").textContent
       = Object.keys(capabilities.extensions).join(" ");
+    let language = capabilities.language || "i-default";
+    if (language === "i-default")
+      language = SieveI18n.getInstance().getString("account.capabilities.language.default");
+
     document.querySelector("#sieve-capabilities-language").textContent
-      = capabilities.language;
+      = language;
 
     await new Promise((resolve) => {
 

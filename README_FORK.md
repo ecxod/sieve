@@ -27,6 +27,23 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Server cards on **Home** can be reduced to their server name with the arrow
   button. This state is stored per server; a collapsed server does not load its
   script list until it is expanded.
+- Version `0.6.1.5` keeps the server name visible when a server card is
+  collapsed and moves the global appearance setting to a fixed **Settings**
+  tab on the right side of the main tab bar. Server capabilities can now also
+  be opened while disconnected: the app connects temporarily, reads the
+  capabilities, and disconnects again. SASL mechanisms learned during the
+  connection handshake remain visible if a later capability response omits
+  them, and `i-default` is identified as the server's default response
+  language. A connected server offers only **Disconnect**, while a disconnected
+  server offers only **Connect**; duplicate connection attempts are blocked.
+  The delete button is disabled for the active script, and its delete handler
+  and backend refuse the operation as an additional safeguard. Textual account
+  settings and script names are trimmed before use and persistence; passwords
+  and script contents remain unchanged.
+- No Sentry project is built into the fork. The global **Settings** tab accepts
+  an optional user-owned Sentry DSN for error reporting. An empty DSN keeps
+  tracking disabled, which is the default, and the SDK is configured not to
+  send default personally identifiable information or performance traces.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -38,17 +55,18 @@ the development-only `tools` collection, obsolete editor and service
 configuration, and stale upstream planning and governance documents. The
 `gulp` directory remains because it contains the active build, packaging, and
 test tasks for the Windows application, Thunderbird extension, and shared code.
+The obsolete `src/TODO.md` file has also been removed.
 
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.4-cram-md5.xpi`](releases/sieve-0.6.1.4-cram-md5.xpi).
+[`releases/sieve-0.6.1.5-cram-md5.xpi`](releases/sieve-0.6.1.5-cram-md5.xpi).
 
-SHA-256: `9ea7daa7f3fe8525ffb13db6764c9a9a4b570b4cebc8a1e626cb7f4f41f27fb1`
+SHA-256: `99ececfe078eacdb45142289269553d619257bf9ca8813947938e6081cd7ad9b`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.4.exe`](releases/install_sieve_0.6.1.4.exe).
+[`releases/install_sieve_0.6.1.5.exe`](releases/install_sieve_0.6.1.5.exe).
 
-SHA-256: `8fffc520c45972f71b164bf548532dff68610573da1aa6427a34b99ccc3b6638`
+SHA-256: `ea91a3e29ce4c6f3dc650f2202dbbe403379ba35e44f05e97e1fc3987e5a78a9`

@@ -97,8 +97,11 @@ class SieveAbstractAccountUI {
    * Establishes a connection to the server
    */
   async connect() {
+    if (await this.isConnected() || await this.isConnecting())
+      return;
 
-    this.onRenderConnecting();
+    this.setConnectionActions(false, true);
+    await this.onRenderConnecting();
 
     await this.send("account-connect");
     await this.render();
@@ -108,8 +111,11 @@ class SieveAbstractAccountUI {
    * Disconnects the account from the server.
    */
   async disconnect() {
+    if (await this.isConnected() === false)
+      return;
 
-    this.onRenderDisconnecting();
+    this.setConnectionActions(false, true);
+    await this.onRenderDisconnecting();
     await this.send("account-disconnect");
     await this.render();
   }
@@ -259,6 +265,25 @@ class SieveAbstractAccountUI {
   }
 
   /**
+   * Shows only the connection action which is valid for the current state.
+   *
+   * @param {boolean} connected
+   *   true when the account is connected
+   * @param {boolean} [connecting]
+   *   true while a connection or disconnection is in progress
+   */
+  setConnectionActions(connected, connecting) {
+    const elm = document.querySelector(`#siv-account-${this.id}`);
+    if (!elm)
+      return;
+
+    elm.querySelector(".sieve-account-reconnect-server")
+      .classList.toggle("d-none", connected || connecting);
+    elm.querySelector(".sieve-account-disconnect-server")
+      .classList.toggle("d-none", !connected || connecting);
+  }
+
+  /**
    * Called when the account's connected view should be rendered.
    * It displays the a list with sieve scripts as well as the account settings.
    */
@@ -355,15 +380,19 @@ class SieveAbstractAccountUI {
       await this.renderAccount();
     }
 
+    const connecting = await this.isConnecting();
+    const connected = !connecting && await this.isConnected();
+    this.setConnectionActions(connected, connecting);
+
     if (document.querySelector(`#siv-account-${this.id}`).dataset.collapsed === "true")
       return;
 
-    if (await this.isConnecting()) {
+    if (connecting) {
       await this.onRenderConnecting();
       return;
     }
 
-    if (await this.isConnected()) {
+    if (connected) {
       await this.onRenderConnected();
       return;
     }
@@ -392,11 +421,33 @@ class SieveAbstractAccountUI {
    *   a self reference.
    */
   async showCapabilities() {
+    const temporaryConnection = await this.isConnected() === false;
 
-    if (await this.isConnected() === false)
+    if (temporaryConnection && await this.isConnecting())
       return this;
 
-    const capabilities = await this.send("account-capabilities");
+    if (temporaryConnection) {
+      this.setConnectionActions(false, true);
+      await this.onRenderConnecting();
+      await this.send("account-connect");
+
+      if (await this.isConnected() === false) {
+        await this.render();
+        return this;
+      }
+    }
+
+    let capabilities;
+
+    try {
+      capabilities = await this.send("account-capabilities");
+    } finally {
+      if (temporaryConnection && await this.isConnected()) {
+        await this.send("account-disconnect");
+        await this.render();
+      }
+    }
+
     await (new SieveCapabilities()).show(capabilities);
 
     return this;

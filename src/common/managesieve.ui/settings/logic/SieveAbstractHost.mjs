@@ -98,6 +98,7 @@ class SieveCustomHost extends SieveAbstractHost {
    *   a self reference
    */
   async setPort(port) {
+    port = `${port}`.trim();
     port = Number.parseInt(port, 10);
 
     if (Number.isNaN(port))

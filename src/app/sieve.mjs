@@ -11,6 +11,7 @@
 
 import path from 'path';
 import url from 'url';
+import SieveSentry from './sentry.cjs';
 
 import {
   app,
@@ -130,6 +131,14 @@ async function main() {
 
   ipcMain.handle("get-version", async() => {
     return await app.getVersion();
+  });
+
+  ipcMain.handle("sentry-get-dsn", () => {
+    return SieveSentry.getDsn();
+  });
+
+  ipcMain.handle("sentry-set-dsn", (event, dsn) => {
+    return SieveSentry.setDsn(dsn);
   });
 
   ipcMain.handle("open-developer-tools", () => {

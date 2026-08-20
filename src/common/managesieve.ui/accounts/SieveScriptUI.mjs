@@ -89,11 +89,13 @@ class SieveScriptUI {
       elm.querySelector(".sieve-list-script-active").classList.add("d-none");
       elm.querySelector(".sieve-script-activate").classList.remove("d-none");
       elm.querySelector(".sieve-script-deactivate").classList.add("d-none");
+      elm.querySelector(".sieve-script-delete").disabled = false;
     }
     else {
       elm.querySelector(".sieve-list-script-active").classList.remove("d-none");
       elm.querySelector(".sieve-script-activate").classList.add("d-none");
       elm.querySelector(".sieve-script-deactivate").classList.remove("d-none");
+      elm.querySelector(".sieve-script-delete").disabled = true;
     }
   }
 
@@ -113,6 +115,9 @@ class SieveScriptUI {
    * A verification prompt will be shown before the script is deleted
    */
   async remove() {
+    if (this.isActive)
+      return;
+
     const rv = await this.account.send("script-delete", this.name);
     if (rv === true)
       await this.account.render();

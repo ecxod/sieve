@@ -95,7 +95,13 @@ class SieveCustomAuthorization extends SieveAbstractAuthorization {
    * @inheritdoc
    **/
   async getAuthorization() {
-    return await this.account.getConfig().getString(CONFIG_AUTHORIZATION_USERNAME, null);
+    const authorization = await this.account.getConfig()
+      .getString(CONFIG_AUTHORIZATION_USERNAME, null);
+
+    if (authorization === null)
+      return null;
+
+    return authorization.trim();
   }
 
   /**
@@ -109,7 +115,8 @@ class SieveCustomAuthorization extends SieveAbstractAuthorization {
     if (typeof (authorization) === "undefined" || (authorization === null))
       throw new Error("Authorization can't be undefined");
 
-    await this.account.getConfig().setString(CONFIG_AUTHORIZATION_USERNAME, authorization);
+    await this.account.getConfig().setString(
+      CONFIG_AUTHORIZATION_USERNAME, `${authorization}`.trim());
   }
 }
 

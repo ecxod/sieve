@@ -29,14 +29,14 @@ class SieveMozHost extends SieveCustomHost {
    * @inheritdoc
    */
   async getDisplayName() {
-    return await browser.sieve.accounts.getPrettyName(this.account.getId());
+    return (await browser.sieve.accounts.getPrettyName(this.account.getId())).trim();
   }
 
   /**
    * @inheritdoc
    */
   async getHostname() {
-    return await browser.sieve.accounts.getHostname(this.account.getId());
+    return (await browser.sieve.accounts.getHostname(this.account.getId())).trim();
   }
 
   /**

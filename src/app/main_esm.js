@@ -9,6 +9,14 @@
  *   Thomas Schmid <schmid-thomas@gmx.net>
  */
 
+try {
+  require('./sentry.cjs').init();
+} catch (ex) {
+  // Error tracking is optional and must never prevent the app from starting.
+  // eslint-disable-next-line no-console
+  console.log(ex);
+}
+
 (async () => {
   try {
     await (await import('./sieve.mjs')).main();

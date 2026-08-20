@@ -26,7 +26,7 @@ class SieveElectronHost extends SieveCustomHost {
    * @inheritdoc
    **/
   async getHostname() {
-    return await this.account.getConfig().getString("hostname", "");
+    return (await this.account.getConfig().getString("hostname", "")).trim();
   }
 
   /**
@@ -39,7 +39,7 @@ class SieveElectronHost extends SieveCustomHost {
    *   a self reference
    */
   async setHostname(hostname) {
-    await this.account.getConfig().setString("hostname", hostname);
+    await this.account.getConfig().setString("hostname", `${hostname}`.trim());
     return this;
   }
 
@@ -47,7 +47,8 @@ class SieveElectronHost extends SieveCustomHost {
    * @inheritdoc
    **/
   async getDisplayName() {
-    return await this.account.getConfig().getString("host.displayName", "Unnamed Account");
+    return (await this.account.getConfig()
+      .getString("host.displayName", "Unnamed Account")).trim();
   }
 
   /**
@@ -58,7 +59,7 @@ class SieveElectronHost extends SieveCustomHost {
    *   a self reference
    */
   async setDisplayName(value) {
-    await this.account.getConfig().setString("host.displayName", value);
+    await this.account.getConfig().setString("host.displayName", `${value}`.trim());
     return this;
   }
 
@@ -98,7 +99,7 @@ class SieveElectronHost extends SieveCustomHost {
    *   the accounts fingerprint or an empty string in case no fingerprint is stored.
    **/
   async getFingerprint() {
-    return await this.account.getConfig().getString("host.fingerprint", "");
+    return (await this.account.getConfig().getString("host.fingerprint", "")).trim();
   }
 
   /**
@@ -110,7 +111,7 @@ class SieveElectronHost extends SieveCustomHost {
    *   a self reference
    */
   async setFingerprint(value) {
-    await this.account.getConfig().setString("host.fingerprint", value);
+    await this.account.getConfig().setString("host.fingerprint", `${value}`.trim());
     return this;
   }
 

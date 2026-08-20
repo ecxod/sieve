@@ -39,10 +39,10 @@ class SieveAccountCreateUI {
         .addEventListener("click", async () => {
 
           const account = {
-            name: dialog.querySelector(".sieve-create-account-displayname").value,
-            hostname: dialog.querySelector(".sieve-create-account-hostname").value,
-            port: dialog.querySelector(".sieve-create-account-port").value,
-            username: dialog.querySelector(".sieve-create-account-username").value
+            name: dialog.querySelector(".sieve-create-account-displayname").value.trim(),
+            hostname: dialog.querySelector(".sieve-create-account-hostname").value.trim(),
+            port: dialog.querySelector(".sieve-create-account-port").value.trim(),
+            username: dialog.querySelector(".sieve-create-account-username").value.trim()
           };
 
           // fix me remove modal2 from dom.

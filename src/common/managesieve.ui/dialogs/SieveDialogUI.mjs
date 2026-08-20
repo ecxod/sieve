@@ -312,7 +312,7 @@ class SieveCreateScriptDialog extends SieveDialog {
    * @inheritdoc
    */
   onAccept() {
-    return this.getDialog().querySelector('.sieve-create-dialog-name').value;
+    return this.getDialog().querySelector('.sieve-create-dialog-name').value.trim();
   }
 
   /**
@@ -373,7 +373,7 @@ class SieveRenameScriptDialog extends SieveDialog {
    */
   onAccept() {
     return this.getDialog()
-      .querySelector(".sieve-rename-dialog-newname").value;
+      .querySelector(".sieve-rename-dialog-newname").value.trim();
   }
 
   /**
@@ -519,7 +519,7 @@ class SieveAuthorizationDialog extends SieveDialog {
    * @inheritdoc
    */
   onAccept() {
-    return this.getDialog().querySelector(".sieve-authorization").value;
+    return this.getDialog().querySelector(".sieve-authorization").value.trim();
   }
 
   /**

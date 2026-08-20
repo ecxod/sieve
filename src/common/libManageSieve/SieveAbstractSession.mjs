@@ -864,7 +864,14 @@ class SieveAbstractSession {
    *   an object with the capabilities.
    */
   async capabilities() {
-    return (await this.sendRequest(new SieveCapabilitiesRequest())).getDetails();
+    const details = (await this.sendRequest(new SieveCapabilitiesRequest())).getDetails();
+
+    // Some servers omit SASL after authentication. The mechanisms advertised
+    // during the connection handshake are still part of this session.
+    if (!details.sasl.length)
+      details.sasl = this.getCompatibility().getSaslMechanisms();
+
+    return details;
   }
 
   /**

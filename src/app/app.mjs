@@ -14,6 +14,12 @@ const DEFAULT_AUTHORIZATION = 3;
 const FIRST_ELEMENT = 0;
 
 const { ipcRenderer, shell, clipboard } = require('electron');
+const { init: initSentry } = require('@sentry/electron/renderer');
+
+initSentry({
+  sendDefaultPii: false,
+  tracesSampleRate: 0
+});
 
 // Import the node modules into our global namespace...
 import { SieveLogger } from "./libs/managesieve.ui/utils/SieveLogger.mjs";
@@ -161,6 +167,14 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
     "settings-set-theme": async function (msg) {
       await accounts.setTheme(msg.payload.theme);
       SieveTheme.broadcast(window, msg.payload.theme);
+    },
+
+    "settings-get-sentry-dsn": async function () {
+      return await ipcRenderer.invoke("sentry-get-dsn");
+    },
+
+    "settings-set-sentry-dsn": async function (msg) {
+      return await ipcRenderer.invoke("sentry-set-dsn", msg.payload.dsn);
     },
 
     "account-settings-get-collapsed": async function (msg) {
@@ -382,6 +396,12 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
       const accountId = msg.payload.account;
 
+      if (sessions.has(accountId)) {
+        const session = sessions.get(accountId);
+        if (session.isConnected() || session.isConnecting())
+          return;
+      }
+
       const account = await accounts.getAccountById(accountId);
       await sessions.create(accountId, account);
 
@@ -425,9 +445,10 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
       logger.logAction(`Create script for ${account}`);
 
-      const name = await SieveIpcClient.sendMessage("accounts", "script-show-create", account);
+      const name = (await SieveIpcClient.sendMessage(
+        "accounts", "script-show-create", account)).trim();
 
-      if (name.trim() !== "")
+      if (name !== "")
         await sessions.get(account).putScript(name, "#test\r\n");
 
       return name;
@@ -444,7 +465,8 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
         return false;
       }
 
-      const newName = await SieveIpcClient.sendMessage("accounts", "script-show-rename", oldName);
+      const newName = (await SieveIpcClient.sendMessage(
+        "accounts", "script-show-rename", oldName)).trim();
 
       if (newName === oldName)
         return false;
@@ -458,6 +480,10 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
       const name = msg.payload.data;
 
       logger.logAction(`Delete Script ${name} for account: ${account}`);
+
+      if ((await sessions.get(account).listScripts())
+        .some((script) => { return script.script === name && script.active; }))
+        return false;
 
       if ((new SieveTabUI()).has(account, name)) {
         await SieveIpcClient.sendMessage("accounts", "script-show-busy", name);
@@ -663,6 +689,9 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
    */
   async function main() {
     SieveTheme.init(await accounts.getTheme());
+
+    document.querySelector("#settings-tab-label").textContent
+      = SieveI18n.getInstance().getString("account.settings");
 
     document.querySelector("#sieve-fork-version").textContent
       = await ipcRenderer.invoke("get-version");

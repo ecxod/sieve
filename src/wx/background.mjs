@@ -212,6 +212,15 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
 
       logger.logAction(`Connect ${id}`);
 
+      if (sessions.has(id)) {
+        const session = sessions.get(id);
+        if (session.isConnected() || session.isConnecting())
+          return;
+
+        await session.disconnect(id);
+        sessions.delete(id);
+      }
+
       const host = await account.getHost();
       const security = await account.getSecurity();
       const settings = await account.getSettings();
@@ -245,9 +254,6 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
         // We do not support authorization in the web extension
         return "";
       };
-
-      if (sessions.has(id))
-        throw new Error("Id already in use");
 
       sessions.set(id,
         new SieveSession(id, options));
@@ -332,9 +338,10 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
 
       logger.logAction(`Create script for ${account}`);
 
-      const name = await SieveIpcClient.sendMessage("accounts", "script-show-create", account);
+      const name = (await SieveIpcClient.sendMessage(
+        "accounts", "script-show-create", account)).trim();
 
-      if (name.trim() !== "")
+      if (name !== "")
         await sessions.get(account).putScript(name, "#test\r\n");
 
       return name;
@@ -351,7 +358,8 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
         return false;
       }
 
-      const newName = await SieveIpcClient.sendMessage("accounts", "script-show-rename", oldName);
+      const newName = (await SieveIpcClient.sendMessage(
+        "accounts", "script-show-rename", oldName)).trim();
 
       if (newName === oldName)
         return false;
@@ -365,6 +373,10 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
       const name = msg.payload.data;
 
       logger.logAction(`Delete Script ${name} for account: ${account}`);
+
+      if ((await sessions.get(account).listScripts())
+        .some((script) => { return script.script === name && script.active; }))
+        return false;
 
       if ((await getTabs(account, name)).length) {
         await SieveIpcClient.sendMessage("accounts", "script-show-busy", name);

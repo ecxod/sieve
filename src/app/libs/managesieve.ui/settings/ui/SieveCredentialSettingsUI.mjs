@@ -94,7 +94,7 @@ class SieveCredentialsSettingsUI {
    */
   getAuthentication() {
     return this.getDialog()
-      .querySelector(".sieve-settings-username").value;
+      .querySelector(".sieve-settings-username").value.trim();
   }
 
   /**
@@ -166,7 +166,7 @@ class SieveCredentialsSettingsUI {
    */
   getAuthorization() {
     return this.getDialog()
-      .querySelector(".sieve-settings-text-authorization-username").value;
+      .querySelector(".sieve-settings-text-authorization-username").value.trim();
   }
 
   /**

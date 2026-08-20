@@ -29,9 +29,8 @@ class SieveMozAuthentication extends SieveAbstractAuthentication {
    * @inheritdoc
    */
   async getUsername() {
-    return await browser.sieve.accounts.getUsername(this.account.getId());
+    return (await browser.sieve.accounts.getUsername(this.account.getId())).trim();
   }
 }
 
 export { SieveMozAuthentication as SieveAuthentication };
-
