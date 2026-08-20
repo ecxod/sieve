@@ -24,9 +24,9 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - The Windows application now offers **System**, **Light**, and **Dark** under
   **Settings → Appearance**. The selected theme is persisted and is applied to
   the application, all open tabs, and CodeMirror syntax highlighting.
-- Server cards on **Home** can be reduced to their server name with the arrow
-  button. This state is stored per server; a collapsed server does not load its
-  script list until it is expanded.
+- Server cards on **Home** can be reduced to their server name by clicking the
+  server-name tab. This state is stored per server; a collapsed server does not
+  load its script list until it is expanded.
 - Version `0.6.1.5` keeps the server name visible when a server card is
   collapsed and moves the global appearance setting to a fixed **Settings**
   tab on the right side of the main tab bar. Server capabilities can now also
@@ -47,6 +47,9 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Version `0.6.1.6` makes a collapsed server's name an additional expand
   control and explicitly handles the fixed global **Settings** tab so its
   appearance and Sentry options reliably open when clicked.
+- Version `0.6.1.7` removes the separate account-collapse button: the server-name
+  tab now expands and collapses the card. Connecting or disconnecting selects
+  the server's script tab, and **New script** is visible only while connected.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -63,13 +66,13 @@ The obsolete `src/TODO.md` file has also been removed.
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.6-cram-md5.xpi`](releases/sieve-0.6.1.6-cram-md5.xpi).
+[`releases/sieve-0.6.1.7-cram-md5.xpi`](releases/sieve-0.6.1.7-cram-md5.xpi).
 
-SHA-256: `d2ad30c0813bd193e2d9f57527beb53bd6e9ef7b2bea8070b6df5ceb8560f350`
+SHA-256: `273df2fb0a2418bc3d1d27505160dfd6484f8679e5fbd6510b7a826fc697d150`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.6.exe`](releases/install_sieve_0.6.1.6.exe).
+[`releases/install_sieve_0.6.1.7.exe`](releases/install_sieve_0.6.1.7.exe).
 
-SHA-256: `1a07ab167048797d50b6f202b12782cb7385f59e0639aa635840e044779d3ae5`
+SHA-256: `7d2bb72752f769f4c7f6af6c24e9cbcf81692794f9fa1576131f190b4851c83d`

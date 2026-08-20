@@ -100,6 +100,7 @@ class SieveAbstractAccountUI {
     if (await this.isConnected() || await this.isConnecting())
       return;
 
+    await this.showScripts();
     this.setConnectionActions(false, true);
     await this.onRenderConnecting();
 
@@ -114,6 +115,7 @@ class SieveAbstractAccountUI {
     if (await this.isConnected() === false)
       return;
 
+    await this.showScripts();
     this.setConnectionActions(false, true);
     await this.onRenderDisconnecting();
     await this.send("account-disconnect");
@@ -203,25 +205,17 @@ class SieveAbstractAccountUI {
     document.querySelector(".siv-accounts-items").append(elm);
 
     elm
-      .querySelector(".sieve-account-collapse")
-      .addEventListener("click", async () => {
+      .querySelector(".sieve-accounts-tab")
+      .addEventListener("click", async (event) => {
+        event.preventDefault();
+
         const collapsed = elm.dataset.collapsed !== "true";
+        (bootstrap.Tab.getOrCreateInstance(event.currentTarget)).show();
         this.setCollapsed(elm, collapsed);
         await this.send("account-settings-set-collapsed", { collapsed: collapsed });
 
         if (!collapsed)
           await this.render();
-      });
-
-    elm
-      .querySelector(".sieve-accounts-tab")
-      .addEventListener("click", async () => {
-        if (elm.dataset.collapsed !== "true")
-          return;
-
-        this.setCollapsed(elm, false);
-        await this.send("account-settings-set-collapsed", { collapsed: false });
-        await this.render();
       });
 
     elm
@@ -247,7 +241,7 @@ class SieveAbstractAccountUI {
    * @param {HTMLElement} elm
    *   the account card template
    * @param {boolean} collapsed
-   *   true to show only the server name and expand button
+   *   true to show only the server name
    */
   setCollapsed(elm, collapsed) {
     collapsed = !!collapsed;
@@ -259,10 +253,9 @@ class SieveAbstractAccountUI {
     elm.querySelector(".sieve-account-body")
       .classList.toggle("d-none", collapsed);
 
-    const button = elm.querySelector(".sieve-account-collapse");
-    button.textContent = collapsed ? "▸" : "▾";
-    button.setAttribute("aria-expanded", `${!collapsed}`);
-    button.title = collapsed ? "Expand server" : "Collapse server";
+    const accountTab = elm.querySelector(".sieve-accounts-tab");
+    accountTab.setAttribute("aria-expanded", `${!collapsed}`);
+    accountTab.title = collapsed ? "Expand server" : "Collapse server";
 
     const card = elm.querySelector(".sieve-account-card");
     card.classList.toggle("mt-4", !collapsed);
@@ -292,6 +285,24 @@ class SieveAbstractAccountUI {
       .classList.toggle("d-none", connected || connecting);
     elm.querySelector(".sieve-account-disconnect-server")
       .classList.toggle("d-none", !connected || connecting);
+    elm.querySelector(".siv-account-create")
+      .classList.toggle("d-none", !connected || connecting);
+  }
+
+  /**
+   * Expands the account and selects the scripts tab.
+   */
+  async showScripts() {
+    const elm = document.querySelector(`#siv-account-${this.id}`);
+    if (!elm)
+      return;
+
+    if (elm.dataset.collapsed === "true") {
+      this.setCollapsed(elm, false);
+      await this.send("account-settings-set-collapsed", { collapsed: false });
+    }
+
+    bootstrap.Tab.getOrCreateInstance(elm.querySelector(".sieve-accounts-tab")).show();
   }
 
   /**
