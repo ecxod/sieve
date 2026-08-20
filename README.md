@@ -36,13 +36,7 @@ Status and future development plans are described in the [Roadmap](https://githu
 Project statistics are available at
 [Open Hub](https://www.openhub.net/p/thsmi-sieve).
 
-A big thank you to everyone who has [contributed and supported](CONTRIBUTORS.md) the project.
-
-If you want to support the project consider donating
-
-* code, patches or localizations
-* via Paypal [![PayPayl donate button](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://paypal.me/thsmi "Donate to this project using Paypal")
-* via Bitcoin [1GEnrRVobFYuqYj2opdvRQNtG3Z8znvfKw](bitcoin:1GEnrRVobFYuqYj2opdvRQNtG3Z8znvfKw?label=Donation%20for%20Sieve%20Addon)
+A big thank you to everyone who has [contributed](CONTRIBUTORS.md) to the project.
 
 ## FAQ, Bugs and Contributing
 

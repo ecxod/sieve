@@ -12,6 +12,7 @@
 /* global CodeMirror */
 
 import { SieveTemplate } from "./../../utils/SieveTemplate.mjs";
+import { SieveTheme } from "./../../utils/SieveTheme.mjs";
 import { SieveAbstractEditorUI } from "./../SieveAbstractEditor.mjs";
 
 const EDITOR_SCROLL_INTO_VIEW_OFFSET = 200;
@@ -42,6 +43,11 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     this.activeLine = null;
 
     this.changed = false;
+
+    window.addEventListener("sieve-theme-changed", () => {
+      if (this.cm)
+        this.cm.setOption("theme", SieveTheme.getCodeMirrorTheme());
+    });
   }
 
   /**
@@ -108,15 +114,11 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     editor.append(
       await loader.load("./editor/text/editor.plaintext.html"));
 
-    let theme = "eclipse";
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches)
-      theme = "material-darker";
-
     this.cm = CodeMirror.fromTextArea(document.querySelector(`#${this.id}`), {
       lineNumbers: true,
       lineWrapping: true,
 
-      theme: theme,
+      theme: SieveTheme.getCodeMirrorTheme(),
       matchBrackets: true,
 
       inputStyle: "contenteditable"

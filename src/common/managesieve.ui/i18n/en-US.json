@@ -60,7 +60,12 @@
 
   "account.settings" : "Settings",
   "account.newscript" : "New script",
-  "account.donate" : "Donate",
+  "settings.theme.title": "Appearance",
+  "settings.theme.description": "Choose the appearance used by the app and script editors.",
+  "settings.theme.label": "Theme",
+  "settings.theme.system": "System",
+  "settings.theme.light": "Light",
+  "settings.theme.dark": "Dark",
 
   "server.title" : "Server Settings",
   "server.displayname" : "Display name",
@@ -183,7 +188,6 @@
   "editor.source" : "Source",
   "editor.settings" : "Settings",
   "editor.save" : "Save",
-  "editor.donate" : "Donate",
   "editor.error" :"Server reports script errors",
 
   "editor.menu.settings" : "Editor Settings",

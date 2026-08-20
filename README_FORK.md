@@ -18,20 +18,29 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Version `0.6.1.3` keeps the syntax error panel hidden when an editor opens.
   It becomes visible only when the manual syntax check reports an actual
   error.
+- Version `0.6.1.4` identifies the Windows application as the `ecxod/sieve`
+  CRAM-MD5 fork in a small persistent footer. It also removes the donation
+  buttons and the project's donation links and metadata.
+- The Windows application now offers **System**, **Light**, and **Dark** under
+  **Settings → Appearance**. The selected theme is persisted and is applied to
+  the application, all open tabs, and CodeMirror syntax highlighting.
+- Server cards on **Home** can be reduced to their server name with the arrow
+  button. This state is stored per server; a collapsed server does not load its
+  script list until it is expanded.
 
-Other changes are limited to fork packaging and distribution metadata, updater
-links, and the Thunderbird settings display fix.
+These differences are maintained alongside the fork packaging and distribution
+metadata, updater links, and the Thunderbird settings display fix.
 
 ## Thunderbird package
 
 The installable package is
-[`releases/sieve-0.6.1.3-cram-md5.xpi`](releases/sieve-0.6.1.3-cram-md5.xpi).
+[`releases/sieve-0.6.1.4-cram-md5.xpi`](releases/sieve-0.6.1.4-cram-md5.xpi).
 
-SHA-256: `4ae6cf15b92604437b29dfc8caba351725e03a0d1ea4d3b2a1192bbc19be838c`
+SHA-256: `9ea7daa7f3fe8525ffb13db6764c9a9a4b570b4cebc8a1e626cb7f4f41f27fb1`
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.3.exe`](releases/install_sieve_0.6.1.3.exe).
+[`releases/install_sieve_0.6.1.4.exe`](releases/install_sieve_0.6.1.4.exe).
 
-SHA-256: `e1e212f364fc3f4992114cefe85594e68e82ba872f5213c828307572adc44ac9`
+SHA-256: `8fffc520c45972f71b164bf548532dff68610573da1aa6427a34b99ccc3b6638`

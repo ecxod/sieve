@@ -356,8 +356,8 @@ async function updateVersion() {
 
   data["addons"]["sieve@mozdev.org"]["updates"].unshift({
     "version" : version,
-    "update_link": `https://github.com/thsmi/sieve/releases/download/${version}/sieve-${version}.xpi`,
-    "update_info_url": `https://github.com/thsmi/sieve/releases/tag/${version}`,
+    "update_link": `https://github.com/ecxod/sieve/releases/download/v${version}/sieve-${version}-cram-md5.xpi`,
+    "update_info_url": `https://github.com/ecxod/sieve/releases/tag/v${version}`,
     "browser_specific_settings": {
       "gecko": { "strict_min_version": "68.0a1" }
     }

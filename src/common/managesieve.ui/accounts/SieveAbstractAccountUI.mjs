@@ -191,7 +191,21 @@ class SieveAbstractAccountUI {
     elm.querySelector(".siv-account-name").textContent
       = await this.send("account-get-displayname");
 
+    this.setCollapsed(elm,
+      await this.send("account-settings-get-collapsed"));
+
     document.querySelector(".siv-accounts-items").append(elm);
+
+    elm
+      .querySelector(".sieve-account-collapse")
+      .addEventListener("click", async () => {
+        const collapsed = elm.dataset.collapsed !== "true";
+        this.setCollapsed(elm, collapsed);
+        await this.send("account-settings-set-collapsed", { collapsed: collapsed });
+
+        if (!collapsed)
+          await this.render();
+      });
 
     elm
       .querySelector(".siv-account-create")
@@ -208,6 +222,40 @@ class SieveAbstractAccountUI {
     elm
       .querySelector(".sieve-account-disconnect-server")
       .addEventListener("click", () => { this.disconnect(); });
+  }
+
+  /**
+   * Expands or collapses an account card.
+   *
+   * @param {HTMLElement} elm
+   *   the account card template
+   * @param {boolean} collapsed
+   *   true to show only the server name and expand button
+   */
+  setCollapsed(elm, collapsed) {
+    collapsed = !!collapsed;
+    elm.dataset.collapsed = `${collapsed}`;
+
+    elm.querySelectorAll(".sieve-account-expanded")
+      .forEach((item) => { item.classList.toggle("d-none", collapsed); });
+
+    elm.querySelector(".sieve-account-body")
+      .classList.toggle("d-none", collapsed);
+
+    const button = elm.querySelector(".sieve-account-collapse");
+    button.textContent = collapsed ? "▸" : "▾";
+    button.setAttribute("aria-expanded", `${!collapsed}`);
+    button.title = collapsed ? "Expand server" : "Collapse server";
+
+    const card = elm.querySelector(".sieve-account-card");
+    card.classList.toggle("mt-4", !collapsed);
+    card.classList.toggle("mb-4", !collapsed);
+    card.classList.toggle("mt-1", collapsed);
+    card.classList.toggle("mb-1", collapsed);
+
+    const tabs = elm.querySelector(".sieve-account-tabs");
+    tabs.classList.toggle("pt-3", !collapsed);
+    tabs.classList.toggle("pt-1", collapsed);
   }
 
   /**
@@ -305,8 +353,10 @@ class SieveAbstractAccountUI {
 
     if (!document.querySelector(`#siv-account-${this.id}`)) {
       await this.renderAccount();
-      this.renderSettings();
     }
+
+    if (document.querySelector(`#siv-account-${this.id}`).dataset.collapsed === "true")
+      return;
 
     if (await this.isConnecting()) {
       await this.onRenderConnecting();

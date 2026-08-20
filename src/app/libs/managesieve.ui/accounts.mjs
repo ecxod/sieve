@@ -12,6 +12,7 @@
 import { SieveLogger } from "./utils/SieveLogger.mjs";
 import { SieveIpcClient } from "./utils/SieveIpcClient.mjs";
 import { SieveI18n } from "./utils/SieveI18n.mjs";
+import { SieveTheme } from "./utils/SieveTheme.mjs";
 
 import { SieveAccounts } from "./accounts/SieveAccounts.mjs";
 import { SieveUpdaterUI } from "./updater/SieveUpdaterUI.mjs";
@@ -148,12 +149,8 @@ async function main() {
   SieveLogger.getInstance().level(
     await SieveIpcClient.sendMessage("core", "settings-get-loglevel"));
 
-  // Enable dark mode if the system's color-scheme is dark
-  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    document.documentElement.setAttribute('data-bs-theme', 'dark');
-  } else {
-    document.documentElement.setAttribute('data-bs-theme', 'light');
-  }
+  SieveTheme.init(
+    await SieveIpcClient.sendMessage("core", "settings-get-theme"));
 
   await (SieveI18n.getInstance()).load();
 

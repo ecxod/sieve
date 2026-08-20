@@ -12,6 +12,7 @@
 import { SieveAbstractAccounts } from "./SieveAbstractAccounts.mjs";
 import { SieveIpcClient } from "./../utils/SieveIpcClient.mjs";
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { SieveTheme } from "./../utils/SieveTheme.mjs";
 
 import { SieveImportUI } from "./../importer/ui/SieveImportUI.mjs";
 import { SieveAccountCreateUI } from "./SieveAccountCreateUI.mjs";
@@ -48,6 +49,15 @@ class SieveNodeAccounts extends SieveAbstractAccounts {
           await (new SieveAccountCreateUI().show());
           this.render();
         });
+
+      const theme = document.querySelector("#sieve-theme");
+      theme.value = await SieveIpcClient.sendMessage("core", "settings-get-theme");
+      theme.addEventListener("change", async () => {
+        SieveTheme.apply(theme.value);
+        await SieveIpcClient.sendMessage("core", "settings-set-theme", {
+          theme: theme.value
+        });
+      });
     }
 
     super.render(account);

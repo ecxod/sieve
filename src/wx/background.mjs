@@ -482,6 +482,25 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
       return await accounts.getLogLevel();
     },
 
+    // eslint-disable-next-line no-unused-vars
+    "settings-get-theme": async function (msg) {
+      return await accounts.getTheme();
+    },
+
+    "settings-set-theme": async function (msg) {
+      await accounts.setTheme(msg.payload.theme);
+    },
+
+    "account-settings-get-collapsed": async function (msg) {
+      return await accounts.getAccountById(msg.payload.account)
+        .getSettings().getUiCollapsed();
+    },
+
+    "account-settings-set-collapsed": async function (msg) {
+      await accounts.getAccountById(msg.payload.account)
+        .getSettings().setUiCollapsed(msg.payload.collapsed);
+    },
+
     "account-settings-set-debug": async function (msg) {
 
       logger.logAction(`Set Debug Level for ${msg.payload.account}`);

@@ -10,6 +10,7 @@
  */
 
 const CONFIG_DEBUG_ACCOUNT = "debug";
+const CONFIG_UI_COLLAPSED = "ui-collapsed";
 const DEFAULT_LOG_LEVEL = 0;
 
 /**
@@ -49,6 +50,30 @@ class SieveAccountSettings {
    */
   async setLogLevel(level) {
     await this.account.getConfig().setInteger(CONFIG_DEBUG_ACCOUNT, level);
+    return this;
+  }
+
+  /**
+   * Gets whether the server card is collapsed.
+   *
+   * @returns {boolean}
+   *   true when only the card header should be shown
+   */
+  async getUiCollapsed() {
+    return await this.account.getConfig()
+      .getBoolean(CONFIG_UI_COLLAPSED, false);
+  }
+
+  /**
+   * Persists whether the server card is collapsed.
+   *
+   * @param {boolean} collapsed
+   *   true when only the card header should be shown
+   * @returns {SieveAccountSettings}
+   *   a self reference
+   */
+  async setUiCollapsed(collapsed) {
+    await this.account.getConfig().setBoolean(CONFIG_UI_COLLAPSED, collapsed);
     return this;
   }
 

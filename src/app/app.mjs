@@ -34,6 +34,7 @@ import { SieveThunderbirdProfiles } from "./libs/managesieve.ui/importer/logic/S
 import { SieveAutoConfig } from "./libs/libManageSieve/SieveAutoConfig.mjs";
 
 import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
+import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
 (async function () {
   const logger = SieveLogger.getInstance();
@@ -151,6 +152,25 @@ import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
 
     "settings-get-loglevel": async function () {
       return await accounts.getLogLevel();
+    },
+
+    "settings-get-theme": async function () {
+      return await accounts.getTheme();
+    },
+
+    "settings-set-theme": async function (msg) {
+      await accounts.setTheme(msg.payload.theme);
+      SieveTheme.broadcast(window, msg.payload.theme);
+    },
+
+    "account-settings-get-collapsed": async function (msg) {
+      return await accounts.getAccountById(msg.payload.account)
+        .getSettings().getUiCollapsed();
+    },
+
+    "account-settings-set-collapsed": async function (msg) {
+      await accounts.getAccountById(msg.payload.account)
+        .getSettings().setUiCollapsed(msg.payload.collapsed);
     },
 
     "account-settings-set-debug": async function (msg) {
@@ -641,13 +661,11 @@ import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
    * The main entry point
    * Called as soon as the DOM is ready.
    */
-  function main() {
-    // Enable dark mode if the system's color-scheme is dark
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.setAttribute('data-bs-theme', 'dark');
-    } else {
-      document.documentElement.setAttribute('data-bs-theme', 'light');
-    }
+  async function main() {
+    SieveTheme.init(await accounts.getTheme());
+
+    document.querySelector("#sieve-fork-version").textContent
+      = await ipcRenderer.invoke("get-version");
 
     (new SieveTabUI()).init();
   }

@@ -12,8 +12,11 @@
 
 const CONFIG_ID_GLOBAL = "global";
 const CONFIG_KEY_LOG_LEVEL = "loglevel";
+const CONFIG_KEY_THEME = "theme";
 
 const DEFAULT_LOG_LEVEL = 0;
+const DEFAULT_THEME = "system";
+const THEMES = ["system", "light", "dark"];
 
 import { SieveUniqueId } from "./../../utils/SieveUniqueId.mjs";
 import { SievePrefManager } from "./SievePrefManager.mjs";
@@ -97,6 +100,38 @@ class SieveAbstractAccounts {
   async getLogLevel() {
     return await (new SievePrefManager(CONFIG_ID_GLOBAL))
       .getInteger(CONFIG_KEY_LOG_LEVEL, DEFAULT_LOG_LEVEL);
+  }
+
+  /**
+   * Sets the global application color theme.
+   *
+   * @param {string} theme
+   *   system, light or dark
+   * @returns {SieveAccounts}
+   *   a self reference
+   */
+  async setTheme(theme) {
+    if (!THEMES.includes(theme))
+      theme = DEFAULT_THEME;
+
+    await (new SievePrefManager(CONFIG_ID_GLOBAL)).setString(CONFIG_KEY_THEME, theme);
+    return this;
+  }
+
+  /**
+   * Gets the global application color theme.
+   *
+   * @returns {string}
+   *   system, light or dark
+   */
+  async getTheme() {
+    const theme = await (new SievePrefManager(CONFIG_ID_GLOBAL))
+      .getString(CONFIG_KEY_THEME, DEFAULT_THEME);
+
+    if (!THEMES.includes(theme))
+      return DEFAULT_THEME;
+
+    return theme;
   }
 
   /**
