@@ -14,7 +14,6 @@
 import { SieveTemplate } from "./../../utils/SieveTemplate.mjs";
 import { SieveAbstractEditorUI } from "./../SieveAbstractEditor.mjs";
 
-const COMPILE_DELAY = 500;
 const EDITOR_SCROLL_INTO_VIEW_OFFSET = 200;
 
 /**
@@ -38,9 +37,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     if (typeof (id) === "undefined" || id === null)
       this.id = "code";
 
-    this.syntaxCheckEnabled = false;
-    this.timeout = null;
-
     this.cm = null;
 
     this.activeLine = null;
@@ -55,24 +51,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
 
     const loader = new SieveTemplate();
-
-    // Syntax Checks
-    document
-      .querySelector("#sieve-content-settings")
-      .append(await loader.load("./editor/text/editor.settings.syntax.html"));
-
-    document
-      .querySelector("#sieve-editor-settings-synatxcheck")
-      .addEventListener("click", async () => {
-
-        if (document.querySelector("#sieve-editor-settings-synatxcheck").checked === true)
-          await this.enableSyntaxCheck();
-        else
-          await this.disableSyntaxCheck();
-      });
-
-    document.querySelector("#sieve-editor-settings-synatxcheck")
-      .checked = this.isSyntaxCheckEnabled();
 
     // Indentation
     document
@@ -145,7 +123,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     });
 
     this.cm.on("renderLine", (cm, line, elt) => { this.onRenderLine(cm, line, elt); });
-    this.cm.on("change", () => { this.onChange(); });
     this.cm.on("cursorActivity", () => { this.onActiveLineChange(); });
 
     this.cm.refresh();
@@ -515,24 +492,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
-   * On Change callback handler for codemirror
-   * Do not invoke unless you know what you are doing.
-   */
-  onChange() {
-
-    if (this.syntaxCheckEnabled === false)
-      return;
-
-    // reset the timer...
-    if (this.timeout !== null) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
-    }
-
-    this.timeout = setTimeout(() => { this.checkScript(); }, COMPILE_DELAY);
-  }
-
-  /**
    * On Active Line Change callback handler for codemirror.
    * Do not invoke unless you know what you are doing.
    */
@@ -546,46 +505,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       this.cm.removeLineClass(this.activeLine, "background", "activeline");
 
     this.activeLine = this.cm.addLineClass(currentLine, "background", "activeline");
-  }
-
-  /**
-   * Enables checking for syntax errors
-   */
-  async enableSyntaxCheck() {
-    this.syntaxCheckEnabled = true;
-    this.checkScript();
-
-    this.focus();
-
-    await this.getController().setPreference("syntax-check", this.syntaxCheckEnabled);
-  }
-
-  /**
-   * Disables checking for syntax errors
-   */
-  async disableSyntaxCheck() {
-    this.syntaxCheckEnabled = false;
-    this.hideSyntaxErrors();
-
-    this.focus();
-
-    await this.getController().setPreference("syntax-check", this.syntaxCheckEnabled);
-
-    // reset the timer...
-    if (this.timeout === null)
-      return;
-
-    clearTimeout(this.timeout);
-    this.timeout = null;
-  }
-
-  /**
-   * Checks if syntax checking is enabled
-   * @returns {boolean}
-   *   true in case syntax check is enabled otherwise false
-   */
-  isSyntaxCheckEnabled() {
-    return this.syntaxCheckEnabled;
   }
 
   /**
@@ -710,11 +629,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const indentWidth = await this.getController().getPreference("indentation-width");
     await this.setIndentWidth(indentWidth);
 
-    const syntaxCheck = await this.getController().getPreference("syntax-check");
-    if (syntaxCheck === false || syntaxCheck === "false")
-      await this.disableSyntaxCheck();
-    else
-      await this.enableSyntaxCheck();
   }
 
   /**
@@ -730,12 +644,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const indentWidth = await this.getController().getDefaultPreference("indentation-width");
     await this.setIndentWidth(indentWidth);
 
-    const syntaxCheck = await this.getController().getDefaultPreference("syntax-check");
-    if (syntaxCheck === false)
-      await this.disableSyntaxCheck();
-    else
-      await this.enableSyntaxCheck();
-
     await this.renderSettings();
   }
 
@@ -748,7 +656,6 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     await this.getController().setDefaultPreference("indentation-policy", this.getIndentWithTabs());
     await this.getController().setDefaultPreference("indentation-width", this.getIndentWidth());
 
-    await this.getController().setDefaultPreference("syntax-check", this.isSyntaxCheckEnabled());
   }
 
 }

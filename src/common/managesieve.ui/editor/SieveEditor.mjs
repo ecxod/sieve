@@ -94,6 +94,27 @@ class SieveEditorUI extends SieveEditorController {
       });
 
     document
+      .querySelector("#sieve-editor-check")
+      .addEventListener("click", async () => {
+        const button = document.querySelector("#sieve-editor-check");
+        const spinner = document.querySelector("#sieve-editor-checking");
+
+        button.disabled = true;
+        spinner.classList.remove("d-none");
+
+        try {
+          this.hideErrorMessage();
+          await this.getTextEditor().checkScript();
+        } catch (ex) {
+          await this.showErrorMessage(ex.toString());
+        } finally {
+          spinner.classList.add("d-none");
+          button.disabled = false;
+          this.getTextEditor().focus();
+        }
+      });
+
+    document
       .querySelector("#sieve-editor-save")
       .addEventListener("click", async () => {
         document
@@ -285,6 +306,7 @@ class SieveEditorUI extends SieveEditorController {
   async switchToTextEditor() {
 
     document.querySelector("#sieve-editor-save").classList.remove("d-none");
+    document.querySelector("#sieve-editor-check").classList.remove("d-none");
     document.querySelector("#sieve-editor-toolbar").classList.remove("d-none");
     document.querySelector("#sieve-plaintext-editor-toolbar").classList.remove("d-none");
 
@@ -317,6 +339,7 @@ class SieveEditorUI extends SieveEditorController {
   async switchToGraphicalEditor() {
 
     document.querySelector("#sieve-editor-save").classList.remove("d-none");
+    document.querySelector("#sieve-editor-check").classList.add("d-none");
     document.querySelector("#sieve-editor-toolbar").classList.add("d-none");
     document.querySelector("#sieve-plaintext-editor-toolbar").classList.add("d-none");
 
@@ -341,6 +364,7 @@ class SieveEditorUI extends SieveEditorController {
    */
   switchToSettings() {
     document.querySelector("#sieve-editor-toolbar").classList.add("d-none");
+    document.querySelector("#sieve-editor-check").classList.add("d-none");
     document.querySelector("#sieve-editor-save").classList.add("d-none");
   }
 

@@ -63,9 +63,6 @@ class SieveEditorSettings {
     if (name === "indentation-width")
       return await this.pref.getInteger("editor.indentation-width", DEFAULT_INDENTATION_WIDTH);
 
-    if (name === "syntax-check")
-      return await this.pref.getBoolean("editor.syntax-check", true);
-
     throw new Error(`Unknown settings ${name}`);
   }
 }
