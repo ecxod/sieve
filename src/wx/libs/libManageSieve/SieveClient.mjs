@@ -32,13 +32,32 @@ import { SieveUrl } from "./SieveUrl.mjs";
 class SieveMozClient extends SieveAbstractClient {
 
   /**
+   * Invokes a privileged socket operation and retains its stage when
+   * Thunderbird only returns a generic Experiment API error.
+   *
+   * @param {string} stage
+   *   the socket setup stage.
+   * @param {Function} callback
+   *   the privileged operation.
+   * @returns {*}
+   *   the operation result.
+   */
+  async invokeSocketApi(stage, callback) {
+    try {
+      return await callback();
+    } catch (ex) {
+      throw new SieveClientException(`${stage}: ${ex.message || ex}`);
+    }
+  }
+
+  /**
    * @inheritdoc
    */
   isAlive() {
     if (!super.isAlive(this))
       return false;
 
-    return browser.sieve.socket.isAlive(this.socket);
+    return browser.sieve.socketV4.isAlive(this.socket);
   }
 
   /**
@@ -55,7 +74,23 @@ class SieveMozClient extends SieveAbstractClient {
 
     this.getLogger().logState("[SieveClient:startTLS()] Upgrading to secure socket");
 
-    await browser.sieve.socket.startTLS(this.socket);
+    const tlsResult = await this.invokeSocketApi("Starting TLS", async () => {
+      return await browser.sieve.socketV4.startTLS(this.socket);
+    });
+
+    let tls;
+    try {
+      tls = JSON.parse(tlsResult);
+    } catch (ex) {
+      throw new SieveClientException(
+        `Starting TLS: Invalid response from the privileged API (${ex.message || ex})`);
+    }
+
+    if (tls && tls.error)
+      throw new SieveClientException(`Starting TLS: ${tls.error}`);
+
+    if (!tls || tls.ok !== true)
+      throw new SieveClientException("Starting TLS: The privileged API did not confirm the upgrade");
 
     this.secured = true;
   }
@@ -77,36 +112,75 @@ class SieveMozClient extends SieveAbstractClient {
 
     this.getLogger().logState(`Connecting to ${this.host}:${this.port} ...`);
 
-    this.socket = await (browser.sieve.socket.create(
-      this.host, this.port, this.getLogger().level()));
+    const socketHost = `${this.host}`;
+    const socketPort = `${this.port}`;
 
-    await (browser.sieve.socket.onData.addListener((bytes) => {
-      this.onData(bytes);
-    }, this.socket));
+    const apiGeneration = await this.invokeSocketApi(
+      "Probing the socket API v4", async () => {
+        return await browser.sieve.socketV4.probe();
+      });
 
-    await (browser.sieve.socket.onError.addListener(async (error) => {
-      this.getLogger().logState(`SieveClient: OnError (Connection ${this.host}:${this.port})`);
+    if (apiGeneration !== "sieve-socket-api-v4") {
+      throw new SieveClientException(
+        `Probing the socket API v4: Unexpected generation ${apiGeneration}`);
+    }
 
-      // Exceptions can't be transferred between experiments and background pages
-      // This means we need to convert the error object into an exception.
-      if (error && error.type === "CertValidationError")
-        error = new SieveCertValidationException(error);
-      else if (error && error.type === "SocketError")
-        error = new SieveClientException(error.message);
-      else
-        error = new SieveException(`Socket failed without providing an error code.`);
+    const creationResult = await this.invokeSocketApi("Creating the socket", async () => {
+      return await browser.sieve.socketV4.create(
+        socketHost, socketPort);
+    });
 
-      if ((this.listener) && (this.listener.onError))
-        await this.listener.onError(error);
-    }, this.socket));
+    let creation;
+    try {
+      creation = JSON.parse(creationResult);
+    } catch (ex) {
+      throw new SieveClientException(
+        `Creating the socket: Invalid response from the privileged API (${ex.message || ex})`);
+    }
 
-    await (browser.sieve.socket.onClose.addListener(async () => {
-      this.getLogger().logState(`SieveClient: OnClose (Connection ${this.host}:${this.port})`);
+    if (creation && creation.error)
+      throw new SieveClientException(`Creating the socket: ${creation.error}`);
 
-      await this.disconnect(new Error("Server closed connection unexpectedly"));
-    }, this.socket));
+    if (!creation || typeof creation.id !== "string" || !creation.id)
+      throw new SieveClientException("Creating the socket: The privileged API returned no socket id");
 
-    await (browser.sieve.socket.connect(this.socket));
+    this.socket = creation.id;
+
+    await this.invokeSocketApi("Registering the data listener", async () => {
+      await browser.sieve.socketV4.onData.addListener((bytes) => {
+        this.onData(bytes);
+      }, this.socket);
+    });
+
+    await this.invokeSocketApi("Registering the error listener", async () => {
+      await browser.sieve.socketV4.onError.addListener(async (error) => {
+        this.getLogger().logState(`SieveClient: OnError (Connection ${this.host}:${this.port})`);
+
+        // Exceptions can't be transferred between experiments and background pages
+        // This means we need to convert the error object into an exception.
+        if (error && error.type === "CertValidationError")
+          error = new SieveCertValidationException(error);
+        else if (error && error.type === "SocketError")
+          error = new SieveClientException(error.message);
+        else
+          error = new SieveException(`Socket failed without providing an error code.`);
+
+        if ((this.listener) && (this.listener.onError))
+          await this.listener.onError(error);
+      }, this.socket);
+    });
+
+    await this.invokeSocketApi("Registering the close listener", async () => {
+      await browser.sieve.socketV4.onClose.addListener(async () => {
+        this.getLogger().logState(`SieveClient: OnClose (Connection ${this.host}:${this.port})`);
+
+        await this.disconnect(new Error("Server closed connection unexpectedly"));
+      }, this.socket);
+    });
+
+    await this.invokeSocketApi("Starting the network connection", async () => {
+      await browser.sieve.socketV4.connect(this.socket);
+    });
 
     return this;
   }
@@ -116,14 +190,16 @@ class SieveMozClient extends SieveAbstractClient {
    */
   async destroy() {
     this.getLogger().logState(`[SieveClient:destroy()] ... destroying socket...`);
-    await browser.sieve.socket.destroy(this.socket);
+    await this.invokeSocketApi("Destroying the socket", async () => {
+      await browser.sieve.socketV4.destroy(this.socket);
+    });
     this.socket = null;
   }
 
   /**
    * @inheritdoc
    */
-  onSend(data) {
+  async onSend(data) {
 
     // Convert string into an UTF-8 array...
     const output = Array.prototype.slice.call(
@@ -132,7 +208,9 @@ class SieveMozClient extends SieveAbstractClient {
     if (this.getLogger().isLevelStream())
       this.getLogger().logStream(`Client -> Server [Byte Array]:\n${output}`);
 
-    browser.sieve.socket.send(this.socket, output);
+    await this.invokeSocketApi("Sending data", async () => {
+      await browser.sieve.socketV4.send(this.socket, output);
+    });
   }
 }
 

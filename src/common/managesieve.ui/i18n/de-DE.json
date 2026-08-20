@@ -29,7 +29,7 @@
   "account.capabilities.language.default": "i-default (Serverstandard nach RFC 2277)",
   "accounts.create.title": "Hinzufügen und Importieren",
   "accounts.create.description": "Ein neues Konto zur Sieve Anwendung hinzufügen oder eine vorhandene Konfiguration von Thunderbird importieren",
-  "accounts.create.add": "Server hinzufügen",
+  "accounts.create.add": "Server erstellen",
   "accounts.create.import.thunderbird": "Aus Thunderbird importieren",
   "accounts.create.import.file": "Aus Datei importieren",
   "account.create.title": "Benutzerkonto anlegen",

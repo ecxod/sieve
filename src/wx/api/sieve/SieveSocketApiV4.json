@@ -1,8 +1,15 @@
 [
   {
-    "namespace": "sieve.socket",
+    "namespace": "sieve.socketV4",
     "description": "Sieve Socket Connection",
     "functions": [
+      {
+        "name": "probe",
+        "type": "function",
+        "description": "Returns the generation marker for this Experiment API",
+        "async": true,
+        "parameters": []
+      },
       {
         "name": "create",
         "type": "function",
@@ -18,11 +25,6 @@
             "name": "port",
             "type": "string",
             "description": "The remote's port"
-          },
-          {
-            "name": "level",
-            "type": "integer",
-            "description": "The log level to be used"
           }
         ]
       },

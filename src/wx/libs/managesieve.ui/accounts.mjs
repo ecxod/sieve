@@ -13,14 +13,17 @@ import { SieveLogger } from "./utils/SieveLogger.mjs";
 import { SieveIpcClient } from "./utils/SieveIpcClient.mjs";
 import { SieveI18n } from "./utils/SieveI18n.mjs";
 import { SieveTheme } from "./utils/SieveTheme.mjs";
+import { captureException, initSentry } from "./utils/SieveSentry.mjs";
 
-import { SieveAbstractAccounts as SieveAccounts } from "./accounts/SieveAbstractAccounts.mjs";
+import { SieveAccounts } from "./accounts/SieveAccounts.mjs";
 import {
   SieveCreateScriptDialog,
   SieveDeleteScriptDialog,
   SieveRenameScriptDialog,
   SieveFingerprintDialog,
   SieveScriptBusyDialog,
+  SieveDeleteAccountDialog,
+  SievePasswordDialog,
   SieveErrorDialog
 } from "./dialogs/SieveDialogUI.mjs";
 
@@ -73,6 +76,31 @@ async function onBusy(name) {
 }
 
 /**
+ * Shows a prompt which asks if the given server should be removed.
+ *
+ * @param {string} name
+ *   the server's display name.
+ * @returns {boolean}
+ *   true when the server should be removed.
+ */
+async function onDeleteAccount(name) {
+  return await (new SieveDeleteAccountDialog(name)).show();
+}
+
+/**
+ * Requests a password for a custom Sieve server.
+ *
+ * @param {object} request
+ *   username and display name for the password prompt.
+ * @returns {object}
+ *   the entered credentials.
+ */
+async function onAuthenticate(request) {
+  return await (new SievePasswordDialog(
+    request.username, request.displayname, { remember: false })).show();
+}
+
+/**
  * Informs the user about a failed certificate validation.
  *
  * @param {object} secInfo
@@ -115,6 +143,14 @@ async function main() {
 
     await (SieveI18n.getInstance()).load();
 
+    const createAccount = document.querySelector("#sieve-account-create");
+    try {
+      createAccount.textContent = SieveI18n.getInstance()
+        .getString("accounts.create.add");
+    } catch {
+      createAccount.textContent = "Server erstellen";
+    }
+
     try {
       document.title = SieveI18n.getInstance().getString("title.accounts");
     } catch {
@@ -132,6 +168,10 @@ async function main() {
       async (msg) => { return await onRenameScript(msg.payload); });
     SieveIpcClient.setRequestHandler("accounts", "script-show-busy",
       async (msg) => { await onBusy(msg.payload); });
+    SieveIpcClient.setRequestHandler("accounts", "account-show-delete",
+      async (msg) => { return await onDeleteAccount(msg.payload); });
+    SieveIpcClient.setRequestHandler("accounts", "account-show-authentication",
+      async (msg) => { return await onAuthenticate(msg.payload); });
     SieveIpcClient.setRequestHandler("accounts", "account-show-certerror",
       async (msg) => { return await onCertError(msg.payload); });
     SieveIpcClient.setRequestHandler("accounts", "account-show-error",
@@ -141,9 +181,12 @@ async function main() {
       async (msg) => { return await accounts.render(msg.payload); });
 
   } catch (ex) {
+    captureException(ex, { action: "accounts-initialization" });
     console.error(ex);
   }
 }
+
+initSentry("accounts-ui");
 
 if (document.readyState !== 'loading')
   main();

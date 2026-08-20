@@ -104,8 +104,11 @@ class SieveAbstractAccountUI {
     this.setConnectionActions(false, true);
     await this.onRenderConnecting();
 
-    await this.send("account-connect");
-    await this.render();
+    try {
+      await this.send("account-connect");
+    } finally {
+      await this.render();
+    }
   }
 
   /**

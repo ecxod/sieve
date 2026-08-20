@@ -40,7 +40,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$(sed -n 's/  "version": "\([^"]*\)",/\1/p' package.json | head -1)"
+          ASSETS=("releases/sieve-${VERSION}-cram-md5.xpi")
+          INSTALLER="releases/install_sieve_${VERSION}.exe"
+
+          if [[ -f "$INSTALLER" ]]; then
+            ASSETS+=("$INSTALLER")
+          fi
+
           gh release upload "${{ steps.version.outputs.tag }}" \
-            "releases/sieve-${VERSION}-cram-md5.xpi" \
-            "releases/install_sieve_${VERSION}.exe" \
+            "${ASSETS[@]}" \
             --clobber

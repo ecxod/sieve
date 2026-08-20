@@ -13,6 +13,18 @@
 
   /* global ExtensionCommon */
   /* global Components */
+  /* global ChromeUtils */
+
+  let ExtensionError;
+  try {
+    const { ExtensionUtils } = ChromeUtils.importESModule(
+      "resource://gre/modules/ExtensionUtils.sys.mjs");
+    ExtensionError = ExtensionUtils.ExtensionError;
+  } catch {
+    const { ExtensionUtils } = ChromeUtils.import(
+      "resource://gre/modules/ExtensionUtils.jsm");
+    ExtensionError = ExtensionUtils.ExtensionError;
+  }
 
   const Cc = Components.classes;
   const Ci = Components.interfaces;
@@ -406,33 +418,36 @@
              *   the widget description.
              */
             async add(windowId, widget) {
+              try {
+                const item = createWidget(widget);
+                const document = getDocumentByWindow(windowId);
 
-              const item = createWidget(widget);
-              const document = getDocumentByWindow(windowId);
+                const id = item.getId();
 
-              const id = item.getId();
+                switch (widget.position) {
+                  case "child":
+                    document.appendChild(widget.reference, item);
+                    break;
 
-              switch (widget.position) {
-                case "child":
-                  document.appendChild(widget.reference, item);
-                  break;
+                  case "before":
+                    document.insertBefore(widget.reference, item);
+                    break;
 
-                case "before":
-                  document.insertBefore(widget.reference, item);
-                  break;
+                  case "after":
+                    document.insertAfter(widget.reference, item);
+                    break;
 
-                case "after":
-                  document.insertAfter(widget.reference, item);
-                  break;
+                  default:
+                    throw new Error(`Invalid position ${widget.position}`);
+                }
 
-                default:
-                  throw new Error(`Invalid position ${widget.position}`);
+                ids.add(id);
+
+                document.getNode(id)
+                  .addEventListener("command", () => { invokeCallback(windowId, id); });
+              } catch (ex) {
+                throw new ExtensionError(`Adding the Sieve menu item failed: ${ex.message || ex}`);
               }
-
-              ids.add(id);
-
-              await document.getNode(id)
-                .addEventListener("command", () => { invokeCallback(windowId, id); });
             },
 
             /**
@@ -444,7 +459,11 @@
              *   the menu elements id
              */
             async remove(windowId, id) {
-              await getDocumentByWindow(windowId).removeNode(id);
+              try {
+                getDocumentByWindow(windowId).removeNode(id);
+              } catch (ex) {
+                throw new ExtensionError(`Removing the Sieve menu item failed: ${ex.message || ex}`);
+              }
             },
 
             /**
@@ -458,7 +477,11 @@
              *   true in case the element exists otherwise false.
              */
             async has(windowId, id) {
-              return await getDocumentByWindow(windowId).hasNode(id);
+              try {
+                return getDocumentByWindow(windowId).hasNode(id);
+              } catch (ex) {
+                throw new ExtensionError(`Checking the Sieve menu item failed: ${ex.message || ex}`);
+              }
             }
           }
         }

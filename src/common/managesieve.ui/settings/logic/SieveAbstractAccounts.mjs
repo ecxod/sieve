@@ -13,6 +13,7 @@
 const CONFIG_ID_GLOBAL = "global";
 const CONFIG_KEY_LOG_LEVEL = "loglevel";
 const CONFIG_KEY_THEME = "theme";
+const CONFIG_KEY_DEVELOPER = "developer";
 
 const DEFAULT_LOG_LEVEL = 0;
 const DEFAULT_THEME = "system";
@@ -132,6 +133,31 @@ class SieveAbstractAccounts {
       return DEFAULT_THEME;
 
     return theme;
+  }
+
+  /**
+   * Enables or disables developer-only controls.
+   *
+   * @param {boolean} developer
+   *   true to show developer controls.
+   * @returns {SieveAccounts}
+   *   a self reference.
+   */
+  async setDeveloper(developer) {
+    await (new SievePrefManager(CONFIG_ID_GLOBAL))
+      .setBoolean(CONFIG_KEY_DEVELOPER, developer);
+    return this;
+  }
+
+  /**
+   * Checks whether developer-only controls are enabled.
+   *
+   * @returns {boolean}
+   *   true when developer controls should be shown.
+   */
+  async getDeveloper() {
+    return await (new SievePrefManager(CONFIG_ID_GLOBAL))
+      .getBoolean(CONFIG_KEY_DEVELOPER, false);
   }
 
   /**

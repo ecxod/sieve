@@ -91,7 +91,17 @@ class SieveAbstractIpcClient {
 
       response.payload = await (handler.get(request.action)(request));
     } catch (ex) {
-      response.error = ex.message;
+      response.error = ex && ex.message ? ex.message : String(ex);
+
+      if (globalThis.SieveErrorReporter
+        && typeof globalThis.SieveErrorReporter.captureException === "function") {
+        globalThis.SieveErrorReporter.captureException(ex, {
+          action: request.action,
+          source: "ipc-request-handler",
+          subject: request.subject
+        });
+      }
+
       this.getLogger().logIpcMessage(ex);
     }
 

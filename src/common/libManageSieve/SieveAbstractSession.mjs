@@ -459,9 +459,7 @@ class SieveAbstractSession {
    *   the response for the first request or an exception in case of an error.
    */
   async promisify(request, init) {
-
-    // eslint-disable-next-line no-async-promise-executor
-    return await new Promise(async (resolve, reject) => {
+    return await new Promise((resolve, reject) => {
 
       request.addResponseListener((response) => {
         resolve(response);
@@ -491,11 +489,16 @@ class SieveAbstractSession {
         reject(new SieveTimeOutException("Request was canceled or took too long"));
       });
 
-
-      await (this.getSieve().addRequest(request));
-
-      if (init)
-        await init();
+      // Do not use an async Promise executor here. A rejected socket setup
+      // promise would otherwise be detached from this request, leaving the
+      // request waiting forever for a server greeting which cannot arrive.
+      Promise.resolve()
+        .then(async () => { await this.getSieve().addRequest(request); })
+        .then(async () => {
+          if (init)
+            await init();
+        })
+        .catch(reject);
     });
   }
 
@@ -613,8 +616,8 @@ class SieveAbstractSession {
 
     try {
 
-      const init = () => {
-        this.getSieve().connect(url, options);
+      const init = async () => {
+        await this.getSieve().connect(url, options);
       };
 
 

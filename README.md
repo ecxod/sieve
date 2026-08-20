@@ -9,9 +9,34 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
+## Thunderbird 0.7.0
+
+Release `0.7.0` is the current Thunderbird extension release. It includes:
+
+- CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
+  implementation using the current asynchronous STARTTLS API
+- automatic discovery of Thunderbird IMAP and POP accounts whenever the Sieve
+  server list is rendered
+- an optional **Create Server** flow for standalone ManageSieve servers that do
+  not correspond to a Thunderbird mail account
+- safe removal of manually created server configurations without deleting mail
+  accounts or server-side Sieve scripts
+- a standard Thunderbird **Options** page with **I am a developer**; the
+  per-server **Debugging** control stays hidden unless developer mode is enabled
+
+Install the current package directly:
+
+[`releases/sieve-0.7.0-cram-md5.xpi`](releases/sieve-0.7.0-cram-md5.xpi)
+
+SHA-256: `ed4577f1281fb99b1913277b9454d287c58874d042d24652dbf92dde743d1599`
+
+Versions through `0.6.1.8` used the upstream extension ID. When migrating from
+one of those versions, remove the old **Sieve** extension before installing
+this fork. Updates from `0.6.1.9` and newer retain the fork's extension ID.
+
 ## Downloads
 
-The current Windows installer and Thunderbird XPI are published on the
+The Windows installer and release artifacts are published on the
 [`ecxod/sieve` Releases page](https://github.com/ecxod/sieve/releases/latest).
 Checksums and package names are documented in [README_FORK.md](README_FORK.md).
 

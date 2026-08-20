@@ -40,10 +40,11 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   and backend refuse the operation as an additional safeguard. Textual account
   settings and script names are trimmed before use and persistence; passwords
   and script contents remain unchanged.
-- No Sentry project is built into the fork. The global **Settings** tab accepts
-  an optional user-owned Sentry DSN for error reporting. An empty DSN keeps
-  tracking disabled, which is the default, and the SDK is configured not to
-  send default personally identifiable information or performance traces.
+- The Windows application has no built-in Sentry project. Its global
+  **Settings** tab accepts an optional user-owned Sentry DSN for error
+  reporting. An empty DSN keeps tracking disabled, which is the default, and
+  the SDK is configured not to send default personally identifiable
+  information or performance traces.
 - Version `0.6.1.6` makes a collapsed server's name an additional expand
   control and explicitly handles the fixed global **Settings** tab so its
   appearance and Sentry options reliably open when clicked.
@@ -58,6 +59,83 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   CRAM-MD5** by `ecxod`. Its homepage, update source, and issue tracker all
   point to `ecxod/sieve`; Thunderbird can therefore no longer merge upstream
   catalogue metadata or upstream releases into this fork.
+- Version `0.6.1.10` enables error reporting for the Thunderbird extension with
+  the fork's `sentry.zp1.net` project, because the Windows-only settings band is
+  not part of the XPI. Background connection errors, UI initialization errors,
+  and unhandled exceptions are reported without deliberately attaching account
+  IDs; common password and credential fields are redacted. A failed UI/IPC
+  connection attempt now always renders the final connection state instead of
+  leaving the server card on **Connecting**.
+- Version `0.6.1.11` exposes privileged Thunderbird Experiment errors instead
+  of replacing them with **An unexpected error occurred**. It also reports
+  asynchronous socket-transport setup failures, includes the attempted host and
+  port in connection diagnostics, ignores the expected missing-receiver race
+  when an accounts tab closes, and emits one XPI-originated Sentry startup
+  verification event per version.
+- Version `0.6.1.12` awaits Thunderbird's asynchronous menu APIs and skips menu
+  locations which do not exist in the installed Thunderbird version. This
+  prevents several generic startup errors caused by rejected Experiment API
+  promises. Expected request cancellation while closing the last Sieve tab is
+  no longer reported as an error, and Sentry titles now identify the component
+  and operation which failed.
+- Version `0.6.1.13` keeps socket setup and socket writes in the connection
+  promise chain. Privileged API failures can therefore no longer escape as an
+  unhandled rejection while the UI waits forever for a server greeting. It
+  also loads the modern `Services.sys.mjs` module on current Thunderbird and
+  retains the legacy module fallback for older supported versions.
+- Version `0.6.1.14` adds the individual socket setup stage to errors before
+  they reach the UI and Sentry. Its attempted port-schema correction was
+  incomplete and is superseded by `0.6.1.15`.
+- Version `0.6.1.15` corrects the socket schema to match `SieveUrl`, which
+  supplies the port as a string, and explicitly normalizes socket creation to
+  `string`, `string`, `integer` for host, port, and log level.
+- Version `0.6.1.16` removes the optional diagnostic log level from the
+  privileged socket creation boundary. Socket creation now validates only the
+  required host and port strings and uses level zero internally.
+- Version `0.6.1.17` returns socket-construction failures as structured data
+  instead of throwing them across Thunderbird's Experiment boundary, which
+  preserves the original privileged Gecko/XPCOM error for the UI and Sentry.
+  It also delays event-target lookup until the network transport is created.
+- Version `0.6.1.18` registers the socket transport as a new, versioned
+  Thunderbird Experiment API with new schema and implementation filenames.
+  This prevents a cached pre-0.6.1.17 API definition from handling the call.
+  A generation probe before socket creation makes any remaining API loading
+  failure distinguishable from a network-transport failure.
+- Version `0.6.1.19` removes all Gecko module imports from top-level socket
+  Experiment initialization. `Services` is loaded lazily only after the v3
+  generation probe succeeds, and socket errors use the built-in `Error` class
+  instead of importing `ExtensionError`. This prevents a version-specific
+  module import from disabling every method in the Experiment API.
+- Version `0.6.1.20` upgrades STARTTLS through Gecko's current
+  `nsITLSSocketControl.asyncStartTLS()` API while retaining the legacy
+  `nsISSLSocketControl.StartTLS()` fallback. TLS upgrade failures are returned
+  as structured diagnostics instead of being hidden by the Experiment bridge.
+  The TLS fix ships as socket Experiment generation v4 so Thunderbird cannot
+  reuse the pre-fix v3 implementation from its startup cache.
+- Version `0.6.1.21` restores server management inside the Thunderbird XPI
+  without reintroducing the desktop application's top tab bar. The accounts
+  page has a persistent **Add Server** action for independent ManageSieve
+  connections, and each server's **Settings** pane contains **Delete Server**.
+  Deleting removes only the extension configuration (or hides a server derived
+  from Thunderbird); it never deletes the Thunderbird mail account or any
+  server-side Sieve scripts. Passwords for independently added servers are
+  requested when connecting and are not persisted by the extension.
+- Version `0.6.1.22` wires the Thunderbird accounts page to its concrete
+  account-list controller. This activates both the **Add Server** handler and
+  the confirmed **Delete Server** action; `0.6.1.21` rendered the controls but
+  still instantiated the abstract controller, so deletion failed at runtime.
+- Version `0.6.1.23` makes Thunderbird's IMAP and POP accounts authoritative:
+  they are discovered automatically whenever the server list is rendered and
+  can no longer be hidden or deleted independently inside Sieve. Any
+  suppression saved by `0.6.1.21` or `0.6.1.22` is removed during migration.
+  The delete section is shown only for manually created standalone ManageSieve
+  servers. The manual fallback is now a large, explicitly translated **Create
+  Server** button instead of an unlabelled compact control.
+- Version `0.7.0` enables Thunderbird's standard **Options** button and adds an
+  inline extension options page with **I am a developer**. Developer mode is
+  disabled by default; the per-server **Debugging** button is rendered only
+  while the checkbox is enabled. The preference is stored locally and does
+  not alter server configuration.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -77,15 +155,15 @@ The obsolete `src/TODO.md` file has also been removed.
 
 Versions through `0.6.1.8` used the upstream extension ID. Thunderbird cannot
 change an installed extension's ID during an automatic update. Remove the old
-**Sieve** extension and install `0.6.1.9` once; subsequent fork releases update
+**Sieve** extension and install `0.7.0` once; subsequent fork releases update
 normally under the new ID. Do not keep both extensions installed at the same
 time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.6.1.9-cram-md5.xpi`](releases/sieve-0.6.1.9-cram-md5.xpi).
+[`releases/sieve-0.7.0-cram-md5.xpi`](releases/sieve-0.7.0-cram-md5.xpi).
 
-SHA-256: `bddf8db2bec8cff059895b6370dbb36278d3957056045c11f04d1ba87cea4a7c`
+SHA-256: `ed4577f1281fb99b1913277b9454d287c58874d042d24652dbf92dde743d1599`
 
 ## Windows installer
 

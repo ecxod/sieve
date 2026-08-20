@@ -1109,7 +1109,7 @@ class SieveAbstractClient {
     if (this.getLogger().isLevelRequest())
       this.getLogger().logRequest(`Client -> Server:\n${output}`);
 
-    this.onSend(output);
+    await this.onSend(output);
 
     return;
   }

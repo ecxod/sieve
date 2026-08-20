@@ -1,0 +1,38 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  max-width: 48rem;
+  font: menu;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: 1.35rem;
+}
+
+.developer-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+#sieve-option-developer {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+#options-developer-description {
+  margin: 0.65rem 0 0 1.8rem;
+  opacity: 0.8;
+}
+
+#options-status {
+  min-height: 1.2rem;
+  margin: 1rem 0 0 1.8rem;
+}

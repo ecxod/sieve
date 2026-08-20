@@ -42,7 +42,25 @@ class SieveWxIpcClient extends SieveAbstractIpcClient {
       message = JSON.stringify(message);
     }
 
-    browser.runtime.sendMessage(message);
+    const pending = browser.runtime.sendMessage(message);
+
+    // A response can race with closing the accounts tab. In that case there
+    // is deliberately no receiver and Thunderbird rejects the delivery
+    // promise. Do not turn this expected cleanup race into another error.
+    if (pending && typeof pending.catch === "function") {
+      pending.catch((ex) => {
+        if (ex && ex.message
+          && ex.message.includes("Receiving end does not exist"))
+          return;
+
+        if (globalThis.SieveErrorReporter
+          && typeof globalThis.SieveErrorReporter.captureException === "function") {
+          globalThis.SieveErrorReporter.captureException(ex, {
+            source: "ipc-dispatch"
+          });
+        }
+      });
+    }
   }
 }
 

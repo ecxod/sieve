@@ -16,6 +16,35 @@ import { SieveCertValidationException } from "./libs/libManageSieve/SieveExcepti
 import { SieveLogger } from "./libs/managesieve.ui/utils/SieveLogger.mjs";
 import { SieveIpcClient } from "./libs/managesieve.ui/utils/SieveIpcClient.mjs";
 import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccounts.mjs";
+import { captureException, initSentry } from "./libs/managesieve.ui/utils/SieveSentry.mjs";
+
+initSentry("background");
+
+/**
+ * Sends one diagnostic startup event per XPI version. This distinguishes a
+ * report emitted by Thunderbird from a server-side transport smoke test.
+ */
+async function reportSentryStartup() {
+  const version = browser.runtime.getManifest().version;
+  const key = `sieve-sentry-startup-${version}`;
+
+  try {
+    const state = await browser.storage.local.get(key);
+    if (state[key])
+      return;
+
+    const eventId = await captureException(
+      new Error(`Sieve XPI ${version} started`),
+      { action: "xpi-startup-verification" });
+
+    if (eventId)
+      await browser.storage.local.set({ [key]: eventId });
+  } catch (ex) {
+    console.error("Could not verify the XPI Sentry transport", ex);
+  }
+}
+
+reportSentryStartup();
 
 (async function () {
 
@@ -80,8 +109,17 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
       if (!sessions.has(id))
         continue;
 
-      await (sessions.get(id).disconnect(true));
+      const session = sessions.get(id);
       sessions.delete(id);
+
+      try {
+        await session.disconnect(true);
+      } catch (ex) {
+        // Closing the last Sieve tab abandons all pending requests. Their
+        // timeout exceptions describe this intentional cleanup and must not
+        // become unhandled errors or Sentry events.
+        logger.logAction(`Session cleanup completed with ${ex.message || ex}`);
+      }
     }
   });
 
@@ -93,7 +131,7 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
    * @param {window} window
    *   the window to which the menu items should be added.
    */
-  function populateMenus(window) {
+  async function populateMenus(window) {
 
     // We can skip in case it is not a normal window.
     if (`${window.type}` !== "normal")
@@ -101,49 +139,62 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
 
     const id = `${window.id}`;
 
-    // populate the main menu
-    browser.sieve.menu.add(id, {
-      "id": "mnuSieveListDialog",
-      "type": "menu-label",
-      "reference": "filtersCmd",
-      "position": "before",
-      "label": browser.i18n.getMessage("menuTitle"),
-      "accesskey": browser.i18n.getMessage("menuAccessKey")
-    });
+    try {
+      // Thunderbird has changed these menu nodes several times. Missing legacy
+      // nodes are normal and should not create rejected Experiment promises.
+      if (await browser.sieve.menu.has(id, "filtersCmd")) {
+        await browser.sieve.menu.add(id, {
+          "id": "mnuSieveListDialog",
+          "type": "menu-label",
+          "reference": "filtersCmd",
+          "position": "before",
+          "label": browser.i18n.getMessage("menuTitle"),
+          "accesskey": browser.i18n.getMessage("menuAccessKey")
+        });
 
-    browser.sieve.menu.add(id, {
-      "id": "mnuSieveSeparator",
-      "type": "menu-separator",
-      "reference": "filtersCmd",
-      "position": "before"
-    });
+        await browser.sieve.menu.add(id, {
+          "id": "mnuSieveSeparator",
+          "type": "menu-separator",
+          "reference": "filtersCmd",
+          "position": "before"
+        });
+      }
 
-    // We need some magic here. They moved the filers menu item
-    // in Thunderbird 68
-    let ref;
+      // The app-menu filter entry moved in Thunderbird 68 and may be absent in
+      // newer Thunderbird versions.
+      let ref = null;
 
-    if (browser.sieve.menu.has(id, "appmenu_filtersCmd"))
-      ref = "appmenu_filtersCmd";
-    else if (browser.sieve.menu.has(id, "appmenu_FilterMenu"))
-      ref = "appmenu_FilterMenu";
-    else
-      throw new Error("No app menu found");
+      if (await browser.sieve.menu.has(id, "appmenu_filtersCmd"))
+        ref = "appmenu_filtersCmd";
+      else if (await browser.sieve.menu.has(id, "appmenu_FilterMenu"))
+        ref = "appmenu_FilterMenu";
 
-    browser.sieve.menu.add(id, {
-      "id": "appMenuSieveListDialog",
-      "type": "appmenu-label",
-      "reference": ref,
-      "label": browser.i18n.getMessage("menuTitle"),
-      "accesskey":browser.i18n.getMessage("menuAccessKey"),
-      "position": "before"
-    });
+      if (!ref)
+        return;
 
-    browser.sieve.menu.add(id, {
-      "id": "appMenuSieveSeparator",
-      "type": "appmenu-separator",
-      "reference": ref,
-      "position": "before"
-    });
+      await browser.sieve.menu.add(id, {
+        "id": "appMenuSieveListDialog",
+        "type": "appmenu-label",
+        "reference": ref,
+        "label": browser.i18n.getMessage("menuTitle"),
+        "accesskey":browser.i18n.getMessage("menuAccessKey"),
+        "position": "before"
+      });
+
+      await browser.sieve.menu.add(id, {
+        "id": "appMenuSieveSeparator",
+        "type": "appmenu-separator",
+        "reference": ref,
+        "position": "before"
+      });
+    } catch (ex) {
+      console.error("Could not populate the Thunderbird menus", ex);
+      await captureException(ex, {
+        action: "populate-menus",
+        windowId: id,
+        windowType: `${window.type}`
+      });
+    }
   }
 
   await browser.sieve.menu.onCommand.addListener(
@@ -165,11 +216,13 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
 
 
   for (const window of await browser.windows.getAll()) {
-    populateMenus(window);
+    await populateMenus(window);
   }
 
   browser.windows.onCreated.addListener((window) => {
-    populateMenus(window);
+    populateMenus(window).catch((ex) => {
+      console.error("Could not initialize a newly created window", ex);
+    });
   });
 
 
@@ -179,7 +232,33 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
     // account endpoints...
     "accounts-list": async function () {
       logger.logAction("List Accounts");
+      await accounts.load();
       return await accounts.getAccountIds();
+    },
+
+    "account-create": async function (msg) {
+      logger.logAction("Create custom Sieve server");
+      return await accounts.create(msg.payload);
+    },
+
+    "account-delete": async function (msg) {
+      const id = msg.payload.account;
+      const account = accounts.getAccountById(id);
+
+      if (!account)
+        return false;
+
+      const host = await account.getHost();
+      const confirmed = await SieveIpcClient.sendMessage(
+        "accounts", "account-show-delete", await host.getDisplayName());
+
+      if (!confirmed)
+        return false;
+
+      if (sessions.has(id))
+        await actions["account-disconnect"](msg);
+
+      return await accounts.remove(id);
     },
 
     "account-get-displayname": async function (msg) {
@@ -224,6 +303,8 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
       const host = await account.getHost();
       const security = await account.getSecurity();
       const settings = await account.getSettings();
+      const hostname = await host.getHostname();
+      const port = await host.getPort();
 
       const options = {
         "security": await security.getTLS(),
@@ -274,6 +355,17 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
 
       } catch (ex) {
 
+        const errorMessage = `${ex.message || ex} (Server: ${hostname}:${port})`;
+
+        captureException(ex, {
+          action: "account-connect",
+          hostname: hostname,
+          port: port,
+          sasl: options.sasl,
+          security: options.security,
+          stage: "connection-handshake"
+        });
+
         await (actions["account-disconnect"](msg));
 
         if (ex instanceof SieveCertValidationException) {
@@ -296,7 +388,7 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
           if (secInfo.isDomainMismatch)
             overrideBits |= ERROR_MISMATCH;
 
-          await (browser.sieve.socket.addCertErrorOverride(
+          await (browser.sieve.socketV4.addCertErrorOverride(
             secInfo.host, `${secInfo.port}`, secInfo.rawDER, overrideBits));
 
           await (actions["account-connect"](msg));
@@ -308,7 +400,7 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
         logger.logAction("Connecting failed due to an error " + ex);
 
         await SieveIpcClient.sendMessage(
-          "accounts", "account-show-error", ex.message);
+          "accounts", "account-show-error", errorMessage);
       }
     },
 
@@ -481,6 +573,8 @@ import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccount
         displayName: await host.getDisplayName(),
         hostname: await host.getHostname(),
         port: await host.getPort(),
+        custom: await account.getConfig().getBoolean("custom", false),
+        developer: await accounts.getDeveloper(),
 
         security: await security.getTLS(),
         mechanism: await security.getMechanism(),

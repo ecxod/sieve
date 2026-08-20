@@ -14,7 +14,26 @@
   /* global ExtensionCommon */
   /* global Components */
   /* global ChromeUtils */
-  const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
+  /**
+   * Loads Services only when privileged networking actually needs it. Keeping
+   * Gecko module imports out of top-level Experiment initialization allows the
+   * generation probe to distinguish script-load failures from transport errors.
+   *
+   * @returns {object}
+   *   the Thunderbird Services module.
+   */
+  function getServices() {
+    if (globalThis.Services)
+      return globalThis.Services;
+
+    try {
+      return ChromeUtils.importESModule(
+        "resource://gre/modules/Services.sys.mjs").Services;
+    } catch {
+      return ChromeUtils.import(
+        "resource://gre/modules/Services.jsm").Services;
+    }
+  }
 
   // Input & output stream constants.
   const STREAM_BUFFERED = 0;
@@ -112,9 +131,10 @@
 
       this.handler = {};
 
-      this.thread = Cc["@mozilla.org/thread-manager;1"]
-        .getService(Ci.nsIThreadManager)
-        .mainThread;
+      // Resolve the event target only when the transport is created. Some
+      // Thunderbird versions reject nsIThreadManager access while merely
+      // constructing an Experiment API object.
+      this.thread = null;
     }
 
     /**
@@ -138,6 +158,72 @@
 
       // eslint-disable-next-line no-console
       console.log(`[${(new Date()).toISOString()}] [${this.port}] ${message}`);
+    }
+
+    /**
+     * Converts an exception raised by Thunderbird's privileged socket code
+     * into the serializable error used by the WebExtension.
+     *
+     * @param {Error} ex
+     *   the privileged exception.
+     * @param {string} stage
+     *   the socket stage which failed.
+     * @returns {object}
+     *   the serializable socket error.
+     */
+    getUnexpectedError(ex, stage) {
+      const name = ex && ex.name ? ex.name : "Error";
+      const message = ex && ex.message ? ex.message : `${ex}`;
+      const error = {
+        type: "SocketError",
+        status: ex && ex.result ? ex.result : NS_ERROR_FAILURE,
+        message: `${stage} failed (${name}): ${message}`
+      };
+
+      // Keep the original privileged stack in Thunderbird's error console.
+      console.error(error.message, ex);
+      return error;
+    }
+
+    /**
+     * Closes partially initialized socket resources and emits an error.
+     *
+     * @param {Error} ex
+     *   the privileged exception.
+     * @param {string} stage
+     *   the socket stage which failed.
+     */
+    fail(ex, stage) {
+      const error = this.getUnexpectedError(ex, stage);
+
+      try {
+        if (this.outstream)
+          this.outstream.close();
+      } catch {
+        // Best-effort cleanup after an already failed socket setup.
+      }
+
+      try {
+        if (this.instream)
+          this.instream.close();
+      } catch {
+        // Best-effort cleanup after an already failed socket setup.
+      }
+
+      try {
+        if (this.socket)
+          this.socket.close(0);
+      } catch {
+        // Best-effort cleanup after an already failed socket setup.
+      }
+
+      this.outstream = null;
+      this.instream = null;
+      this.socket = null;
+      this.state = STATE_CLOSED;
+
+      if (this.handler && this.handler.onError)
+        (async () => { await this.handler.onError(error); })();
     }
 
 
@@ -171,7 +257,9 @@
       // are back to five.
 
       // We know if it is before 78 we need to test if it is the really old API
-      if (Services.vc.compare(Services.appinfo.platformVersion, "78.0") < 0) {
+      const services = getServices();
+
+      if (services.vc.compare(services.appinfo.platformVersion, "78.0") < 0) {
         if (transportService.createTransport.length === REALLY_OLD_TRANSPORT_API)
           return transportService.createTransport(["starttls"], TRANSPORT_SECURE, this.host, this.port, proxyInfo);
       }
@@ -235,20 +323,51 @@
      * trigger onStopRequest to be called. The request object can then be used
      * to analyze what caused the error.
      */
-    startTLS() {
+    async startTLS() {
 
       this.log("[SieveSocketApi:startTLS()] Requesting upgrade to secure...");
 
       if (this.state !== STATE_OPEN)
         throw new Error("Socket not in open state");
 
-      const control = this.socket.securityInfo
-        .QueryInterface(Ci.nsISSLSocketControl);
+      let control = null;
+
+      // Current Gecko exposes nsITLSSocketControl directly on the transport.
+      // Older Thunderbird versions exposed nsISSLSocketControl through
+      // securityInfo, so retain that path for compatibility.
+      try {
+        control = this.socket.tlsSocketControl;
+      } catch {
+        // Fall through to the legacy QueryInterface paths.
+      }
+
+      if (!control && this.socket.securityInfo) {
+        try {
+          control = this.socket.securityInfo
+            .QueryInterface(Ci.nsITLSSocketControl);
+        } catch {
+          // Fall through to the pre-nsITLSSocketControl interface.
+        }
+      }
+
+      if (!control && this.socket.securityInfo) {
+        try {
+          control = this.socket.securityInfo
+            .QueryInterface(Ci.nsISSLSocketControl);
+        } catch {
+          // The caller receives a structured compatibility error below.
+        }
+      }
 
       if (!control)
         throw new Error("Socket can not be upgraded.");
 
-      control.StartTLS();
+      if (typeof control.asyncStartTLS === "function")
+        await control.asyncStartTLS();
+      else if (typeof control.StartTLS === "function")
+        control.StartTLS();
+      else
+        throw new Error("TLS socket control provides no STARTTLS method.");
 
       this.log("[SieveSocketApi:startTLS()] ... done");
     }
@@ -278,8 +397,13 @@
         return;
       }
 
-      this.state = STATE_OPEN;
-      this.registerAsyncWait(this.instream.QueryInterface(Ci.nsIAsyncInputStream));
+      try {
+        this.state = STATE_OPEN;
+        this.registerAsyncWait(this.instream.QueryInterface(Ci.nsIAsyncInputStream));
+      } catch (ex) {
+        this.fail(ex, "Opening the input stream");
+        return;
+      }
 
       this.log("[SieveSocketApi:onTransportStatus()] ... socket now in open state");
     }
@@ -397,7 +521,7 @@
         this.disconnect();
         this.state = STATE_CLOSED;
 
-        if (this.handler && this.handler.onError) {
+        if (this.handler && this.handler.onClose) {
           this.log(`[SieveSocketApi:onInputStreamReady()] ... calling close handler...`);
           (async () => { this.handler.onClose(); })();
         }
@@ -672,29 +796,34 @@
       else
         this.log("Using Proxy: Direct");
 
-      this.socket = this.createTransport(aProxyInfo);
+      try {
+        this.socket = this.createTransport(aProxyInfo);
 
-      this.state = STATE_CONNECTING;
+        this.state = STATE_CONNECTING;
 
-      this.socket.setEventSink(this, this.thread);
+        this.thread = getServices().tm.mainThread;
+        this.socket.setEventSink(this, this.thread);
 
-      this.instream = this.socket.openInputStream(
-        STREAM_BUFFERED, DEFAULT_SEGMENT_SIZE, DEFAULT_SEGMENT_COUNT);
-      this.outstream = this.socket.openOutputStream(
-        STREAM_BUFFERED, DEFAULT_SEGMENT_SIZE, DEFAULT_SEGMENT_COUNT);
+        this.instream = this.socket.openInputStream(
+          STREAM_BUFFERED, DEFAULT_SEGMENT_SIZE, DEFAULT_SEGMENT_COUNT);
+        this.outstream = this.socket.openOutputStream(
+          STREAM_BUFFERED, DEFAULT_SEGMENT_SIZE, DEFAULT_SEGMENT_COUNT);
 
-      // this.registerAsyncWait(this.instream.QueryInterface(Ci.nsIAsyncInputStream));
+        // this.registerAsyncWait(this.instream.QueryInterface(Ci.nsIAsyncInputStream));
 
-      this.binaryInputStream = Cc["@mozilla.org/binaryinputstream;1"]
-        .createInstance(Ci.nsIBinaryInputStream);
-      this.binaryInputStream.setInputStream(this.instream);
+        this.binaryInputStream = Cc["@mozilla.org/binaryinputstream;1"]
+          .createInstance(Ci.nsIBinaryInputStream);
+        this.binaryInputStream.setInputStream(this.instream);
 
 
-      this.binaryOutStream =
-        Cc["@mozilla.org/binaryoutputstream;1"]
-          .createInstance(Ci.nsIBinaryOutputStream);
+        this.binaryOutStream =
+          Cc["@mozilla.org/binaryoutputstream;1"]
+            .createInstance(Ci.nsIBinaryOutputStream);
 
-      this.binaryOutStream.setOutputStream(this.outstream);
+        this.binaryOutStream.setOutputStream(this.outstream);
+      } catch (ex) {
+        this.fail(ex, "Creating the Thunderbird socket transport");
+      }
     }
 
 
@@ -766,7 +895,7 @@
   /**
    * Implements a webextension api for sieve session and connection management.
    */
-  class SieveSocketApi extends ExtensionCommon.ExtensionAPI {
+  class SieveSocketApiV4 extends ExtensionCommon.ExtensionAPI {
 
     /**
      * @inheritdoc
@@ -785,7 +914,7 @@
       }
 
       // Clear caches that could prevent upgrades from working properly
-      Services.obs.notifyObservers(null, "startupcache-invalidate", null);
+      getServices().obs.notifyObservers(null, "startupcache-invalidate", null);
     }
 
     /**
@@ -796,7 +925,7 @@
       context.callOnClose({
         close: () => {
           for (const key of sockets.keys()) {
-            sockets[key].destroy();
+            sockets.get(key).destroy();
             sockets.delete(key);
           }
         }
@@ -804,7 +933,17 @@
 
       return {
         sieve: {
-          socket: {
+          socketV4: {
+
+            /**
+             * Verifies that Thunderbird loaded this exact Experiment API.
+             *
+             * @returns {string}
+             *   a stable API generation marker.
+             */
+            async probe() {
+              return "sieve-socket-api-v4";
+            },
 
             /**
              * Creates a socket which can be connected to the remote server.
@@ -813,25 +952,37 @@
              *   the remote server's hostname.
              * @param {string} port
              *   the remote server's port.
-             * @param {int} level
-             *   true in case logging should be enabled.
-             *
              * @returns {string}
-             *   return the unique id.
+             *   JSON encoded creation result containing either the unique id
+             *   or the original privileged error.
              */
-            async create(host, port, level) {
+            async create(host, port) {
+              try {
+                const socket = new SieveSocket(host, port, 0);
 
-              const socket = new SieveSocket(host, port, level);
+                const id = Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT32_LEN)
+                  + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
+                  + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
+                  + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
+                  + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT48_LEN);
 
-              const id = Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT32_LEN)
-                + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
-                + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
-                + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)
-                + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT48_LEN);
+                sockets.set(id, socket);
 
-              sockets.set(id, socket);
+                return JSON.stringify({ id });
+              } catch (ex) {
+                const name = ex && ex.name ? ex.name : "Error";
+                const message = ex && ex.message ? ex.message : `${ex}`;
+                const result = ex && ex.result
+                  ? `, result ${ex.result}`
+                  : "";
 
-              return id;
+                // Keep the privileged stack in Thunderbird's error console,
+                // while returning a serializable diagnostic to the extension.
+                console.error("Creating the privileged Sieve socket failed", ex);
+                return JSON.stringify({
+                  error: `Creating the privileged Sieve socket failed (${name}${result}): ${message}`
+                });
+              }
             },
 
             /**
@@ -841,7 +992,11 @@
              *   the socket's unique id.
              */
             async connect(socket) {
-              await (getSocket(socket).connect());
+              try {
+                await (getSocket(socket).connect());
+              } catch (ex) {
+                throw new Error(`Starting the Sieve connection failed: ${ex.message || ex}`);
+              }
             },
 
             /**
@@ -849,9 +1004,25 @@
              *
              * @param {string} socket
              *   the socket's unique id.
+             * @returns {string}
+             *   JSON encoded TLS upgrade result.
              */
             async startTLS(socket) {
-              await (getSocket(socket).startTLS());
+              try {
+                await (getSocket(socket).startTLS());
+                return JSON.stringify({ ok: true });
+              } catch (ex) {
+                const name = ex && ex.name ? ex.name : "Error";
+                const message = ex && ex.message ? ex.message : `${ex}`;
+                const result = ex && ex.result
+                  ? `, result ${ex.result}`
+                  : "";
+
+                console.error("Starting the privileged TLS upgrade failed", ex);
+                return JSON.stringify({
+                  error: `Starting the privileged TLS upgrade failed (${name}${result}): ${message}`
+                });
+              }
             },
 
             /**
@@ -971,7 +1142,7 @@
              */
             onData: new ExtensionCommon.EventManager({
               context,
-              name: "sieve.socket.onData",
+              name: "sieve.socketV4.onData",
               register: (fire, socket) => {
 
                 const callback = async (bytes) => {
@@ -993,7 +1164,7 @@
              */
             onError: new ExtensionCommon.EventManager({
               context,
-              name: "sieve.socket.onError",
+              name: "sieve.socketV4.onError",
               register: (fire, socket) => {
 
                 const callback = async (error) => {
@@ -1015,7 +1186,7 @@
              */
             onClose: new ExtensionCommon.EventManager({
               context,
-              name: "sieve.socket.onClose",
+              name: "sieve.socketV4.onClose",
               register: (fire, socket) => {
 
                 const callback = async () => {
@@ -1037,6 +1208,6 @@
     }
   }
 
-  exports.SieveSocketApi = SieveSocketApi;
+  exports.SieveSocketApiV4 = SieveSocketApiV4;
 
 })(this);

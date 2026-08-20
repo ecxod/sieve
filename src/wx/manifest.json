@@ -1,7 +1,7 @@
 {
   "name": "Sieve CRAM-MD5",
   "description": "__MSG_extensionDescription__",
-  "version": "0.6.1.9",
+  "version": "0.7.0",
   "author": "ecxod",
   "developer": {
     "name": "ecxod",
@@ -13,6 +13,11 @@
   },
   "background": {
     "page": "background.html"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": false,
+    "browser_style": true
   },
   "manifest_version": 2,
   "default_locale": "en_US",
@@ -26,7 +31,8 @@
   "permissions": [
     "accountsRead",
     "tabs",
-    "storage"
+    "storage",
+    "https://sentry.zp1.net/*"
   ],
   "experiment_apis": {
     "SieveAccountsApi": {
@@ -44,17 +50,17 @@
         ]
       }
     },
-    "SieveSocketApi": {
-      "schema": "api/sieve/SieveSocketApi.json",
+    "SieveSocketApiV4": {
+      "schema": "api/sieve/SieveSocketApiV4.json",
       "parent": {
         "scopes": [
           "addon_parent"
         ],
-        "script": "api/sieve/SieveSocketApi.js",
+        "script": "api/sieve/SieveSocketApiV4.js",
         "paths": [
           [
             "sieve",
-            "socket"
+            "socketV4"
           ]
         ]
       }

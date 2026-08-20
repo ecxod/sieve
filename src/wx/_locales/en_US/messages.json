@@ -12,5 +12,21 @@
   "menuAccessKey": {
     "message": "S",
     "description": "The menu item's access key."
+  },
+
+  "optionsTitle": {
+    "message": "Sieve CRAM-MD5 – Options"
+  },
+
+  "optionsDeveloperLabel": {
+    "message": "I am a developer"
+  },
+
+  "optionsDeveloperDescription": {
+    "message": "Show the Debugging button in a Sieve server's settings."
+  },
+
+  "optionsSaved": {
+    "message": "Saved"
   }
 }

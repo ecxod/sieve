@@ -19,6 +19,19 @@ import { SieveAbstractPrefManager } from "./SieveAbstractPrefManager.mjs";
 class SieveMozPrefManager extends SieveAbstractPrefManager {
 
   /**
+   * Clears all values in this namespace.
+   */
+  async clear() {
+    const namespace = `${this.getNamespace()}.`;
+    const values = await browser.storage.local.get(null);
+    const keys = Object.keys(values)
+      .filter((key) => { return key.startsWith(namespace); });
+
+    if (keys.length)
+      await browser.storage.local.remove(keys);
+  }
+
+  /**
    * @inheritdoc
    */
   async getValue(key) {
@@ -41,6 +54,19 @@ class SieveMozPrefManager extends SieveAbstractPrefManager {
     item[`${this.getNamespace()}.${key}`] = value;
 
     await browser.storage.local.set(item);
+    return this;
+  }
+
+  /**
+   * Deletes a single value from this namespace.
+   *
+   * @param {string} key
+   *   the unqualified preference key.
+   * @returns {SievePrefManager}
+   *   a self reference.
+   */
+  async removeKey(key) {
+    await browser.storage.local.remove(`${this.getNamespace()}.${key}`);
     return this;
   }
 }

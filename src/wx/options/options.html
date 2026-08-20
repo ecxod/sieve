@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sieve CRAM-MD5 – Optionen</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+
+<body>
+  <main>
+    <h1 id="options-title">Sieve CRAM-MD5 – Optionen</h1>
+
+    <label class="developer-option" for="sieve-option-developer">
+      <input type="checkbox" id="sieve-option-developer">
+      <span id="options-developer-label">Ich bin ein Entwickler</span>
+    </label>
+
+    <p id="options-developer-description">
+      Zeigt die Debuggen-Schaltfläche in den Einstellungen eines Sieve-Servers an.
+    </p>
+    <p id="options-status" role="status" aria-live="polite"></p>
+  </main>
+
+  <script type="module" src="options.mjs"></script>
+</body>
+
+</html>
