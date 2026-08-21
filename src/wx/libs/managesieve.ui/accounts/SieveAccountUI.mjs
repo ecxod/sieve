@@ -11,13 +11,55 @@
 
 import { SieveAbstractAccountUI } from "./SieveAbstractAccountUI.mjs";
 import { SieveIpcClient } from "./../utils/SieveIpcClient.mjs";
+import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
 import { captureException } from "./../utils/SieveSentry.mjs";
+import { SieveFilterImportUI } from "./SieveFilterImportUI.mjs";
 
 
 /**
  * A UI renderer for a sieve account
  */
 class SieveMozAccountUI extends SieveAbstractAccountUI {
+
+  /**
+   * Adds a read-only Thunderbird-filter conversion tab to mail accounts.
+   * Custom standalone Sieve servers do not have a Thunderbird filter list.
+   */
+  async renderAccount() {
+    await super.renderAccount();
+
+    const settings = await this.send("account-get-settings");
+    if (settings.custom)
+      return;
+
+    const account = document.querySelector(`#siv-account-${this.id}`);
+    const pane = await (new SieveTemplate()).load("./accounts/account.filters.html");
+    const paneId = `sieve-filters-content-${this.id}`;
+    pane.id = paneId;
+    account.querySelector(".sieve-account-body").append(pane);
+
+    const item = document.createElement("li");
+    item.className = "nav-item sieve-account-expanded";
+    item.classList.toggle("d-none", account.dataset.collapsed === "true");
+
+    const tab = document.createElement("a");
+    tab.className = "sieve-filters-tab nav-link";
+    tab.href = `#${paneId}`;
+    tab.dataset.bsToggle = "tab";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", paneId);
+    try {
+      tab.textContent = SieveI18n.getInstance().getString("account.filters.tab");
+    } catch {
+      tab.textContent = "Thunderbird → Sieve";
+    }
+    item.append(tab);
+    account.querySelector(".sieve-account-tabs").append(item);
+
+    const importer = new SieveFilterImportUI(this, pane);
+    tab.addEventListener("shown.bs.tab", () => { importer.render(); });
+  }
 
   /**
    * @inheritdoc

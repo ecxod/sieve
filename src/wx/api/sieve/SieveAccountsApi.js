@@ -16,6 +16,8 @@
 
   const Cc = Components.classes;
   const Ci = Components.interfaces;
+  const UNKNOWN_VALUE = -1;
+  const DISPLAY_INDEX_OFFSET = 1;
 
   /**
    * Get the incoming server for the given account id.
@@ -70,6 +72,288 @@
     } catch {
       return "";
     }
+  }
+
+  /**
+   * Reads a privileged XPCOM property which may throw for the current value
+   * type.
+   *
+   * @param {object} item
+   *   the XPCOM object.
+   * @param {string} name
+   *   the property name.
+   * @param {*} fallback
+   *   the serializable fallback value.
+   * @returns {*}
+   *   the property value or the fallback.
+   */
+  function readProperty(item, name, fallback = null) {
+    try {
+      const value = item[name];
+      if (typeof value === "undefined")
+        return fallback;
+      return value;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
+   * Serializes a Thunderbird search term into plain WebExtension data.
+   *
+   * @param {nsIMsgSearchTerm} term
+   *   the Thunderbird filter term.
+   * @returns {object}
+   *   a structured-clone compatible representation.
+   */
+  function serializeTerm(term) {
+    const value = readProperty(term, "value", {});
+    const folder = readProperty(value, "folder", null);
+
+    return {
+      attrib: readProperty(term, "attrib", UNKNOWN_VALUE),
+      op: readProperty(term, "op", UNKNOWN_VALUE),
+      booleanAnd: !!readProperty(term, "booleanAnd", true),
+      beginsGrouping: !!readProperty(term, "beginsGrouping", false),
+      endsGrouping: !!readProperty(term, "endsGrouping", false),
+      arbitraryHeader: readProperty(term, "arbitraryHeader", ""),
+      hdrProperty: readProperty(term, "hdrProperty", ""),
+      customId: readProperty(term, "customId", ""),
+      original: readProperty(term, "termAsString", ""),
+      matchAll: !!readProperty(term, "matchAll", false),
+      value: {
+        str: readProperty(value, "str", ""),
+        utf8Str: readProperty(value, "utf8Str", ""),
+        priority: readProperty(value, "priority", null),
+        date: readProperty(value, "date", null),
+        status: readProperty(value, "status", null),
+        size: readProperty(value, "size", null),
+        age: readProperty(value, "age", null),
+        msgKey: readProperty(value, "msgKey", null),
+        junkStatus: readProperty(value, "junkStatus", null),
+        junkPercent: readProperty(value, "junkPercent", null),
+        folderUri: folder ? readProperty(folder, "URI", "") : ""
+      }
+    };
+  }
+
+  /**
+   * Serializes a Thunderbird filter action into plain WebExtension data.
+   *
+   * @param {nsIMsgRuleAction} action
+   *   the Thunderbird filter action.
+   * @returns {object}
+   *   a structured-clone compatible representation.
+   */
+  function serializeAction(action) {
+    return {
+      type: readProperty(action, "type", 0),
+      targetFolderUri: readProperty(action, "targetFolderUri", ""),
+      strValue: readProperty(action, "strValue", ""),
+      priority: readProperty(action, "priority", null),
+      junkScore: readProperty(action, "junkScore", null),
+      customId: readProperty(action, "customId", "")
+    };
+  }
+
+  /**
+   * Returns a normal JavaScript array for XPCOM array attributes.
+   *
+   * @param {*} value
+   *   an XPCOM or JavaScript array.
+   * @param {object} [iface]
+   *   the XPCOM interface used by legacy nsIArray values.
+   * @returns {Array}
+   *   the normalized array.
+   */
+  function asArray(value, iface) {
+    if (!value)
+      return [];
+
+    try {
+      const result = Array.from(value).filter((item) => { return !!item; });
+      if (result.length || !readProperty(value, "length", 0))
+        return result;
+    } catch {
+      // Thunderbird 68 can expose these attributes as legacy nsIArray values.
+    }
+
+    const result = [];
+    const length = readProperty(value, "length", 0);
+    for (let index = 0; index < length; index++) {
+      try {
+        result.push(value[index] || value.queryElementAt(index, iface));
+      } catch {
+        // Skip an individual entry which cannot be unwrapped.
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Gets the filter list which Thunderbird exposes to its filter editor.
+   *
+   * @param {nsIMsgIncomingServer} server
+   *   the owning incoming server.
+   * @returns {nsIMsgFilterList}
+   *   the mutable user filter list.
+   */
+  function getEditableFilterList(server) {
+    try {
+      return server.getEditableFilterList(null);
+    } catch {
+      return server.getFilterList(null);
+    }
+  }
+
+  /**
+   * Serializes one persistent Thunderbird filter.
+   *
+   * @param {nsIMsgFilter} filter
+   *   the filter to serialize.
+   * @param {number} index
+   *   its current position in the filter list.
+   * @returns {object}
+   *   structured-clone compatible filter data with a deletion guard token.
+   */
+  function serializeFilter(filter, index) {
+    const terms = asArray(
+      readProperty(filter, "searchTerms", []), Ci.nsIMsgSearchTerm)
+      .map((term) => { return serializeTerm(term); });
+    let actions = asArray(
+      readProperty(filter, "sortedActionList", []), Ci.nsIMsgRuleAction);
+
+    if (!actions.length) {
+      const actionCount = readProperty(filter, "actionCount", 0);
+      actions = [];
+      for (let actionIndex = 0; actionIndex < actionCount; actionIndex++)
+        actions.push(filter.getActionAt(actionIndex));
+    }
+
+    const result = {
+      index: index,
+      name: readProperty(filter, "filterName", `Filter ${index + DISPLAY_INDEX_OFFSET}`),
+      description: readProperty(filter, "filterDesc", ""),
+      enabled: !!readProperty(filter, "enabled", false),
+      filterType: readProperty(filter, "filterType", 0),
+      unparseable: !!readProperty(filter, "unparseable", false),
+      needsMessageBody: !!readProperty(filter, "needsMessageBody", false),
+      terms: terms,
+      actions: actions.map((action) => { return serializeAction(action); })
+    };
+
+    result.deleteToken = JSON.stringify(result);
+    return result;
+  }
+
+  /**
+   * Reads the user-editable Thunderbird message filters for an account.
+   * Temporary internal filters are intentionally excluded.
+   *
+   * @param {string} id
+   *   the Thunderbird account id.
+   * @returns {object[]}
+   *   serialized message filters in Thunderbird execution order.
+   */
+  function getFilters(id) {
+    const server = getIncomingServer(id);
+    const list = getEditableFilterList(server);
+
+    const result = [];
+    const count = readProperty(list, "filterCount", 0);
+
+    for (let index = 0; index < count; index++) {
+      const filter = list.getFilterAt(index);
+      if (!filter || readProperty(filter, "temporary", false))
+        continue;
+
+      result.push(serializeFilter(filter, index));
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolves a displayed filter only if its current state still matches.
+   *
+   * @param {string} id
+   *   the Thunderbird account id.
+   * @param {number} index
+   *   the filter's position when it was displayed.
+   * @param {string} stateToken
+   *   exact serialized state from the displayed table.
+   * @returns {object}
+   *   filter list, native filter and serialized filter data.
+   */
+  function getGuardedFilter(id, index, stateToken) {
+    const list = getEditableFilterList(getIncomingServer(id));
+    const count = readProperty(list, "filterCount", 0);
+
+    if (!Number.isInteger(index) || index < 0 || index >= count)
+      throw new Error("The Thunderbird filter list changed. Refresh it and try again.");
+
+    const filter = list.getFilterAt(index);
+    if (!filter || readProperty(filter, "temporary", false))
+      throw new Error("The selected Thunderbird filter is no longer available.");
+
+    const data = serializeFilter(filter, index);
+    if (!stateToken || data.deleteToken !== stateToken)
+      throw new Error("The Thunderbird filter changed. Refresh it and try again.");
+
+    return { list: list, filter: filter, data: data };
+  }
+
+  /**
+   * Removes one unchanged Thunderbird filter and persists the filter file.
+   *
+   * @param {string} id
+   *   the Thunderbird account id.
+   * @param {number} index
+   *   the filter's position when it was displayed.
+   * @param {string} deleteToken
+   *   exact serialized state used to prevent deleting a changed filter.
+   * @returns {object}
+   *   the deleted filter's name.
+   */
+  function removeFilter(id, index, deleteToken) {
+    const current = getGuardedFilter(id, index, deleteToken);
+
+    current.list.removeFilterAt(index);
+    current.list.saveToDefaultFile();
+    return { name: current.data.name };
+  }
+
+  /**
+   * Opens Thunderbird's native editor for one unchanged message filter.
+   *
+   * @param {string} id
+   *   the Thunderbird account id.
+   * @param {number} index
+   *   the filter's position when it was displayed.
+   * @param {string} stateToken
+   *   exact serialized state from the displayed table.
+   * @returns {object}
+   *   whether Thunderbird accepted changes in its modal editor.
+   */
+  function editFilter(id, index, stateToken) {
+    const current = getGuardedFilter(id, index, stateToken);
+    const wm = Cc["@mozilla.org/appshell/window-mediator;1"]
+      .getService(Ci.nsIWindowMediator);
+    const owner = wm.getMostRecentWindow("mail:3pane")
+      || wm.getMostRecentWindow("mail:messageWindow")
+      || wm.getMostRecentWindow(null);
+
+    if (!owner || typeof owner.openDialog !== "function")
+      throw new Error("No Thunderbird mail window is available for the filter editor.");
+
+    const args = { filter: current.filter, filterList: current.list };
+    owner.openDialog(
+      "chrome://messenger/content/FilterEditor.xhtml",
+      "FilterEditor",
+      "chrome,modal,titlebar,resizable,centerscreen",
+      args);
+
+    return { changed: !!args.refresh };
   }
 
   /**
@@ -140,6 +424,18 @@
                 getHostnameFromUri(getProperty(server, "serverURI")),
                 getHostnameFromUri(getProperty(server, "serverUri")),
                 getHostnameFromUri(getProperty(server, "URI")));
+            },
+
+            async getFilters(id) {
+              return getFilters(id);
+            },
+
+            async removeFilter(id, index, deleteToken) {
+              return removeFilter(id, index, deleteToken);
+            },
+
+            async editFilter(id, index, stateToken) {
+              return editFilter(id, index, stateToken);
             }
           }
         }

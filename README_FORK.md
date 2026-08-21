@@ -142,6 +142,22 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   and saves a valid HTTPS DSN on `sentry.zp1.net`. Clearing and saving the
   field disables reporting again. The synthetic per-version startup report is
   removed; only actual errors are reported after explicit configuration.
+- Version `0.7.2` is the first stable release using the same version number for
+  the Windows installer and Thunderbird XPI. The extension adds one
+  **Thunderbird → Sieve** tab per discovered mail account. It reads that
+  account's Thunderbird message filters and displays each source rule beside a
+  conservative Sieve translation. Unsupported, disabled, or semantically
+  different rules are guarded with `false` and carry review warnings. Existing
+  server scripts are compared by generated import ID and matching rules are
+  highlighted in yellow. A generated block can be copied, or inserted directly
+  into a selected existing Sieve script. Direct saving adds missing `require`
+  capabilities, checks the complete script on the server, refuses stale
+  overwrites, and leaves script activation unchanged. Managed boundary markers
+  allow an unchanged imported rule to be updated safely. The source rule can
+  be opened in Thunderbird's native filter editor; deletion is offered only
+  after its imported block is found and requires a second confirmation click.
+  The accounts page also shows the add-on name beside **Create Server** and the
+  same fork/version footer as the Windows application.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -161,15 +177,15 @@ The obsolete `src/TODO.md` file has also been removed.
 
 Versions through `0.6.1.8` used the upstream extension ID. Thunderbird cannot
 change an installed extension's ID during an automatic update. Remove the old
-**Sieve** extension and install `0.7.1` once; subsequent fork releases update
+**Sieve** extension and install `0.7.2` once; subsequent fork releases update
 normally under the new ID. Do not keep both extensions installed at the same
 time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.7.1-cram-md5.xpi`](releases/sieve-0.7.1-cram-md5.xpi).
+[`releases/sieve-0.7.2-cram-md5.xpi`](releases/sieve-0.7.2-cram-md5.xpi).
 
-SHA-256: `8d05b6ee981ba45ef8df455d726f934cb00240f8141e8c062190515f7d080f7a`
+SHA-256: `0e0da89f0571b877c1aa155460a253e8caad2fb9320361342ebbee0014986112`
 
 ### Thunderbird permission notice
 
@@ -185,6 +201,6 @@ reading account metadata, managing its tabs and local settings, and reaching
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.6.1.9.exe`](releases/install_sieve_0.6.1.9.exe).
+[`releases/install_sieve_0.7.2.exe`](releases/install_sieve_0.7.2.exe).
 
-SHA-256: `087786b159b887fb4a04b9d509a16938ca18e91efc3708163d9eff7a207ec916`
+SHA-256: `08db30c20866f05cf10af699f63e47370b96c4ee9bb1ebc473dc1910dbafa708`

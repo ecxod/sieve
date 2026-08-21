@@ -318,6 +318,17 @@
     ]
   });
 
+  tests.set("thunderbird-filter-converter", {
+    script: "${workspace}/managesieve.ui/filters/tests/SieveThunderbirdFilterConverterTest.mjs",
+    extend: "rfc5228",
+    require: [
+      "${workspace}/libSieve/extensions/copy/logic/SieveCopy.mjs",
+      "${workspace}/libSieve/extensions/body/logic/SieveBody.mjs",
+      "${workspace}/libSieve/extensions/imapflags/logic/SieveImapFlags.mjs",
+      "${workspace}/managesieve.ui/filters/SieveThunderbirdFilterConverter.mjs"
+    ]
+  });
+
 
   exports.tests = tests;
 

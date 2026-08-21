@@ -9,6 +9,8 @@
  *   Thomas Schmid <schmid-thomas@gmx.net>
  */
 
+/* global browser */
+
 import { SieveLogger } from "./utils/SieveLogger.mjs";
 import { SieveIpcClient } from "./utils/SieveIpcClient.mjs";
 import { SieveI18n } from "./utils/SieveI18n.mjs";
@@ -142,6 +144,10 @@ async function main() {
       await SieveIpcClient.sendMessage("core", "settings-get-theme"));
 
     await (SieveI18n.getInstance()).load();
+
+    const manifest = browser.runtime.getManifest();
+    document.querySelector("#sieve-addon-name").textContent = manifest.name;
+    document.querySelector("#sieve-fork-version").textContent = manifest.version;
 
     const createAccount = document.querySelector("#sieve-account-create");
     try {

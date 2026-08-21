@@ -1,0 +1,33 @@
+<div class="sieve-filters-content tab-pane fade p-3" role="tabpanel">
+  <div class="sieve-filters-toolbar d-flex gap-2" role="toolbar">
+    <button type="button" class="btn btn-sm btn-outline-secondary sieve-filters-refresh"
+      data-i18n="account.filters.refresh">Aktualisieren</button>
+    <button type="button" class="btn btn-sm btn-primary sieve-filters-copy-all" disabled
+      data-i18n="account.filters.copy.all">Alles kopieren</button>
+  </div>
+
+  <div class="sieve-filters-heading mb-3">
+    <h4 class="mb-1" data-i18n="account.filters.title">Thunderbird → Sieve</h4>
+    <p class="text-body-secondary mb-1" data-i18n="account.filters.description">
+      Thunderbird-Regeln links, sicher erzeugte Sieve-Blöcke rechts.
+    </p>
+    <p class="small mb-0">
+      <span class="sieve-filter-legend-swatch"></span>
+      <span data-i18n="account.filters.implemented.legend">Gelb bedeutet: Import-ID in einem Serverskript gefunden.</span>
+    </p>
+  </div>
+
+  <div class="alert alert-secondary py-2 sieve-filters-status" role="status" aria-live="polite"></div>
+
+  <div class="table-responsive sieve-filters-table-wrap">
+    <table class="table table-bordered align-top sieve-filters-table">
+      <thead>
+        <tr>
+          <th scope="col" data-i18n="account.filters.thunderbird">Thunderbird-Regel</th>
+          <th scope="col" data-i18n="account.filters.sieve">Sieve-Regel</th>
+        </tr>
+      </thead>
+      <tbody class="sieve-filters-rows"></tbody>
+    </table>
+  </div>
+</div>

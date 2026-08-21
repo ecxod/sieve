@@ -240,6 +240,69 @@ initSentry("background");
       return await host.getDisplayName();
     },
 
+    "account-filters-list": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`List Thunderbird filters for ${id}`);
+      return await browser.sieve.accounts.getFilters(id);
+    },
+
+    "account-filter-delete": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Delete imported Thunderbird filter for ${id}`);
+      return await browser.sieve.accounts.removeFilter(
+        id, msg.payload.index, msg.payload.deleteToken);
+    },
+
+    "account-filter-edit": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Open Thunderbird filter editor for ${id}`);
+      return await browser.sieve.accounts.editFilter(
+        id, msg.payload.index, msg.payload.stateToken);
+    },
+
+    "account-filter-scripts": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Load server scripts for Thunderbird filter comparison on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        return { connected: false, scripts: [] };
+
+      const session = sessions.get(id);
+      const scripts = [];
+      for (const item of await session.listScripts()) {
+        scripts.push({
+          name: item.script,
+          active: !!item.active,
+          content: await session.getScript(item.script)
+        });
+      }
+
+      return { connected: true, scripts: scripts };
+    },
+
+    "account-filter-script-save": async function (msg) {
+      const id = msg.payload.account;
+      const name = msg.payload.name;
+      const expected = msg.payload.expected;
+      const script = msg.payload.script;
+      logger.logAction(`Save imported Thunderbird filter to ${name} on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected.");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== expected) {
+        throw new Error(
+          "The server script changed after it was loaded. Refresh the filter table and try again.");
+      }
+
+      await session.checkScript(script);
+      await session.putScript(name, script);
+
+      return { name: name };
+    },
+
     "account-is-connecting": function(msg) {
       logger.logAction(`Is connecting ${msg.payload.account}`);
 

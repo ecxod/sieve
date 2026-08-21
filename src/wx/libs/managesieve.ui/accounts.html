@@ -9,15 +9,23 @@
 
   <!-- Bootstrap core CSS -->
   <link rel="stylesheet" href="./../bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="accounts.css">
 </head>
 
 <body>
   <div class="container" id="ctx">
-    <div class="d-flex justify-content-end mt-3 mb-3">
+    <div class="d-flex align-items-center justify-content-between gap-3 mt-3 mb-3">
+      <h1 class="h4 mb-0" id="sieve-addon-name">Sieve CRAM-MD5</h1>
       <button type="button" data-i18n="accounts.create.add"
         class="btn btn-primary px-4 py-2 fw-semibold" id="sieve-account-create">Server erstellen</button>
     </div>
     <div class="siv-accounts-items"></div>
+
+    <footer id="sieve-fork-info" class="small text-body-secondary text-center py-1">
+      Sieve v<span id="sieve-fork-version">0.7.2</span> CRAM-MD5
+      (<a href="https://github.com/ecxod/sieve/" target="_blank"
+        rel="noopener noreferrer">https://github.com/ecxod/sieve/</a>)
+    </footer>
   </div>
 
     <!-- Bootstrap core JavaScript

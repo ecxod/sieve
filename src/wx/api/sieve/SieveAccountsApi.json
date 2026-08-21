@@ -54,6 +54,65 @@
             "description": "The account key"
           }
         ]
+      },
+      {
+        "name": "getFilters",
+        "type": "function",
+        "description": "Gets the user-editable Thunderbird message filters for an account",
+        "async": true,
+        "parameters": [
+          {
+            "name": "id",
+            "type": "string",
+            "description": "The account key"
+          }
+        ]
+      },
+      {
+        "name": "removeFilter",
+        "type": "function",
+        "description": "Removes an unchanged user-editable Thunderbird message filter",
+        "async": true,
+        "parameters": [
+          {
+            "name": "id",
+            "type": "string",
+            "description": "The account key"
+          },
+          {
+            "name": "index",
+            "type": "integer",
+            "description": "The filter position"
+          },
+          {
+            "name": "deleteToken",
+            "type": "string",
+            "description": "The filter state which must still match"
+          }
+        ]
+      },
+      {
+        "name": "editFilter",
+        "type": "function",
+        "description": "Opens Thunderbird's native editor for an unchanged message filter",
+        "async": true,
+        "parameters": [
+          {
+            "name": "id",
+            "type": "string",
+            "description": "The account key"
+          },
+          {
+            "name": "index",
+            "type": "integer",
+            "description": "The filter position"
+          },
+          {
+            "name": "stateToken",
+            "type": "string",
+            "description": "The filter state which must still match"
+          }
+        ]
       }
     ]
   }

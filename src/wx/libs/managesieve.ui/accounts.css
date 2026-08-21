@@ -1,0 +1,105 @@
+html,
+body {
+  min-height: 100%;
+}
+
+#ctx {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.siv-accounts-items {
+  flex: 1 0 auto;
+}
+
+#sieve-fork-info {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+}
+
+.sieve-filters-content {
+  position: relative;
+}
+
+.sieve-filters-toolbar {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 10;
+  float: right;
+  width: max-content;
+  margin: -0.25rem 0 0.75rem 1rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 0.35rem;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.16);
+}
+
+.sieve-filters-status {
+  clear: both;
+}
+
+.sieve-filters-table {
+  min-width: 56rem;
+  table-layout: fixed;
+}
+
+.sieve-filters-table th,
+.sieve-filters-table td {
+  width: 50%;
+}
+
+.sieve-filter-code {
+  clear: both;
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border-radius: 0.25rem;
+  background: rgba(128, 128, 128, 0.12);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.sieve-filter-implemented > td {
+  background-color: #fff3cd !important;
+  color: #332701;
+}
+
+.sieve-filter-legend-swatch {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-right: 0.25rem;
+  border: 1px solid #d6b656;
+  border-radius: 0.15rem;
+  background: #fff3cd;
+  vertical-align: -0.1rem;
+}
+
+.sieve-filter-clipboard-fallback {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+}
+
+@media (max-width: 575.98px) {
+  .sieve-filters-toolbar {
+    float: none;
+    justify-content: flex-end;
+    width: 100%;
+    margin: -0.25rem 0 0.75rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .sieve-filter-implemented > td {
+    background-color: #594800 !important;
+    color: #fff3cd;
+  }
+
+  .sieve-filter-legend-swatch {
+    background: #594800;
+  }
+}

@@ -9,9 +9,10 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Thunderbird 0.7.1
+## Stable release 0.7.2
 
-Release `0.7.1` is the current Thunderbird extension release. It includes:
+Release `0.7.2` uses the same version for the Windows application and the
+Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
   implementation using the current asynchronous STARTTLS API
@@ -26,12 +27,34 @@ Release `0.7.1` is the current Thunderbird extension release. It includes:
 - optional Sentry error reporting configured by the user on the **Options**
   page; reporting is disabled while the DSN field is empty, and the extension
   contains no hard-coded project DSN
+- a **Thunderbird → Sieve** tab for each discovered mail server, showing
+  Thunderbird message filters beside conservatively generated Sieve blocks
+- comparison with the server's existing Sieve scripts; matching imported
+  blocks are highlighted in yellow
+- per-rule **Edit**, **Copy stanza**, and guarded Thunderbird-filter deletion
+  controls, plus a sticky refresh/copy-all toolbar
+- direct insertion into a selected existing server script, including missing
+  `require` capabilities, full-script syntax validation, and protection against
+  overwriting a script changed since the table was loaded; script activation is
+  never changed by the importer
+- a visible add-on name beside **Create Server** and the fork/version footer
+  used by the Windows application
+
+Unsupported, disabled, or semantically different Thunderbird rules are emitted
+with a `false` guard and warnings for manual review rather than being silently
+enabled on the server.
 
 Install the current package directly:
 
-[`releases/sieve-0.7.1-cram-md5.xpi`](releases/sieve-0.7.1-cram-md5.xpi)
+[`releases/sieve-0.7.2-cram-md5.xpi`](releases/sieve-0.7.2-cram-md5.xpi)
 
-SHA-256: `8d05b6ee981ba45ef8df455d726f934cb00240f8141e8c062190515f7d080f7a`
+SHA-256: `0e0da89f0571b877c1aa155460a253e8caad2fb9320361342ebbee0014986112`
+
+The matching Windows installer is:
+
+[`releases/install_sieve_0.7.2.exe`](releases/install_sieve_0.7.2.exe)
+
+SHA-256: `08db30c20866f05cf10af699f63e47370b96c4ee9bb1ebc473dc1910dbafa708`
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing
