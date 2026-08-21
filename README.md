@@ -11,6 +11,9 @@ from the upstream project.
 
 ## Stable release 0.7.2
 
+**Version 0.7.2 is the latest stable release for both the Windows EXE and the
+Thunderbird XPI.**
+
 Release `0.7.2` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 

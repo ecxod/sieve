@@ -3,6 +3,13 @@
 This fork exists to provide a Sieve build with CRAM-MD5 authentication for
 Thunderbird and Windows distribution from `ecxod/sieve`.
 
+## Current stable release
+
+**Version 0.7.2 is the latest stable release for both distributed packages:**
+
+- Windows: `install_sieve_0.7.2.exe`
+- Thunderbird: `sieve-0.7.2-cram-md5.xpi`
+
 ## Differences from upstream
 
 - CRAM-MD5 is part of automatic SASL mechanism selection and the manual
