@@ -16,6 +16,7 @@ const DEFAULT_INDENTATION_WIDTH = 2;
 const DEFAULT_FORMAT_LISTS_MULTILINE = true;
 const DEFAULT_FORMAT_TESTS_MULTILINE = true;
 const DEFAULT_FORMAT_BRACE_NEW_LINE = false;
+const DEFAULT_FORMAT_REQUIRES_COMBINED = false;
 
 /**
  * Manages the sieve editor settings.
@@ -77,6 +78,10 @@ class SieveEditorSettings {
     if (name === "format-brace-new-line")
       return await this.pref.getBoolean(
         "editor.format-brace-new-line", DEFAULT_FORMAT_BRACE_NEW_LINE);
+
+    if (name === "format-requires-combined")
+      return await this.pref.getBoolean(
+        "editor.format-requires-combined", DEFAULT_FORMAT_REQUIRES_COMBINED);
 
     throw new Error(`Unknown settings ${name}`);
   }

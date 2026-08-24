@@ -48,6 +48,7 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     this.formatMultilineLists = true;
     this.formatMultilineTests = true;
     this.formatBraceOnNewLine = false;
+    this.formatCombineRequires = false;
 
     window.addEventListener("sieve-theme-changed", () => {
       if (this.cm)
@@ -147,6 +148,21 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       .querySelector(this.getFormatBraceOnNewLine()
         ? "#editor-settings-format-braces-next-line"
         : "#editor-settings-format-braces-same-line")
+      .checked = true;
+
+    // Formatter require layout...
+    document
+      .querySelector("#editor-settings-format-requires-separate")
+      .addEventListener("change", async () => { await this.setFormatCombineRequires(false); });
+
+    document
+      .querySelector("#editor-settings-format-requires-combined")
+      .addEventListener("change", async () => { await this.setFormatCombineRequires(true); });
+
+    document
+      .querySelector(this.getFormatCombineRequires()
+        ? "#editor-settings-format-requires-combined"
+        : "#editor-settings-format-requires-separate")
       .checked = true;
   }
 
@@ -360,7 +376,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       indentWidth: this.getIndentWidth(),
       multilineLists: this.getFormatMultilineLists(),
       multilineTests: this.getFormatMultilineTests(),
-      braceOnNewLine: this.getFormatBraceOnNewLine()
+      braceOnNewLine: this.getFormatBraceOnNewLine(),
+      combineRequires: this.getFormatCombineRequires()
     });
 
     if (formatted === script) {
@@ -781,6 +798,32 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether consecutive require commands are combined into one list.
+   *
+   * @param {boolean} value
+   *   true to combine require commands.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatCombineRequires(value) {
+    this.formatCombineRequires = value === true;
+    await this.getController().setPreference(
+      "format-requires-combined", this.formatCombineRequires);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured require command layout.
+   *
+   * @returns {boolean}
+   *   true when require commands are combined.
+   */
+  getFormatCombineRequires() {
+    return this.formatCombineRequires;
+  }
+
+  /**
    * @inheritdoc
    */
   async loadSettings() {
@@ -801,6 +844,9 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     const braceOnNewLine = await this.getController().getPreference("format-brace-new-line");
     await this.setFormatBraceOnNewLine(braceOnNewLine);
+
+    const combineRequires = await this.getController().getPreference("format-requires-combined");
+    await this.setFormatCombineRequires(combineRequires);
 
   }
 
@@ -826,6 +872,9 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const braceOnNewLine = await this.getController().getDefaultPreference("format-brace-new-line");
     await this.setFormatBraceOnNewLine(braceOnNewLine);
 
+    const combineRequires = await this.getController().getDefaultPreference("format-requires-combined");
+    await this.setFormatCombineRequires(combineRequires);
+
     await this.renderSettings();
   }
 
@@ -844,6 +893,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       "format-tests-multiline", this.getFormatMultilineTests());
     await this.getController().setDefaultPreference(
       "format-brace-new-line", this.getFormatBraceOnNewLine());
+    await this.getController().setDefaultPreference(
+      "format-requires-combined", this.getFormatCombineRequires());
 
   }
 

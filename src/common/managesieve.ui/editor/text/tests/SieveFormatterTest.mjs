@@ -72,6 +72,45 @@ suite.add("Sieve formatter applies compact, spaces and brace preferences", funct
   }), expected);
 });
 
+suite.add("Sieve formatter combines require commands into one list", function () {
+  const script = [
+    '# capabilities',
+    'require "fileinto";',
+    '# retained comment',
+    'require ["copy", "vacation"];',
+    'keep;'
+  ].join("\n");
+  const expected = [
+    '# capabilities',
+    'require [',
+    '\t"fileinto",',
+    '\t"copy",',
+    '\t"vacation"',
+    '];',
+    '# retained comment',
+    'keep;',
+    ''
+  ].join("\n");
+
+  const formatted = formatSieveScript(script, {
+    combineRequires: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto", "copy", "vacation"]);
+});
+
+suite.add("Sieve formatter keeps require commands separate by default", function () {
+  const script = 'require "fileinto";require "copy";';
+  const expected = [
+    'require "fileinto";',
+    'require "copy";',
+    ''
+  ].join("\n");
+
+  suite.assertEquals(formatSieveScript(script), expected);
+});
+
 suite.add("Sieve formatter preserves opaque source contents", function () {
   const script = [
     '# leading { comment; }',
@@ -141,6 +180,7 @@ suite.add("Text editor applies formatting as an undoable edit", function () {
   SieveTextEditorUI.prototype.format.call({
     cm,
     getFormatBraceOnNewLine() { return false; },
+    getFormatCombineRequires() { return false; },
     getFormatMultilineLists() { return true; },
     getFormatMultilineTests() { return true; },
     getIndentWidth() { return 2; },
@@ -159,7 +199,8 @@ suite.add("Text editor loads formatter preferences", async function () {
     "indentation-width": 3,
     "format-lists-multiline": false,
     "format-tests-multiline": true,
-    "format-brace-new-line": true
+    "format-brace-new-line": true,
+    "format-requires-combined": true
   };
   const loaded = {};
   const editor = {
@@ -169,6 +210,7 @@ suite.add("Text editor loads formatter preferences", async function () {
       };
     },
     async setFormatBraceOnNewLine(value) { loaded.braces = value; },
+    async setFormatCombineRequires(value) { loaded.requires = value; },
     async setFormatMultilineLists(value) { loaded.lists = value; },
     async setFormatMultilineTests(value) { loaded.tests = value; },
     async setIndentWidth(value) { loaded.indentWidth = value; },
@@ -184,7 +226,8 @@ suite.add("Text editor loads formatter preferences", async function () {
     indentWidth: 3,
     lists: false,
     tests: true,
-    braces: true
+    braces: true,
+    requires: true
   }));
 });
 
@@ -196,4 +239,5 @@ suite.add("Formatter preferences have stable defaults", async function () {
   suite.assertTrue(await settings.getValue("format-lists-multiline"));
   suite.assertTrue(await settings.getValue("format-tests-multiline"));
   suite.assertFalse(await settings.getValue("format-brace-new-line"));
+  suite.assertFalse(await settings.getValue("format-requires-combined"));
 });

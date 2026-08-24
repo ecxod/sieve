@@ -140,6 +140,123 @@ function tokenize(script) {
 }
 
 /**
+ * Combines consecutive require commands at the start of a script.
+ *
+ * Leading and inter-command comments are retained. If the require section is
+ * malformed, or contains fewer than two commands, the original tokens are
+ * returned unchanged.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @returns {Array<{ type: string, value: string }>}
+ *   tokens with a single require string list when possible.
+ */
+function combineRequireCommands(tokens) {
+  const isComment = (token) => {
+    return token?.type === "line-comment" || token?.type === "block-comment";
+  };
+  const leadingComments = [];
+  const retainedComments = [];
+  const requirements = [];
+  let commands = 0;
+  let offset = 0;
+
+  while (isComment(tokens[offset]))
+    leadingComments.push(tokens[offset++]);
+
+  while (tokens[offset]?.type === "value"
+    && tokens[offset].value.toLowerCase() === "require") {
+    const commandRequirements = [];
+    let cursor = offset + 1;
+
+    while (isComment(tokens[cursor]))
+      retainedComments.push(tokens[cursor++]);
+
+    if (tokens[cursor]?.type === "symbol" && tokens[cursor].value === "[") {
+      cursor++;
+      let expectValue = true;
+
+      while (tokens[cursor]
+        && !(tokens[cursor].type === "symbol" && tokens[cursor].value === "]")) {
+        if (isComment(tokens[cursor])) {
+          retainedComments.push(tokens[cursor++]);
+          continue;
+        }
+
+        if (expectValue
+          && tokens[cursor].type === "value"
+          && tokens[cursor].value.startsWith("\"")) {
+          commandRequirements.push(tokens[cursor]);
+          expectValue = false;
+          cursor++;
+          continue;
+        }
+
+        if (!expectValue
+          && tokens[cursor].type === "symbol"
+          && tokens[cursor].value === ",") {
+          expectValue = true;
+          cursor++;
+          continue;
+        }
+
+        return tokens;
+      }
+
+      if (!tokens[cursor] || commandRequirements.length === 0 || expectValue)
+        return tokens;
+
+      cursor++;
+    } else if (tokens[cursor]?.type === "value"
+      && tokens[cursor].value.startsWith("\"")) {
+      commandRequirements.push(tokens[cursor++]);
+    } else {
+      return tokens;
+    }
+
+    while (isComment(tokens[cursor]))
+      retainedComments.push(tokens[cursor++]);
+
+    if (tokens[cursor]?.type !== "symbol" || tokens[cursor].value !== ";")
+      return tokens;
+
+    requirements.push(...commandRequirements);
+    commands++;
+    offset = cursor + 1;
+
+    while (isComment(tokens[offset]))
+      retainedComments.push(tokens[offset++]);
+  }
+
+  if (commands < 2)
+    return tokens;
+
+  const combined = [
+    { type: "value", value: "require" },
+    { type: "symbol", value: "[" }
+  ];
+
+  requirements.forEach((requirement, index) => {
+    if (index)
+      combined.push({ type: "symbol", value: "," });
+
+    combined.push(requirement);
+  });
+
+  combined.push(
+    { type: "symbol", value: "]" },
+    { type: "symbol", value: ";" }
+  );
+
+  return [
+    ...leadingComments,
+    ...combined,
+    ...retainedComments,
+    ...tokens.slice(offset)
+  ];
+}
+
+/**
  * Formats Sieve source with configurable indentation and structural line breaks.
  *
  * Quoted strings, multiline strings and comments are treated as opaque so
@@ -159,6 +276,8 @@ function tokenize(script) {
  *   put test arguments on separate lines.
  * @param {boolean} [options.braceOnNewLine=false]
  *   put opening block braces on a separate line.
+ * @param {boolean} [options.combineRequires=false]
+ *   combine consecutive require commands into one string list.
  * @returns {string}
  *   the formatted source using LF line endings for CodeMirror.
  */
@@ -177,8 +296,12 @@ function formatSieveScript(script, options = {}) {
   const multilineLists = options.multilineLists !== false;
   const multilineTests = options.multilineTests !== false;
   const braceOnNewLine = options.braceOnNewLine === true;
+  const combineRequires = options.combineRequires === true;
 
-  const tokens = tokenize(script);
+  let tokens = tokenize(script);
+
+  if (combineRequires)
+    tokens = combineRequireCommands(tokens);
   const lines = [];
   let current = "";
   let blockIndentation = 0;
