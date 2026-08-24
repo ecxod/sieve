@@ -171,6 +171,12 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   also compares an editor with the script state last loaded from or saved to
   the server when the tab is closed. Changed scripts require an explicit save
   or discard decision; cancelling or a failed save leaves the editor open.
+- The current development version adds a global settings backup to the Windows
+  application. It exports and restores all server, login, editor, appearance,
+  and optional Sentry settings. Remembered passwords can be included for a
+  portable login backup; the UI warns that they are readable in the JSON file,
+  and the importer encrypts them for the destination operating-system user
+  before replacing the validated settings.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.

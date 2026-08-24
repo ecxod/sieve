@@ -318,6 +318,13 @@
     ]
   });
 
+  tests.set("app-settings-backup", {
+    script: "${workspace}/managesieve.ui/settings/logic/tests/SieveSettingsBackupTest.mjs",
+    require: [
+      "${workspace}/managesieve.ui/settings/logic/SieveSettingsBackup.mjs"
+    ]
+  });
+
   tests.set("thunderbird-filter-converter", {
     script: "${workspace}/managesieve.ui/filters/tests/SieveThunderbirdFilterConverterTest.mjs",
     extend: "rfc5228",

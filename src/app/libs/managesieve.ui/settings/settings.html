@@ -15,6 +15,28 @@
 
   <div class="card mt-4 mb-4">
     <div class="card-body">
+      <h5 data-i18n="settings.backup.title" class="card-title"></h5>
+      <p data-i18n="settings.backup.description" class="card-text"></p>
+      <div class="form-check mb-3">
+        <input id="sieve-settings-backup-passwords" type="checkbox"
+          class="form-check-input" checked>
+        <label data-i18n="settings.backup.passwords" for="sieve-settings-backup-passwords"
+          class="form-check-label"></label>
+      </div>
+      <div data-i18n="settings.backup.password-warning"
+        class="alert alert-warning small" role="alert"></div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button data-i18n="settings.backup.export" id="sieve-settings-backup-export"
+          type="button" class="btn btn-sm btn-outline-primary"></button>
+        <button data-i18n="settings.backup.import" id="sieve-settings-backup-import"
+          type="button" class="btn btn-sm btn-outline-primary"></button>
+        <span id="sieve-settings-backup-status" class="small" role="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 mb-4">
+    <div class="card-body">
       <h5 data-i18n="settings.sentry.title" class="card-title"></h5>
       <p data-i18n="settings.sentry.description" class="card-text"></p>
       <label data-i18n="settings.sentry.label" for="sieve-sentry-dsn" class="form-label"></label>
@@ -24,6 +46,44 @@
         <button data-i18n="settings.sentry.save" id="sieve-sentry-save" type="button"
           class="btn btn-sm btn-primary"></button>
         <span id="sieve-sentry-status" class="small" role="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="sieve-settings-import-dialog" class="modal" tabindex="-1"
+    aria-labelledby="sieve-settings-import-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 data-i18n="settings.backup.confirm.title" class="modal-title"
+            id="sieve-settings-import-dialog-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"
+            aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p data-i18n="settings.backup.confirm.description"></p>
+          <dl class="row mb-3">
+            <dt data-i18n="settings.backup.confirm.accounts" class="col-8"></dt>
+            <dd id="sieve-settings-import-accounts" class="col-4"></dd>
+            <dt data-i18n="settings.backup.confirm.passwords" class="col-8"></dt>
+            <dd id="sieve-settings-import-password-count" class="col-4"></dd>
+          </dl>
+          <div class="form-check mb-3">
+            <input id="sieve-settings-import-passwords" type="checkbox"
+              class="form-check-input" checked>
+            <label data-i18n="settings.backup.confirm.import-passwords"
+              for="sieve-settings-import-passwords" class="form-check-label"></label>
+          </div>
+          <div data-i18n="settings.backup.confirm.replace"
+            class="alert alert-danger mb-0" role="alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button data-i18n="settings.backup.confirm.cancel" type="button"
+            class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"></button>
+          <button data-i18n="settings.backup.confirm.accept"
+            id="sieve-settings-import-accept" type="button"
+            class="btn btn-sm btn-danger"></button>
+        </div>
       </div>
     </div>
   </div>

@@ -12,6 +12,7 @@
 const DEFAULT_AUTHORIZATION = 3;
 
 const FIRST_ELEMENT = 0;
+const BACKUP_FILE_PERMISSIONS = 0o600;
 
 const { ipcRenderer, shell, clipboard } = require('electron');
 const { init: initSentry } = require('@sentry/electron/renderer');
@@ -32,6 +33,10 @@ import {
 import { SieveSessions } from "./libs/libManageSieve/SieveSessions.mjs";
 
 import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccounts.mjs";
+import {
+  getSettingsBackupSummary,
+  parseSettingsBackup
+} from "./libs/managesieve.ui/settings/logic/SieveSettingsBackup.mjs";
 
 import { SieveUpdater } from "./libs/managesieve.ui/updater/SieveUpdater.mjs";
 import { SieveTabUI } from "./libs/managesieve.ui/tabs/SieveTabsUI.mjs";
@@ -56,6 +61,7 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
   const accounts = await (new SieveAccounts().load());
   const sessions = new SieveSessions();
+  let pendingSettingsBackup = null;
 
   const actions = {
 
@@ -175,6 +181,111 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
     "settings-set-sentry-dsn": async function (msg) {
       return await ipcRenderer.invoke("sentry-set-dsn", msg.payload.dsn);
+    },
+
+    "settings-backup-export": async function (msg) {
+      logger.logAction("Export all application settings");
+
+      const date = new Date().toISOString().slice(0, "YYYY-MM-DD".length);
+      const options = {
+        title: "Export Sieve Settings",
+        defaultPath: `sieve-settings-${date}.json`,
+        filters: [
+          { name: "Sieve Settings Backup", extensions: ["json"] },
+          { name: "All Files", extensions: ["*"] }]
+      };
+      const filename = await ipcRenderer.invoke("save-dialog", options);
+
+      if (filename.canceled)
+        return { canceled: true };
+
+      const data = await accounts.exportAll({
+        includePasswords: msg.payload.includePasswords,
+        application: {
+          sentryDsn: await ipcRenderer.invoke("sentry-get-dsn")
+        },
+        decryptPassword: async (password) => {
+          return await ipcRenderer.invoke("decrypt-string", password);
+        }
+      });
+      const summary = getSettingsBackupSummary(data);
+
+      await require("fs").promises.writeFile(filename.filePath, data, {
+        encoding: "utf-8",
+        mode: BACKUP_FILE_PERMISSIONS
+      });
+
+      return { canceled: false, ...summary };
+    },
+
+    "settings-backup-open": async function () {
+      logger.logAction("Open application settings backup");
+      pendingSettingsBackup = null;
+
+      const options = {
+        title: "Import Sieve Settings",
+        openFile: true,
+        openDirectory: false,
+        filters: [
+          { name: "Sieve Settings Backup", extensions: ["json"] },
+          { name: "All Files", extensions: ["*"] }]
+      };
+      const filename = await ipcRenderer.invoke("open-dialog", options);
+
+      if (filename.canceled)
+        return { canceled: true };
+
+      const data = await require("fs").promises.readFile(
+        filename.filePaths[FIRST_ELEMENT], "utf-8");
+      const backup = parseSettingsBackup(data);
+      pendingSettingsBackup = backup;
+
+      return {
+        canceled: false,
+        ...getSettingsBackupSummary(backup)
+      };
+    },
+
+    "settings-backup-cancel": async function () {
+      pendingSettingsBackup = null;
+    },
+
+    "settings-backup-import": async function (msg) {
+      logger.logAction("Replace application settings from backup");
+
+      if (!pendingSettingsBackup)
+        throw new Error("No settings backup is awaiting confirmation");
+
+      const backup = pendingSettingsBackup;
+      pendingSettingsBackup = null;
+      const includePasswords = msg.payload.includePasswords !== false;
+      const summary = getSettingsBackupSummary(backup);
+
+      if (includePasswords && summary.passwords
+        && !await ipcRenderer.invoke("has-encryption"))
+        throw new Error("Secure password storage is unavailable on this system");
+
+      const previousDsn = await ipcRenderer.invoke("sentry-get-dsn");
+      await ipcRenderer.invoke("sentry-set-dsn", backup.application.sentryDsn);
+
+      try {
+        for (const id of accounts.getAccountIds()) {
+          if (sessions.has(id))
+            await sessions.destroy(id);
+        }
+
+        await accounts.importAll(backup, {
+          includePasswords,
+          encryptPassword: async (password) => {
+            return await ipcRenderer.invoke("encrypt-string", password);
+          }
+        });
+      } catch (ex) {
+        await ipcRenderer.invoke("sentry-set-dsn", previousDsn);
+        throw ex;
+      }
+
+      return summary;
     },
 
     "account-settings-get-collapsed": async function (msg) {

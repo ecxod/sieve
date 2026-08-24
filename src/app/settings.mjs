@@ -6,6 +6,10 @@
  * Do not remove or change this comment.
  */
 
+/* global bootstrap */
+
+const SETTINGS_RELOAD_DELAY_MS = 750;
+
 import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
 import { SieveIpcClient } from "./libs/managesieve.ui/utils/SieveIpcClient.mjs";
 import { SieveTemplate } from "./libs/managesieve.ui/utils/SieveTemplate.mjs";
@@ -56,6 +60,112 @@ async function main() {
         sentryStatus.textContent = i18n.getString("settings.sentry.invalid");
       }
     });
+
+  const backupStatus = document.querySelector("#sieve-settings-backup-status");
+  const exportButton = document.querySelector("#sieve-settings-backup-export");
+  const importButton = document.querySelector("#sieve-settings-backup-import");
+  const importAccept = document.querySelector("#sieve-settings-import-accept");
+  const exportPasswords = document.querySelector("#sieve-settings-backup-passwords");
+  const importPasswords = document.querySelector("#sieve-settings-import-passwords");
+  const importDialog = new bootstrap.Modal(
+    document.querySelector("#sieve-settings-import-dialog"));
+  let pendingBackup = null;
+  let importInProgress = false;
+
+  /**
+   * Shows the result of a backup operation.
+   *
+   * @param {string} message
+   *   the localized status text.
+   * @param {boolean} [failed]
+   *   true for an error status.
+   */
+  function showBackupStatus(message, failed = false) {
+    backupStatus.classList.remove("text-success", "text-danger");
+    backupStatus.classList.add(failed ? "text-danger" : "text-success");
+    backupStatus.textContent = message;
+  }
+
+  exportButton.addEventListener("click", async () => {
+    exportButton.disabled = true;
+
+    try {
+      const result = await SieveIpcClient.sendMessage(
+        "core", "settings-backup-export", {
+          includePasswords: exportPasswords.checked
+        });
+
+      if (!result.canceled)
+        showBackupStatus(i18n.getString("settings.backup.exported"));
+    } catch (ex) {
+      showBackupStatus(
+        `${i18n.getString("settings.backup.failed")} ${ex.message || ex}`, true);
+    } finally {
+      exportButton.disabled = false;
+    }
+  });
+
+  importButton.addEventListener("click", async () => {
+    importButton.disabled = true;
+
+    try {
+      const result = await SieveIpcClient.sendMessage(
+        "core", "settings-backup-open");
+
+      if (result.canceled)
+        return;
+
+      pendingBackup = result;
+      document.querySelector("#sieve-settings-import-accounts")
+        .textContent = `${result.accounts}`;
+      document.querySelector("#sieve-settings-import-password-count")
+        .textContent = `${result.passwords}`;
+      importPasswords.checked = result.passwords > 0;
+      importPasswords.disabled = result.passwords === 0;
+      importDialog.show();
+    } catch (ex) {
+      showBackupStatus(
+        `${i18n.getString("settings.backup.failed")} ${ex.message || ex}`, true);
+    } finally {
+      importButton.disabled = false;
+    }
+  });
+
+  document.querySelector("#sieve-settings-import-dialog")
+    .addEventListener("hidden.bs.modal", async () => {
+      if (importInProgress)
+        return;
+
+      pendingBackup = null;
+      await SieveIpcClient.sendMessage("core", "settings-backup-cancel");
+    });
+
+  importAccept.addEventListener("click", async () => {
+    if (!pendingBackup)
+      return;
+
+    importAccept.disabled = true;
+    importInProgress = true;
+    importDialog.hide();
+    pendingBackup = null;
+
+    try {
+      await SieveIpcClient.sendMessage("core", "settings-backup-import", {
+        includePasswords: importPasswords.checked
+      });
+      showBackupStatus(i18n.getString("settings.backup.imported"));
+
+      setTimeout(async () => {
+        await SieveIpcClient.sendMessage("core", "reload-ui");
+      }, SETTINGS_RELOAD_DELAY_MS);
+    } catch (ex) {
+      showBackupStatus(
+        `${i18n.getString("settings.backup.failed")} ${ex.message || ex}`, true);
+      importAccept.disabled = false;
+    } finally {
+      importInProgress = false;
+    }
+  });
 }
 
 /**
