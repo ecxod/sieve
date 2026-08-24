@@ -236,6 +236,7 @@
 
   "texteditor.undo" : "Undo",
   "texteditor.redo" : "Redo",
+  "texteditor.format" : "Make pretty",
   "texteditor.findAndReplace" : "Find & replace",
   "texteditor.reference" : "Reference",
 

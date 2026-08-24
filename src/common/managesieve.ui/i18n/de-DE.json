@@ -201,6 +201,7 @@
   "texteditor.paste": "Einfügen",
   "texteditor.undo": "Rückgängig",
   "texteditor.redo": "Wiederherstellen",
+  "texteditor.format": "Schön formatieren",
   "texteditor.findAndReplace": "Suchen & Ersetzen",
   "texteditor.reference": "Referenz",
   "texteditor.find": "Suchen",

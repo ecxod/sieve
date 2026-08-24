@@ -201,6 +201,7 @@
   "texteditor.paste": "Beillesztés",
   "texteditor.undo": "Visszavonás",
   "texteditor.redo": "Ismét",
+  "texteditor.format": "Make pretty",
   "texteditor.findAndReplace": "Keresés és csere",
   "texteditor.reference": "Kézikönyvek",
   "texteditor.find": "Keresés",

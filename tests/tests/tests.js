@@ -329,6 +329,16 @@
     ]
   });
 
+  tests.set("sieve-formatter", {
+    script: "${workspace}/managesieve.ui/editor/text/tests/SieveFormatterTest.mjs",
+    extend: "rfc5228",
+    require: [
+      "${workspace}/libSieve/extensions/vacation/logic/SieveVacation.mjs",
+      "${workspace}/managesieve.ui/editor/text/SieveFormatter.mjs",
+      "${workspace}/managesieve.ui/editor/text/SieveTextEditor.mjs"
+    ]
+  });
+
 
   exports.tests = tests;
 

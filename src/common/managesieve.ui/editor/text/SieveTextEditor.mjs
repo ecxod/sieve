@@ -14,6 +14,7 @@
 import { SieveTemplate } from "./../../utils/SieveTemplate.mjs";
 import { SieveTheme } from "./../../utils/SieveTheme.mjs";
 import { SieveAbstractEditorUI } from "./../SieveAbstractEditor.mjs";
+import { formatSieveScript } from "./SieveFormatter.mjs";
 
 const EDITOR_SCROLL_INTO_VIEW_OFFSET = 200;
 
@@ -165,6 +166,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       .addEventListener("click", () => { this.redo(); });
 
     document
+      .querySelector("#sieve-editor-format")
+      .addEventListener("click", () => { this.format(); });
+
+    document
       .querySelector("#sieve-editor-cut")
       .addEventListener("click", () => { this.cut(); });
 
@@ -293,6 +298,30 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
    */
   redo() {
     this.cm.redo();
+    this.cm.focus();
+  }
+
+  /**
+   * Formats the complete Sieve script with tabs and line breaks.
+   */
+  format() {
+    const script = this.cm.getValue();
+    const formatted = formatSieveScript(script);
+
+    if (formatted === script) {
+      this.cm.focus();
+      return;
+    }
+
+    const lastLine = this.cm.lastLine();
+    const end = { line: lastLine, ch: this.cm.getLine(lastLine).length };
+    const cursorOffset = this.cm.indexFromPos(this.cm.getCursor());
+
+    this.cm.operation(() => {
+      this.cm.replaceRange(formatted, { line: 0, ch: 0 }, end, "+format");
+      this.cm.setCursor(this.cm.posFromIndex(Math.min(cursorOffset, formatted.length)));
+    });
+
     this.cm.focus();
   }
 
