@@ -339,6 +339,14 @@
     ]
   });
 
+  tests.set("editor-close", {
+    script: "${workspace}/managesieve.ui/editor/tests/SieveEditorCloseTest.mjs",
+    require: [
+      "${workspace}/managesieve.ui/dialogs/SieveDialogUI.mjs",
+      "${workspace}/managesieve.ui/editor/SieveEditorClose.mjs"
+    ]
+  });
+
 
   exports.tests = tests;
 

@@ -203,10 +203,10 @@
   "editor.menu.import" : "Import Script",
   "editor.menu.export" : "Export Script",
 
-  "editor.save.title" : "Script changed",
+  "editor.save.title" : "Unsaved changes",
   "editor.save.description1" : "The Script",
-  "editor.save.description2" : "was changed.",
-  "editor.save.description3" : "Do you want to save the changes?",
+  "editor.save.description2" : "contains changes compared with the version on the server.",
+  "editor.save.description3" : "Do you want to save or discard the changes?",
   "editor.save.accept" : "Save Changes",
   "editor.save.discard" : "Discard Changes",
 

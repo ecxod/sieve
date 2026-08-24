@@ -15,7 +15,7 @@ import { SieveI18n } from "./utils/SieveI18n.mjs";
 import { SieveTheme } from "./utils/SieveTheme.mjs";
 
 import { SieveEditorUI } from "./editor/SieveEditor.mjs";
-import { SieveScriptSaveDialog } from "./dialogs/SieveDialogUI.mjs";
+import { confirmEditorClose } from "./editor/SieveEditorClose.mjs";
 
 
 let editor = null;
@@ -30,16 +30,7 @@ let editor = null;
  *   true in case the editor can be close, otherwise false.
  */
 async function onClose(name) {
-
-  const result = await (new SieveScriptSaveDialog(name).show());
-
-  if (SieveScriptSaveDialog.isCanceled(result))
-    return false;
-
-  if (SieveScriptSaveDialog.isAccepted(result))
-    return await editor.save();
-
-  return true;
+  return await confirmEditorClose(name, editor);
 }
 
 /**

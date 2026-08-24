@@ -135,7 +135,7 @@ class SieveDialog {
       for (const button of buttons) {
         button.addEventListener("click", async () => {
           try {
-            resolve(await this.onAccept(event.target));
+            resolve(await this.onAccept(button));
           } catch (ex) {
             reject(ex);
           }
