@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.7.3
+## Stable release 0.8.0
 
-**Version 0.7.3 is the latest stable release for both the Windows EXE and the
+**Version 0.8.0 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.7.3` uses the same version for the Windows application and the
+Release `0.8.0` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -53,17 +53,22 @@ Unsupported, disabled, or semantically different Thunderbird rules are emitted
 with a `false` guard and warnings for manual review rather than being silently
 enabled on the server.
 
+The Windows application additionally provides a portable settings backup. It
+exports and restores server accounts, logins, editor and appearance settings,
+and optional error-tracking settings. Remembered passwords are included only
+after an explicit choice and a clear-text warning.
+
 Install the current package directly:
 
-[`releases/sieve-0.7.3-cram-md5.xpi`](releases/sieve-0.7.3-cram-md5.xpi)
+[`releases/sieve-0.8.0-cram-md5.xpi`](releases/sieve-0.8.0-cram-md5.xpi)
 
-SHA-256: `8225aea27bf3350fba3ddd51eb918b83708dcddb98c23d14dcfcef43c355b837`
+SHA-256: `f35d28f9a2266853c7b1f65776330dfb5bb7f16c3b8b84d481fb0fa031e58c78`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.7.3.exe`](releases/install_sieve_0.7.3.exe)
+[`releases/install_sieve_0.8.0.exe`](releases/install_sieve_0.8.0.exe)
 
-SHA-256: `59f4506d469b6517587ef5742326455bb3cc7ed6476e240b711b6ef79ff9bef1`
+SHA-256: `5add67f3d5ab3d1292f71189b1d7d75b7d9ab83cf5ab37982db445220f28187d`
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing

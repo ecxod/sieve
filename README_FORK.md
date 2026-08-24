@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.7.3 is the latest stable release for both distributed packages:**
+**Version 0.8.0 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.7.3.exe`
-- Thunderbird: `sieve-0.7.3-cram-md5.xpi`
+- Windows: `install_sieve_0.8.0.exe`
+- Thunderbird: `sieve-0.8.0-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -171,16 +171,16 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   also compares an editor with the script state last loaded from or saved to
   the server when the tab is closed. Changed scripts require an explicit save
   or discard decision; cancelling or a failed save leaves the editor open.
-- The current development version extends **Make pretty** with real nested
-  indentation for string lists and test arguments. Editor settings control
-  tabs or spaces, indentation width, compact or multiline lists and tests, and
-  whether opening block braces start on the same or the next line.
-- The current development version adds a global settings backup to the Windows
-  application. It exports and restores all server, login, editor, appearance,
-  and optional Sentry settings. Remembered passwords can be included for a
-  portable login backup; the UI warns that they are readable in the JSON file,
-  and the importer encrypts them for the destination operating-system user
-  before replacing the validated settings.
+- Version `0.8.0` extends **Make pretty** with real nested indentation for
+  string lists and test arguments. Editor settings control tabs or spaces,
+  indentation width, compact or multiline lists and tests, and whether opening
+  block braces start on the same or the next line. It also adds a global
+  settings backup to the Windows application. The backup exports and restores
+  all server, login, editor, appearance, and optional Sentry settings.
+  Remembered passwords can be included for a portable login backup; the UI
+  warns that they are readable in the JSON file, and the importer encrypts them
+  for the destination operating-system user before replacing the validated
+  settings.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -200,15 +200,15 @@ The obsolete `src/TODO.md` file has also been removed.
 
 Versions through `0.6.1.8` used the upstream extension ID. Thunderbird cannot
 change an installed extension's ID during an automatic update. Remove the old
-**Sieve** extension and install `0.7.3` once; subsequent fork releases update
+**Sieve** extension and install `0.8.0` once; subsequent fork releases update
 normally under the new ID. Do not keep both extensions installed at the same
 time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.7.3-cram-md5.xpi`](releases/sieve-0.7.3-cram-md5.xpi).
+[`releases/sieve-0.8.0-cram-md5.xpi`](releases/sieve-0.8.0-cram-md5.xpi).
 
-SHA-256: `8225aea27bf3350fba3ddd51eb918b83708dcddb98c23d14dcfcef43c355b837`
+SHA-256: `f35d28f9a2266853c7b1f65776330dfb5bb7f16c3b8b84d481fb0fa031e58c78`
 
 ### Thunderbird permission notice
 
@@ -224,6 +224,6 @@ reading account metadata, managing its tabs and local settings, and reaching
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.7.3.exe`](releases/install_sieve_0.7.3.exe).
+[`releases/install_sieve_0.8.0.exe`](releases/install_sieve_0.8.0.exe).
 
-SHA-256: `59f4506d469b6517587ef5742326455bb3cc7ed6476e240b711b6ef79ff9bef1`
+SHA-256: `5add67f3d5ab3d1292f71189b1d7d75b7d9ab83cf5ab37982db445220f28187d`
