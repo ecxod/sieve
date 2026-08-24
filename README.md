@@ -40,8 +40,10 @@ Thunderbird extension. The extension includes:
   `require` capabilities, full-script syntax validation, and protection against
   overwriting a script changed since the table was loaded; script activation is
   never changed by the importer
-- a **Make pretty** action in the source editor that formats Sieve blocks with
-  tabs and line breaks while preserving strings, comments, and multiline text
+- a **Make pretty** action in the source editor that indents nested blocks,
+  string lists, and test arguments while preserving strings, comments, and
+  multiline text; editor settings control tabs/spaces, compact or multiline
+  lists and tests, and whether opening block braces start on a new line
 - a save-or-discard warning when an editor with changes relative to the loaded
   server script is closed; cancelling or a failed save keeps the editor open
 - a visible add-on name beside **Create Server** and the fork/version footer

@@ -140,29 +140,58 @@ function tokenize(script) {
 }
 
 /**
- * Formats Sieve source with tabs and structural line breaks.
+ * Formats Sieve source with configurable indentation and structural line breaks.
  *
  * Quoted strings, multiline strings and comments are treated as opaque so
  * their contents are not changed.
  *
  * @param {string} script
  *   the Sieve source.
+ * @param {object} [options]
+ *   the formatting preferences.
+ * @param {boolean} [options.indentWithTabs=true]
+ *   use tabs instead of spaces for indentation.
+ * @param {int} [options.indentWidth=2]
+ *   number of spaces per indentation level.
+ * @param {boolean} [options.multilineLists=true]
+ *   put list values on separate lines.
+ * @param {boolean} [options.multilineTests=true]
+ *   put test arguments on separate lines.
+ * @param {boolean} [options.braceOnNewLine=false]
+ *   put opening block braces on a separate line.
  * @returns {string}
  *   the formatted source using LF line endings for CodeMirror.
  */
-function formatSieveScript(script) {
+function formatSieveScript(script, options = {}) {
   script = script.replace(/\r\n|\r/g, "\n");
 
   if (script.trim() === "")
     return "";
 
+  const indentWithTabs = options.indentWithTabs !== false;
+  const parsedIndentWidth = Number.parseInt(options.indentWidth, 10);
+  const indentWidth = Number.isNaN(parsedIndentWidth)
+    ? 2
+    : Math.max(0, Math.min(8, parsedIndentWidth));
+  const indentUnit = indentWithTabs ? "\t" : " ".repeat(indentWidth);
+  const multilineLists = options.multilineLists !== false;
+  const multilineTests = options.multilineTests !== false;
+  const braceOnNewLine = options.braceOnNewLine === true;
+
+  const tokens = tokenize(script);
   const lines = [];
   let current = "";
-  let indentation = 0;
+  let blockIndentation = 0;
+  let continuationIndentation = 0;
+  const delimiters = [];
+
+  const indentation = () => {
+    return blockIndentation + continuationIndentation;
+  };
 
   const startLine = () => {
     if (current === "")
-      current = "\t".repeat(indentation);
+      current = indentUnit.repeat(indentation());
   };
 
   const finishLine = () => {
@@ -194,7 +223,9 @@ function formatSieveScript(script) {
       current = parts[0];
   };
 
-  for (const token of tokenize(script)) {
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+
     if (token.type === "line-comment") {
       append(token.value);
       finishLine();
@@ -225,15 +256,18 @@ function formatSieveScript(script) {
     }
 
     if (token.value === "{") {
-      append("{");
+      if (braceOnNewLine && current.trim() !== "")
+        finishLine();
+
+      append("{", !braceOnNewLine);
       finishLine();
-      indentation++;
+      blockIndentation++;
       continue;
     }
 
     if (token.value === "}") {
       finishLine();
-      indentation = Math.max(0, indentation - 1);
+      blockIndentation = Math.max(0, blockIndentation - 1);
       append("}", false);
       finishLine();
       continue;
@@ -247,11 +281,44 @@ function formatSieveScript(script) {
 
     if (token.value === ",") {
       append(",", false);
-      current += " ";
+
+      if (delimiters.length && delimiters[delimiters.length - 1].multiline)
+        finishLine();
+      else
+        current += " ";
+
+      continue;
+    }
+
+    if (token.value === "(" || token.value === "[") {
+      const closing = token.value === "(" ? ")" : "]";
+      const isEmpty = tokens[index + 1]?.type === "symbol"
+        && tokens[index + 1].value === closing;
+      const multiline = !isEmpty && (token.value === "["
+        ? multilineLists
+        : multilineTests);
+
+      append(token.value);
+      delimiters.push({ closing, multiline });
+
+      if (multiline) {
+        finishLine();
+        continuationIndentation++;
+      }
+
       continue;
     }
 
     if (token.value === ")" || token.value === "]") {
+      const delimiter = delimiters.length
+        ? delimiters.pop()
+        : { multiline: false };
+
+      if (delimiter.multiline) {
+        finishLine();
+        continuationIndentation = Math.max(0, continuationIndentation - 1);
+      }
+
       current = current.trimEnd();
       append(token.value, false);
       continue;

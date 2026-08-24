@@ -7,11 +7,15 @@ if (!suite)
 
 import { formatSieveScript } from "./../SieveFormatter.mjs";
 import { SieveTextEditorUI } from "./../SieveTextEditor.mjs";
+import { SieveEditorSettings } from "./../../../settings/logic/SieveEditorSettings.mjs";
 
 suite.add("Sieve formatter adds structural line breaks and tabs", function () {
   const script = 'require["fileinto","copy"];if true{fileinto :copy "Archive";stop;}else{keep;}';
   const expected = [
-    'require ["fileinto", "copy"];',
+    'require [',
+    '\t"fileinto",',
+    '\t"copy"',
+    '];',
     'if true {',
     '\tfileinto :copy "Archive";',
     '\tstop;',
@@ -23,6 +27,49 @@ suite.add("Sieve formatter adds structural line breaks and tabs", function () {
   ].join("\n");
 
   suite.assertEquals(formatSieveScript(script), expected);
+});
+
+suite.add("Sieve formatter indents nested lists and test arguments", function () {
+  const script = 'if allof(header :contains ["subject","from"] ["urgent","boss"],not exists ["x-test"]){keep;}';
+  const expected = [
+    'if allof (',
+    '\theader :contains [',
+    '\t\t"subject",',
+    '\t\t"from"',
+    '\t] [',
+    '\t\t"urgent",',
+    '\t\t"boss"',
+    '\t],',
+    '\tnot exists [',
+    '\t\t"x-test"',
+    '\t]',
+    ') {',
+    '\tkeep;',
+    '}',
+    ''
+  ].join("\n");
+
+  suite.assertEquals(formatSieveScript(script), expected);
+});
+
+suite.add("Sieve formatter applies compact, spaces and brace preferences", function () {
+  const script = 'require["fileinto","copy"];if allof(true,false){fileinto "A";}';
+  const expected = [
+    'require ["fileinto", "copy"];',
+    'if allof (true, false)',
+    '{',
+    '   fileinto "A";',
+    '}',
+    ''
+  ].join("\n");
+
+  suite.assertEquals(formatSieveScript(script, {
+    indentWithTabs: false,
+    indentWidth: 3,
+    multilineLists: false,
+    multilineTests: false,
+    braceOnNewLine: true
+  }), expected);
 });
 
 suite.add("Sieve formatter preserves opaque source contents", function () {
@@ -91,9 +138,62 @@ suite.add("Text editor applies formatting as an undoable edit", function () {
     setCursor() {}
   };
 
-  SieveTextEditorUI.prototype.format.call({ cm });
+  SieveTextEditorUI.prototype.format.call({
+    cm,
+    getFormatBraceOnNewLine() { return false; },
+    getFormatMultilineLists() { return true; },
+    getFormatMultilineTests() { return true; },
+    getIndentWidth() { return 2; },
+    getIndentWithTabs() { return true; }
+  });
 
   suite.assertEquals(value, "if true {\n\tkeep;\n}\n");
   suite.assertEquals(editOrigin, "+format");
   suite.assertTrue(focused);
+});
+
+suite.add("Text editor loads formatter preferences", async function () {
+  const preferences = {
+    "tabulator-width": 4,
+    "indentation-policy": false,
+    "indentation-width": 3,
+    "format-lists-multiline": false,
+    "format-tests-multiline": true,
+    "format-brace-new-line": true
+  };
+  const loaded = {};
+  const editor = {
+    getController() {
+      return {
+        async getPreference(name) { return preferences[name]; }
+      };
+    },
+    async setFormatBraceOnNewLine(value) { loaded.braces = value; },
+    async setFormatMultilineLists(value) { loaded.lists = value; },
+    async setFormatMultilineTests(value) { loaded.tests = value; },
+    async setIndentWidth(value) { loaded.indentWidth = value; },
+    async setIndentWithTabs(value) { loaded.indentWithTabs = value; },
+    async setTabWidth(value) { loaded.tabWidth = value; }
+  };
+
+  await SieveTextEditorUI.prototype.loadSettings.call(editor);
+
+  suite.assertEquals(JSON.stringify(loaded), JSON.stringify({
+    tabWidth: 4,
+    indentWithTabs: false,
+    indentWidth: 3,
+    lists: false,
+    tests: true,
+    braces: true
+  }));
+});
+
+suite.add("Formatter preferences have stable defaults", async function () {
+  const settings = new SieveEditorSettings({
+    async getBoolean(name, fallback) { return fallback; }
+  });
+
+  suite.assertTrue(await settings.getValue("format-lists-multiline"));
+  suite.assertTrue(await settings.getValue("format-tests-multiline"));
+  suite.assertFalse(await settings.getValue("format-brace-new-line"));
 });

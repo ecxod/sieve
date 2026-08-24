@@ -171,6 +171,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   also compares an editor with the script state last loaded from or saved to
   the server when the tab is closed. Changed scripts require an explicit save
   or discard decision; cancelling or a failed save leaves the editor open.
+- The current development version extends **Make pretty** with real nested
+  indentation for string lists and test arguments. Editor settings control
+  tabs or spaces, indentation width, compact or multiline lists and tests, and
+  whether opening block braces start on the same or the next line.
 - The current development version adds a global settings backup to the Windows
   application. It exports and restores all server, login, editor, appearance,
   and optional Sentry settings. Remembered passwords can be included for a

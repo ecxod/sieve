@@ -13,6 +13,9 @@ const DEFAULT_TAB_POLICY = true;
 const DEFAULT_TAB_WIDTH = 2;
 const DEFAULT_INDENTATION_POLICY = false;
 const DEFAULT_INDENTATION_WIDTH = 2;
+const DEFAULT_FORMAT_LISTS_MULTILINE = true;
+const DEFAULT_FORMAT_TESTS_MULTILINE = true;
+const DEFAULT_FORMAT_BRACE_NEW_LINE = false;
 
 /**
  * Manages the sieve editor settings.
@@ -62,6 +65,18 @@ class SieveEditorSettings {
 
     if (name === "indentation-width")
       return await this.pref.getInteger("editor.indentation-width", DEFAULT_INDENTATION_WIDTH);
+
+    if (name === "format-lists-multiline")
+      return await this.pref.getBoolean(
+        "editor.format-lists-multiline", DEFAULT_FORMAT_LISTS_MULTILINE);
+
+    if (name === "format-tests-multiline")
+      return await this.pref.getBoolean(
+        "editor.format-tests-multiline", DEFAULT_FORMAT_TESTS_MULTILINE);
+
+    if (name === "format-brace-new-line")
+      return await this.pref.getBoolean(
+        "editor.format-brace-new-line", DEFAULT_FORMAT_BRACE_NEW_LINE);
 
     throw new Error(`Unknown settings ${name}`);
   }

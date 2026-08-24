@@ -45,6 +45,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     this.changed = false;
 
+    this.formatMultilineLists = true;
+    this.formatMultilineTests = true;
+    this.formatBraceOnNewLine = false;
+
     window.addEventListener("sieve-theme-changed", () => {
       if (this.cm)
         this.cm.setOption("theme", SieveTheme.getCodeMirrorTheme());
@@ -99,6 +103,51 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     document.querySelector("#editor-settings-tabulator-width")
       .value = this.getTabWidth();
+
+    // Formatter list layout...
+    document
+      .querySelector("#editor-settings-format-lists-compact")
+      .addEventListener("change", async () => { await this.setFormatMultilineLists(false); });
+
+    document
+      .querySelector("#editor-settings-format-lists-multiline")
+      .addEventListener("change", async () => { await this.setFormatMultilineLists(true); });
+
+    document
+      .querySelector(this.getFormatMultilineLists()
+        ? "#editor-settings-format-lists-multiline"
+        : "#editor-settings-format-lists-compact")
+      .checked = true;
+
+    // Formatter test layout...
+    document
+      .querySelector("#editor-settings-format-tests-compact")
+      .addEventListener("change", async () => { await this.setFormatMultilineTests(false); });
+
+    document
+      .querySelector("#editor-settings-format-tests-multiline")
+      .addEventListener("change", async () => { await this.setFormatMultilineTests(true); });
+
+    document
+      .querySelector(this.getFormatMultilineTests()
+        ? "#editor-settings-format-tests-multiline"
+        : "#editor-settings-format-tests-compact")
+      .checked = true;
+
+    // Formatter brace style...
+    document
+      .querySelector("#editor-settings-format-braces-same-line")
+      .addEventListener("change", async () => { await this.setFormatBraceOnNewLine(false); });
+
+    document
+      .querySelector("#editor-settings-format-braces-next-line")
+      .addEventListener("change", async () => { await this.setFormatBraceOnNewLine(true); });
+
+    document
+      .querySelector(this.getFormatBraceOnNewLine()
+        ? "#editor-settings-format-braces-next-line"
+        : "#editor-settings-format-braces-same-line")
+      .checked = true;
   }
 
   /**
@@ -306,7 +355,13 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
    */
   format() {
     const script = this.cm.getValue();
-    const formatted = formatSieveScript(script);
+    const formatted = formatSieveScript(script, {
+      indentWithTabs: this.getIndentWithTabs(),
+      indentWidth: this.getIndentWidth(),
+      multilineLists: this.getFormatMultilineLists(),
+      multilineTests: this.getFormatMultilineTests(),
+      braceOnNewLine: this.getFormatBraceOnNewLine()
+    });
 
     if (formatted === script) {
       this.cm.focus();
@@ -648,6 +703,84 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether string lists are formatted across multiple lines.
+   *
+   * @param {boolean} value
+   *   true for one list value per line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatMultilineLists(value) {
+    this.formatMultilineLists = value === true;
+    await this.getController().setPreference(
+      "format-lists-multiline", this.formatMultilineLists);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured string list layout.
+   *
+   * @returns {boolean}
+   *   true for one list value per line.
+   */
+  getFormatMultilineLists() {
+    return this.formatMultilineLists;
+  }
+
+  /**
+   * Sets whether test arguments are formatted across multiple lines.
+   *
+   * @param {boolean} value
+   *   true for one test argument per line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatMultilineTests(value) {
+    this.formatMultilineTests = value === true;
+    await this.getController().setPreference(
+      "format-tests-multiline", this.formatMultilineTests);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured test argument layout.
+   *
+   * @returns {boolean}
+   *   true for one test argument per line.
+   */
+  getFormatMultilineTests() {
+    return this.formatMultilineTests;
+  }
+
+  /**
+   * Sets whether opening block braces are put on a separate line.
+   *
+   * @param {boolean} value
+   *   true for a separate opening brace line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatBraceOnNewLine(value) {
+    this.formatBraceOnNewLine = value === true;
+    await this.getController().setPreference(
+      "format-brace-new-line", this.formatBraceOnNewLine);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured opening brace style.
+   *
+   * @returns {boolean}
+   *   true for a separate opening brace line.
+   */
+  getFormatBraceOnNewLine() {
+    return this.formatBraceOnNewLine;
+  }
+
+  /**
    * @inheritdoc
    */
   async loadSettings() {
@@ -659,6 +792,15 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     const indentWidth = await this.getController().getPreference("indentation-width");
     await this.setIndentWidth(indentWidth);
+
+    const multilineLists = await this.getController().getPreference("format-lists-multiline");
+    await this.setFormatMultilineLists(multilineLists);
+
+    const multilineTests = await this.getController().getPreference("format-tests-multiline");
+    await this.setFormatMultilineTests(multilineTests);
+
+    const braceOnNewLine = await this.getController().getPreference("format-brace-new-line");
+    await this.setFormatBraceOnNewLine(braceOnNewLine);
 
   }
 
@@ -675,6 +817,15 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const indentWidth = await this.getController().getDefaultPreference("indentation-width");
     await this.setIndentWidth(indentWidth);
 
+    const multilineLists = await this.getController().getDefaultPreference("format-lists-multiline");
+    await this.setFormatMultilineLists(multilineLists);
+
+    const multilineTests = await this.getController().getDefaultPreference("format-tests-multiline");
+    await this.setFormatMultilineTests(multilineTests);
+
+    const braceOnNewLine = await this.getController().getDefaultPreference("format-brace-new-line");
+    await this.setFormatBraceOnNewLine(braceOnNewLine);
+
     await this.renderSettings();
   }
 
@@ -686,6 +837,13 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     await this.getController().setDefaultPreference("indentation-policy", this.getIndentWithTabs());
     await this.getController().setDefaultPreference("indentation-width", this.getIndentWidth());
+
+    await this.getController().setDefaultPreference(
+      "format-lists-multiline", this.getFormatMultilineLists());
+    await this.getController().setDefaultPreference(
+      "format-tests-multiline", this.getFormatMultilineTests());
+    await this.getController().setDefaultPreference(
+      "format-brace-new-line", this.getFormatBraceOnNewLine());
 
   }
 
