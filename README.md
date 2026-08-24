@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.7.2
+## Stable release 0.7.3
 
-**Version 0.7.2 is the latest stable release for both the Windows EXE and the
+**Version 0.7.3 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.7.2` uses the same version for the Windows application and the
+Release `0.7.3` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -40,6 +40,10 @@ Thunderbird extension. The extension includes:
   `require` capabilities, full-script syntax validation, and protection against
   overwriting a script changed since the table was loaded; script activation is
   never changed by the importer
+- a **Make pretty** action in the source editor that formats Sieve blocks with
+  tabs and line breaks while preserving strings, comments, and multiline text
+- a save-or-discard warning when an editor with changes relative to the loaded
+  server script is closed; cancelling or a failed save keeps the editor open
 - a visible add-on name beside **Create Server** and the fork/version footer
   used by the Windows application
 
@@ -49,15 +53,15 @@ enabled on the server.
 
 Install the current package directly:
 
-[`releases/sieve-0.7.2-cram-md5.xpi`](releases/sieve-0.7.2-cram-md5.xpi)
+[`releases/sieve-0.7.3-cram-md5.xpi`](releases/sieve-0.7.3-cram-md5.xpi)
 
-SHA-256: `0e0da89f0571b877c1aa155460a253e8caad2fb9320361342ebbee0014986112`
+SHA-256: `8225aea27bf3350fba3ddd51eb918b83708dcddb98c23d14dcfcef43c355b837`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.7.2.exe`](releases/install_sieve_0.7.2.exe)
+[`releases/install_sieve_0.7.3.exe`](releases/install_sieve_0.7.3.exe)
 
-SHA-256: `08db30c20866f05cf10af699f63e47370b96c4ee9bb1ebc473dc1910dbafa708`
+SHA-256: `59f4506d469b6517587ef5742326455bb3cc7ed6476e240b711b6ef79ff9bef1`
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing
