@@ -15,6 +15,7 @@ import { SieveI18n } from "./../utils/SieveI18n.mjs";
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
 import { captureException } from "./../utils/SieveSentry.mjs";
 import { SieveFilterImportUI } from "./SieveFilterImportUI.mjs";
+import { SieveSpamUI } from "./SieveSpamUI.mjs";
 
 
 /**
@@ -34,6 +35,32 @@ class SieveMozAccountUI extends SieveAbstractAccountUI {
       return;
 
     const account = document.querySelector(`#siv-account-${this.id}`);
+    const spamPane = await (new SieveTemplate()).load("./accounts/account.spam.html");
+    const spamPaneId = `sieve-spam-content-${this.id}`;
+    spamPane.id = spamPaneId;
+    account.querySelector(".sieve-account-body").append(spamPane);
+
+    const spamItem = document.createElement("li");
+    spamItem.className = "nav-item sieve-account-expanded";
+    spamItem.classList.toggle("d-none", account.dataset.collapsed === "true");
+
+    const spamTab = document.createElement("a");
+    spamTab.className = "sieve-spam-tab nav-link";
+    spamTab.href = `#${spamPaneId}`;
+    spamTab.dataset.bsToggle = "tab";
+    spamTab.setAttribute("role", "tab");
+    spamTab.setAttribute("aria-controls", spamPaneId);
+    try {
+      spamTab.textContent = SieveI18n.getInstance().getString("account.spam.tab");
+    } catch {
+      spamTab.textContent = "Spam";
+    }
+    spamItem.append(spamTab);
+    account.querySelector(".sieve-account-tabs").append(spamItem);
+
+    const spam = new SieveSpamUI(this, spamPane);
+    spamTab.addEventListener("shown.bs.tab", () => { spam.render(); });
+
     const pane = await (new SieveTemplate()).load("./accounts/account.filters.html");
     const paneId = `sieve-filters-content-${this.id}`;
     pane.id = paneId;

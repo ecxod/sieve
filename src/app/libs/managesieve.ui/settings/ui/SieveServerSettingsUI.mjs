@@ -108,6 +108,47 @@ class SieveServerSettingsUI {
   }
 
   /**
+   * Populates the direct-IMAP settings.
+   *
+   * @param {object} settings
+   *   IMAP settings.
+   */
+  setImap(settings) {
+    const dialog = this.getDialog();
+    dialog.querySelector(".sieve-settings-imap-enabled").checked = !!settings.enabled;
+    dialog.querySelector(".sieve-settings-imap-hostname").value = settings.hostname || "";
+    dialog.querySelector(".sieve-settings-imap-port").value = settings.port;
+    dialog.querySelector(".sieve-settings-imap-security").value = settings.security;
+    this.updateImapState();
+  }
+
+  /**
+   * Gets the direct-IMAP settings from the dialog.
+   *
+   * @returns {object}
+   *   IMAP settings.
+   */
+  getImap() {
+    const dialog = this.getDialog();
+    return {
+      enabled: dialog.querySelector(".sieve-settings-imap-enabled").checked,
+      hostname: dialog.querySelector(".sieve-settings-imap-hostname").value.trim(),
+      port: dialog.querySelector(".sieve-settings-imap-port").value.trim(),
+      security: dialog.querySelector(".sieve-settings-imap-security").value
+    };
+  }
+
+  /**
+   * Enables the IMAP fields only when direct spam management is active.
+   */
+  updateImapState() {
+    const dialog = this.getDialog();
+    const enabled = dialog.querySelector(".sieve-settings-imap-enabled").checked;
+    dialog.querySelectorAll(".sieve-settings-imap-value")
+      .forEach((field) => { field.disabled = !enabled; });
+  }
+
+  /**
    * Sets the server's certificate fingerprint in the ui.
    * The fingerprint is normally a sha checksum.
    *
@@ -202,6 +243,7 @@ class SieveServerSettingsUI {
     this.setHostname(server.hostname);
     this.setPort(server.port);
     this.setFingerprint(server.fingerprint);
+    this.setImap(server.imap);
 
     this.setKeepAlive(server.keepAlive);
 
@@ -209,6 +251,8 @@ class SieveServerSettingsUI {
       .addEventListener("click", () => { this.showAdvanced(); });
     parent.querySelector(".siv-settings-hide-advanced")
       .addEventListener("click", () => { this.hideAdvanced(); });
+    parent.querySelector(".sieve-settings-imap-enabled")
+      .addEventListener("change", () => { this.updateImapState(); });
 
     this.hideAdvanced();
   }
@@ -233,8 +277,8 @@ class SieveServerSettingsUI {
     dialog
       .querySelector(".sieve-settings-apply")
       .addEventListener("click", async () => {
-        await this.save();
-        modal.hide();
+        if (await this.save())
+          modal.hide();
       });
 
     return await new Promise((resolve) => {
@@ -252,18 +296,26 @@ class SieveServerSettingsUI {
    * Validates and saves the setting before closing the dialog.
    * In case the settings are invalid an error message is displayed.
    *
+   * @returns {Promise<boolean>}
+   *   true after settings were saved, otherwise false.
    */
   async save() {
+
+    const form = this.getDialog().querySelector("form");
+    if (!form.reportValidity())
+      return false;
 
     const server = {
       displayName: await this.getDisplayName(),
       hostname: await this.getHostname(),
       port: await this.getPort(),
       fingerprint: await this.getFingerprint(),
-      keepAlive: await this.getKeepAlive()
+      keepAlive: await this.getKeepAlive(),
+      imap: this.getImap()
     };
 
     await this.account.send("account-set-server", server);
+    return true;
   }
 
   /**

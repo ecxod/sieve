@@ -336,6 +336,15 @@
     ]
   });
 
+  tests.set("thunderbird-spam-message", {
+    script: "${workspace}/managesieve.ui/spam/tests/SieveSpamMessageTest.mjs",
+    require: [
+      "${workspace}/managesieve.ui/spam/SieveSpamMessage.mjs",
+      "${workspace}/managesieve.ui/spam/SieveImapSpamClient.mjs",
+      "${workspace}/managesieve.ui/spam/SieveSpamRule.mjs"
+    ]
+  });
+
   tests.set("sieve-formatter", {
     script: "${workspace}/managesieve.ui/editor/text/tests/SieveFormatterTest.mjs",
     extend: "rfc5228",

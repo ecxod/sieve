@@ -32,6 +32,43 @@
           </div>
 
           <hr />
+          <h6 data-i18n="server.imap.title"></h6>
+          <p class="form-text text-muted" data-i18n="server.imap.description"></p>
+
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input sieve-settings-imap-enabled" type="checkbox"
+              id="sieve-settings-imap-enabled">
+            <label class="form-check-label" for="sieve-settings-imap-enabled"
+              data-i18n="server.imap.enabled"></label>
+          </div>
+
+          <div class="mb-3 row">
+            <label class="col-sm-3 col-form-label" data-i18n="server.imap.hostname"></label>
+            <div class="col-sm-8">
+              <input type="text" class="sieve-settings-imap-hostname sieve-settings-imap-value form-control"
+                data-i18n="server.imap.hostname.placeholder" required>
+            </div>
+          </div>
+
+          <div class="mb-3 row">
+            <label class="col-sm-3 col-form-label" data-i18n="server.imap.port"></label>
+            <div class="col-sm-3">
+              <input type="number" min="1" max="65535"
+                class="sieve-settings-imap-port sieve-settings-imap-value form-control" required>
+            </div>
+          </div>
+
+          <div class="mb-3 row">
+            <label class="col-sm-3 col-form-label" data-i18n="server.imap.security"></label>
+            <div class="col-sm-5">
+              <select class="sieve-settings-imap-security sieve-settings-imap-value form-select">
+                <option value="tls" data-i18n="server.imap.security.tls"></option>
+                <option value="starttls" data-i18n="server.imap.security.starttls"></option>
+              </select>
+            </div>
+          </div>
+
+          <hr />
 
           <p class="form-text text-muted">
             <small data-i18n="server.fingerprint.description"></small>

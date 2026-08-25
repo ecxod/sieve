@@ -10,6 +10,9 @@
  */
 
 import { SieveAbstractAccountUI } from "./SieveAbstractAccountUI.mjs";
+import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { SieveSpamUI } from "./SieveSpamUI.mjs";
 
 import { SieveCredentialsSettingsUI } from "./../settings/ui/SieveCredentialSettingsUI.mjs";
 import { SieveServerSettingsUI } from "./../settings/ui/SieveServerSettingsUI.mjs";
@@ -18,6 +21,40 @@ import { SieveServerSettingsUI } from "./../settings/ui/SieveServerSettingsUI.mj
  * A UI renderer for a sieve account
  */
 class SieveNodeAccountUI extends SieveAbstractAccountUI{
+
+  /**
+   * Adds the direct-IMAP Spam tab after Properties.
+   */
+  async renderAccount() {
+    await super.renderAccount();
+
+    const account = document.querySelector(`#siv-account-${this.id}`);
+    const spamPane = await (new SieveTemplate()).load("./accounts/account.spam.html");
+    const spamPaneId = `sieve-spam-content-${this.id}`;
+    spamPane.id = spamPaneId;
+    account.querySelector(".sieve-account-body").append(spamPane);
+
+    const item = document.createElement("li");
+    item.className = "nav-item sieve-account-expanded";
+    item.classList.toggle("d-none", account.dataset.collapsed === "true");
+
+    const tab = document.createElement("a");
+    tab.className = "sieve-spam-tab nav-link";
+    tab.href = `#${spamPaneId}`;
+    tab.dataset.bsToggle = "tab";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", spamPaneId);
+    try {
+      tab.textContent = SieveI18n.getInstance().getString("account.spam.tab");
+    } catch {
+      tab.textContent = "Spam";
+    }
+    item.append(tab);
+    account.querySelector(".sieve-account-tabs").append(item);
+
+    const spam = new SieveSpamUI(this, spamPane);
+    tab.addEventListener("shown.bs.tab", () => { spam.render(); });
+  }
 
   /**
    * Renders the settings pane

@@ -16,6 +16,7 @@ const BACKUP_FILE_PERMISSIONS = 0o600;
 
 const { ipcRenderer, shell, clipboard } = require('electron');
 const { init: initSentry } = require('@sentry/electron/renderer');
+const { ImapFlow } = require('imapflow');
 
 initSentry({
   sendDefaultPii: false,
@@ -46,6 +47,101 @@ import { SieveAutoConfig } from "./libs/libManageSieve/SieveAutoConfig.mjs";
 
 import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
 import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
+import {
+  SieveImapSpamClient
+} from "./libs/managesieve.ui/spam/SieveImapSpamClient.mjs";
+import {
+  appendSpamRuleToScript,
+  createSpamRule
+} from "./libs/managesieve.ui/spam/SieveSpamRule.mjs";
+
+const IMAP_DEFAULT_PORT = 993;
+const IMAP_CONNECTION_TIMEOUT = 30000;
+const IMAP_GREETING_TIMEOUT = 16000;
+const IMAP_SOCKET_TIMEOUT = 120000;
+
+/**
+ * Reads the optional direct-IMAP settings of an application account.
+ *
+ * @param {object} account
+ *   application account.
+ * @returns {Promise<object>}
+ *   normalized IMAP settings.
+ */
+async function getImapSettings(account) {
+  const config = account.getConfig();
+  const sieveHost = await account.getHost();
+
+  return {
+    enabled: await config.getBoolean("imap.enabled", false),
+    hostname: (await config.getString(
+      "imap.hostname", await sieveHost.getHostname())).trim(),
+    port: await config.getInteger("imap.port", IMAP_DEFAULT_PORT),
+    security: await config.getString("imap.security", "tls")
+  };
+}
+
+/**
+ * Persists validated direct-IMAP settings.
+ *
+ * @param {object} account
+ *   application account.
+ * @param {object} settings
+ *   settings received from the UI.
+ */
+async function setImapSettings(account, settings) {
+  const enabled = !!settings.enabled;
+  const hostname = `${settings.hostname || ""}`.trim();
+  const port = Number.parseInt(settings.port, 10);
+  const security = settings.security === "starttls" ? "starttls" : "tls";
+
+  if (enabled && !hostname)
+    throw new Error("An IMAP hostname is required");
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("The IMAP port must be between 1 and 65535");
+
+  const config = account.getConfig();
+  await config.setBoolean("imap.enabled", enabled);
+  await config.setString("imap.hostname", hostname);
+  await config.setInteger("imap.port", port);
+  await config.setString("imap.security", security);
+}
+
+/**
+ * Creates the direct-IMAP spam adapter with the account's existing login.
+ *
+ * @param {object} account
+ *   application account.
+ * @param {object} settings
+ *   normalized IMAP connection settings.
+ * @returns {Promise<SieveImapSpamClient>}
+ *   configured spam adapter.
+ */
+async function createImapSpamClient(account, settings) {
+  const authentication = await account.getAuthentication();
+  const username = await authentication.getUsername();
+  const password = await authentication.getPassword();
+
+  return new SieveImapSpamClient(() => {
+    return new ImapFlow({
+      host: settings.hostname,
+      port: settings.port,
+      secure: settings.security === "tls",
+      doSTARTTLS: settings.security === "starttls",
+      auth: { user: username, pass: password },
+      logger: false,
+      disableAutoIdle: true,
+      connectionTimeout: IMAP_CONNECTION_TIMEOUT,
+      greetingTimeout: IMAP_GREETING_TIMEOUT,
+      socketTimeout: IMAP_SOCKET_TIMEOUT,
+      clientInfo: {
+        name: "Sieve Spam Manager",
+        vendor: "ecxod",
+        "support-url": "https://github.com/ecxod/sieve"
+      }
+    });
+  });
+}
 
 (async function () {
   const logger = SieveLogger.getInstance();
@@ -128,15 +224,110 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
       logger.logAction(`Get server for ${msg.payload.account}`);
 
-      const host = await accounts.getAccountById(msg.payload.account).getHost();
+      const account = accounts.getAccountById(msg.payload.account);
+      const host = await account.getHost();
 
       return {
         displayName: await host.getDisplayName(),
         hostname: await host.getHostname(),
         port: await host.getPort(),
         fingerprint: await host.getFingerprint(),
-        keepAlive: await host.getKeepAlive()
+        keepAlive: await host.getKeepAlive(),
+        imap: await getImapSettings(account)
       };
+    },
+
+    "account-spam-list": async function (msg) {
+      logger.logAction(`List IMAP spam messages for ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled) {
+        return {
+          configured: false,
+          folderName: "IMAP",
+          canCleanSource: true,
+          messages: []
+        };
+      }
+
+      const spam = await createImapSpamClient(account, settings);
+      return {
+        configured: true,
+        contextActions: true,
+        ...await spam.list()
+      };
+    },
+
+    "account-spam-details": async function (msg) {
+      logger.logAction(`Load IMAP spam headers for ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP spam management is not enabled");
+
+      const spam = await createImapSpamClient(account, settings);
+      return await spam.getDetails(msg.payload.messageId);
+    },
+
+    "account-spam-rule-scripts": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Load scripts for Spam rule helper on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        return { connected: false, scripts: [] };
+
+      const session = sessions.get(id);
+      const scripts = [];
+      for (const item of await session.listScripts()) {
+        scripts.push({
+          name: item.script,
+          active: !!item.active,
+          content: await session.getScript(item.script)
+        });
+      }
+      return { connected: true, scripts };
+    },
+
+    "account-spam-rule-save": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      logger.logAction(`Save Spam rule to ${name} on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+      if ((new SieveTabUI()).has(id, name))
+        throw new Error("Close the open editor for this script before changing it");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== msg.payload.expected)
+        throw new Error("The server script changed; reopen the rule helper and try again");
+
+      const rule = createSpamRule(msg.payload.details || {}, msg.payload.options || {});
+      const updated = appendSpamRuleToScript(current, rule);
+      await session.checkScript(updated);
+      await session.putScript(name, updated);
+
+      return { name, ruleId: rule.id };
+    },
+
+    "account-spam-unspam": async function (msg) {
+      logger.logAction(`Restore IMAP spam messages for ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP spam management is not enabled");
+
+      const messageIds = Array.isArray(msg.payload.messageIds)
+        ? msg.payload.messageIds : [];
+      if (!messageIds.length)
+        return { processed: 0 };
+
+      const spam = await createImapSpamClient(account, settings);
+      return await spam.unspam(messageIds, !!msg.payload.permanentAllow);
     },
 
     "account-get-settings": async function (msg) {
@@ -369,7 +560,8 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
 
       logger.logAction(`Get display server for ${msg.payload.account}`);
 
-      const host = await accounts.getAccountById(msg.payload.account).getHost();
+      const account = accounts.getAccountById(msg.payload.account);
+      const host = await account.getHost();
 
       await host.setDisplayName(msg.payload.displayName);
       await host.setHostname(msg.payload.hostname);
@@ -378,6 +570,8 @@ import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
       await host.setFingerprint(msg.payload.fingerprint);
 
       await host.setKeepAlive(msg.payload.keepAlive);
+      if (msg.payload.imap)
+        await setImapSettings(account, msg.payload.imap);
     },
 
     "account-import": async function () {

@@ -17,6 +17,12 @@ import { SieveLogger } from "./libs/managesieve.ui/utils/SieveLogger.mjs";
 import { SieveIpcClient } from "./libs/managesieve.ui/utils/SieveIpcClient.mjs";
 import { SieveAccounts } from "./libs/managesieve.ui/settings/logic/SieveAccounts.mjs";
 import { captureException, initSentry } from "./libs/managesieve.ui/utils/SieveSentry.mjs";
+import {
+  binaryStringToBytes,
+  cleanSpamMessage,
+  findSpecialFolder,
+  replaceDuplicateMessages
+} from "./libs/managesieve.ui/spam/SieveSpamMessage.mjs";
 
 initSentry("background");
 
@@ -27,12 +33,261 @@ initSentry("background");
   const ERROR_TIME = 4;
 
   const FIRST_ENTRY = 0;
+  const HAM_TRAINING_TAG = "rspamdham";
+  const PERMANENT_ALLOW_TAG = "rspamdallow";
+  const PERMANENT_ALLOW_FAILED_TAG = "rspamdallowfailed";
 
   const logger = SieveLogger.getInstance();
 
   const accounts = await (new SieveAccounts().load());
 
   const sessions = new Map();
+
+  /**
+   * Creates the internal Thunderbird tag used as an authenticated IMAP signal
+   * for the local Rspamd training helper.
+   *
+   * @param {string} key
+   *   stable Thunderbird tag and IMAP keyword.
+   * @param {string} label
+   *   user-visible internal tag label.
+   * @param {string} color
+   *   tag color.
+   */
+  async function ensureInternalTag(key, label, color) {
+    const tags = await browser.messages.tags.list();
+
+    if (tags.some((tag) => {return tag.key === key;}))
+      return;
+
+    await browser.messages.tags.create(key, label, color);
+  }
+
+  /**
+   * Loads an account including its complete folder tree.
+   *
+   * @param {string} id
+   *   Thunderbird account id.
+   * @returns {Promise<object>}
+   *   the Thunderbird mail account.
+   */
+  async function getMailAccount(id) {
+    try {
+      return await browser.accounts.get(id, true);
+    } catch {
+      return await browser.accounts.get(id);
+    }
+  }
+
+  /**
+   * Collects every page returned by the Thunderbird messages API.
+   *
+   * @param {object} folder
+   *   source folder.
+   * @returns {Promise<object[]>}
+   *   all message headers in the folder.
+   */
+  async function listFolderMessages(folder) {
+    const messages = [];
+    let page = await browser.messages.list(folder);
+
+    while (page) {
+      messages.push(...page.messages);
+      if (!page.id)
+        break;
+      page = await browser.messages.continueList(page.id);
+    }
+
+    return messages;
+  }
+
+  /**
+   * Finds every message with an exact RFC 822 Message-ID in one folder.
+   *
+   * @param {object} folder
+   *   folder to search.
+   * @param {string} headerMessageId
+   *   Message-ID without surrounding angle brackets.
+   * @returns {Promise<object[]>}
+   *   all matching message headers.
+   */
+  async function findMessagesByHeaderId(folder, headerMessageId) {
+    if (!headerMessageId)
+      return [];
+
+    const query = { headerMessageId };
+    if (folder.id)
+      query.folderId = folder.id;
+    else
+      query.folder = folder;
+
+    const messages = [];
+    let page = await browser.messages.query(query);
+    while (page) {
+      messages.push(...page.messages);
+      if (!page.id)
+        break;
+      page = await browser.messages.continueList(page.id);
+    }
+    return messages;
+  }
+
+  /**
+   * Normalizes getRaw() results across Thunderbird versions.
+   *
+   * @param {number} id
+   *   Thunderbird message id.
+   * @returns {Promise<Uint8Array>}
+   *   complete RFC 822 bytes.
+   */
+  async function getRawMessageBytes(id) {
+    let raw;
+
+    try {
+      raw = await browser.messages.getRaw(id, { "data_format": "File" });
+    } catch {
+      raw = await browser.messages.getRaw(id);
+    }
+
+    if (typeof raw === "string")
+      return binaryStringToBytes(raw);
+
+    if (raw && typeof raw.arrayBuffer === "function")
+      return new Uint8Array(await raw.arrayBuffer());
+
+    throw new Error("Thunderbird did not return readable message source");
+  }
+
+  /**
+   * Compares folders using current ids or legacy account/path pairs.
+   *
+   * @param {object} left
+   *   first Thunderbird folder.
+   * @param {object} right
+   *   second Thunderbird folder.
+   * @returns {boolean}
+   *   true when both objects identify the same folder.
+   */
+  function isSameFolder(left, right) {
+    if (!left || !right)
+      return false;
+
+    if (left.id && right.id)
+      return left.id === right.id;
+
+    return left.accountId === right.accountId && left.path === right.path;
+  }
+
+  /**
+   * Runs a replacement operation after removing Inbox copies with the same Message-ID.
+   * Existing content is kept in memory and restored if the replacement fails.
+   *
+   * @param {object} inbox
+   *   destination folder.
+   * @param {string} headerMessageId
+   *   Message-ID of the replacement.
+   * @param {Function} replacement
+   *   operation that places the replacement in the Inbox.
+   * @returns {Promise<object>}
+   *   replacement result.
+   */
+  async function replaceInboxDuplicates(inbox, headerMessageId, replacement) {
+
+    const duplicates = await findMessagesByHeaderId(inbox, headerMessageId);
+    return await replaceDuplicateMessages({
+      hasDuplicates: duplicates.length > 0,
+      createBackup: async () => {
+        const previous = duplicates[0];
+        return {
+          data: await getRawMessageBytes(previous.id),
+          flagged: !!previous.flagged,
+          junk: !!previous.junk,
+          read: !!previous.read,
+          tags: previous.tags || []
+        };
+      },
+      removeDuplicates: async () => {
+        await browser.messages.delete(
+          duplicates.map((message) => {return message.id;}), true);
+      },
+      importReplacement: replacement,
+      restoreBackup: async (backup) => {
+        const backupFile = new File([backup.data], "previous-inbox-message.eml", {
+          type: "message/rfc822"
+        });
+        const restored = await browser.messages.import(backupFile, inbox, {
+          flagged: backup.flagged,
+          read: backup.read,
+          tags: backup.tags
+        });
+        await browser.messages.update(restored.id, { junk: backup.junk });
+      }
+    });
+  }
+
+  /**
+   * Imports a permanently cleaned copy, marks it as ham, and removes the
+   * original only after the copy exists in the inbox.
+   *
+   * @param {object} message
+   *   Thunderbird message header.
+   * @param {object} inbox
+   *   destination inbox folder.
+   * @param {boolean} permanentAllow
+   *   queue an authenticated permanent sender allowlist request.
+   * @returns {Promise<object>}
+   *   per-message operation summary.
+   */
+  async function cleanAndMoveSpamMessage(message, inbox, permanentAllow) {
+    const cleaned = cleanSpamMessage(await getRawMessageBytes(message.id));
+    const sourceChanged = cleaned.subjectChanged || cleaned.headersRemoved > 0;
+    const queuedTags = [HAM_TRAINING_TAG];
+    if (permanentAllow)
+      queuedTags.push(PERMANENT_ALLOW_TAG);
+    const tags = [...new Set([...(message.tags || []), ...queuedTags])];
+
+    if (!sourceChanged) {
+      await replaceInboxDuplicates(inbox, message.headerMessageId, async () => {
+        await browser.messages.update(message.id, { junk: false, tags });
+        await browser.messages.move([message.id], inbox);
+      });
+      return {
+        id: message.id,
+        subjectChanged: false,
+        headersRemoved: 0
+      };
+    }
+
+    if (typeof browser.messages.import !== "function") {
+      throw new Error(
+        "This Thunderbird version cannot permanently remove the spam prefix");
+    }
+
+    const file = new File([cleaned.data], "unspammed-message.eml", {
+      type: "message/rfc822"
+    });
+    const imported = await replaceInboxDuplicates(
+      inbox, message.headerMessageId, async () => {
+        return await browser.messages.import(file, inbox, {
+          flagged: !!message.flagged,
+          read: !!message.read,
+          tags
+        });
+      });
+
+    if (!imported || typeof imported.id === "undefined")
+      throw new Error("Thunderbird did not confirm the imported inbox message");
+
+    await browser.messages.update(imported.id, { junk: false });
+    await browser.messages.delete([message.id], true);
+
+    return {
+      id: message.id,
+      importedId: imported.id,
+      subjectChanged: cleaned.subjectChanged,
+      headersRemoved: cleaned.headersRemoved
+    };
+  }
   // TODO Extract into separate class..
   /**
    * Gets a tab by its script and account name.
@@ -238,6 +493,84 @@ initSentry("background");
     "account-get-displayname": async function (msg) {
       const host = await accounts.getAccountById(msg.payload.account).getHost();
       return await host.getDisplayName();
+    },
+
+    "account-spam-list": async function (msg) {
+      const id = msg.payload.account;
+      const account = await getMailAccount(id);
+      const junk = findSpecialFolder(account, "junk");
+      const inbox = findSpecialFolder(account, "inbox");
+
+      if (!junk)
+        throw new Error("Thunderbird has no spam folder for this account");
+      if (!inbox)
+        throw new Error("Thunderbird has no inbox for this account");
+
+      const messages = await listFolderMessages(junk);
+      messages.sort((left, right) => {return new Date(right.date) - new Date(left.date);});
+
+      return {
+        folderName: junk.name || "Spam",
+        canCleanSource: typeof browser.messages.import === "function",
+        messages: messages.map((message) => {
+          return {
+            id: message.id,
+            author: message.author || "",
+            date: message.date ? new Date(message.date).toISOString() : "",
+            junk: !!message.junk,
+            recipients: message.recipients || [],
+            subject: message.subject || ""
+          };
+        })
+      };
+    },
+
+    "account-spam-unspam": async function (msg) {
+      const id = msg.payload.account;
+      const permanentAllow = msg.payload.permanentAllow === true;
+      const requested = Array.isArray(msg.payload.messageIds)
+        ? [...new Set(msg.payload.messageIds)] : [];
+
+      if (!requested.length)
+        return { processed: 0, subjectPrefixesRemoved: 0, headersRemoved: 0 };
+
+      const account = await getMailAccount(id);
+      const junk = findSpecialFolder(account, "junk");
+      const inbox = findSpecialFolder(account, "inbox");
+
+      if (!junk || !inbox)
+        throw new Error("Thunderbird could not find the spam folder or inbox");
+
+      await ensureInternalTag(
+        HAM_TRAINING_TAG, "Rspamd: Ham-Training (intern)", "#808080");
+      if (permanentAllow) {
+        await ensureInternalTag(
+          PERMANENT_ALLOW_TAG,
+          "Rspamd: dauerhafte Freigabe ausstehend (intern)",
+          "#008000");
+        await ensureInternalTag(
+          PERMANENT_ALLOW_FAILED_TAG,
+          "Rspamd: dauerhafte Freigabe abgelehnt (keine DMARC-Bestätigung)",
+          "#cc0000");
+      }
+
+      const results = [];
+      for (const messageId of requested) {
+        const message = await browser.messages.get(messageId);
+
+        if (!message.folder || !isSameFolder(message.folder, junk))
+          throw new Error("A selected message is no longer in this account's spam folder");
+
+        results.push(await cleanAndMoveSpamMessage(message, inbox, permanentAllow));
+      }
+
+      return {
+        processed: results.length,
+        hamTrainingQueued: results.length,
+        permanentAllowQueued: permanentAllow ? results.length : 0,
+        subjectPrefixesRemoved: results.filter((item) => {return item.subjectChanged;}).length,
+        headersRemoved: results.reduce((total, item) => {return total + item.headersRemoved;}, 0)
+      };
     },
 
     "account-filters-list": async function (msg) {

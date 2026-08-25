@@ -183,6 +183,25 @@ function packageManageSieveUi() {
 }
 
 /**
+ * Reuses the protocol-neutral spam tab UI in the standalone application.
+ * The actual mail operations are supplied by the Electron IMAP adapter.
+ *
+ * @returns {Stream}
+ *   a stream to be consumed by gulp.
+ */
+function packageSpamUi() {
+  const base = path.join("./src/wx/libs", "managesieve.ui");
+
+  return gulp.src([
+    path.join(base, "accounts.css"),
+    path.join(base, "accounts", "SieveSpamUI.mjs"),
+    path.join(base, "accounts", "SieveSpamContextUI.mjs"),
+    path.join(base, "accounts", "account.spam.html")
+  ], { base: base, encoding: false })
+    .pipe(gulp.dest(path.join(BUILD_DIR_APP_LIBS, "managesieve.ui")));
+}
+
+/**
  * Packages the build directory and electron for windows.
  */
 async function packageWin32() {
@@ -460,7 +479,8 @@ export default {
       packageBootstrap,
       packageLibManageSieve,
       packageLibSieve,
-      packageManageSieveUi
+      packageManageSieveUi,
+      packageSpamUi
     ),
     packageSrc
   ),
