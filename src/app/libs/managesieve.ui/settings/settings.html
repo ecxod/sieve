@@ -15,6 +15,28 @@
 
   <div class="card mt-4 mb-4">
     <div class="card-body">
+      <h5 data-i18n="settings.update.title" class="card-title"></h5>
+      <p data-i18n="settings.update.description" class="card-text"></p>
+      <dl class="row mb-3">
+        <dt data-i18n="settings.update.current" class="col-sm-4"></dt>
+        <dd id="sieve-update-current-version" class="col-sm-8 mb-1">–</dd>
+        <dt data-i18n="settings.update.latest" class="col-sm-4"></dt>
+        <dd id="sieve-update-latest-version" class="col-sm-8 mb-1">–</dd>
+      </dl>
+      <p id="sieve-update-status" class="small" role="status"></p>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button data-i18n="settings.update.check" id="sieve-update-check"
+          type="button" class="btn btn-sm btn-outline-primary"></button>
+        <button data-i18n="settings.update.install" id="sieve-update-install"
+          type="button" class="btn btn-sm btn-primary d-none"></button>
+        <button data-i18n="settings.update.release" id="sieve-update-release"
+          type="button" class="btn btn-sm btn-outline-secondary d-none"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 mb-4">
+    <div class="card-body">
       <h5 data-i18n="settings.backup.title" class="card-title"></h5>
       <p data-i18n="settings.backup.description" class="card-text"></p>
       <div class="form-check mb-3">

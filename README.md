@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.0
+## Stable release 0.8.6
 
-**Version 0.8.0 is the latest stable release for both the Windows EXE and the
+**Version 0.8.6 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.0` uses the same version for the Windows application and the
+Release `0.8.6` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -43,7 +43,13 @@ Thunderbird extension. The extension includes:
 - a **Make pretty** action in the source editor that indents nested blocks,
   string lists, and test arguments while preserving strings, comments, and
   multiline text; editor settings control tabs/spaces, compact or multiline
-  lists and tests, and whether opening block braces start on a new line
+  lists and tests, whether opening block braces start on a new line, and
+  optional blank lines after the leading `require` section and complete
+  `if`/`elsif`/`else` chains
+- a **Spam** tab for browsing, searching, and selecting messages in the
+  account's spam folder; selected messages can be restored safely to `INBOX`,
+  and matching allow/block rules can be inspected or appended to a chosen
+  Sieve script without overwriting an independently changed script
 - a save-or-discard warning when an editor with changes relative to the loaded
   server script is closed; cancelling or a failed save keeps the editor open
 - a visible add-on name beside **Create Server** and the fork/version footer
@@ -56,19 +62,24 @@ enabled on the server.
 The Windows application additionally provides a portable settings backup. It
 exports and restores server accounts, logins, editor and appearance settings,
 and optional error-tracking settings. Remembered passwords are included only
-after an explicit choice and a clear-text warning.
+after an explicit choice and a clear-text warning. The global **Settings** tab
+also contains update management which displays the installed and latest GitHub
+release versions and can download, verify, and start the matching Windows
+installer.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.0-cram-md5.xpi`](releases/sieve-0.8.0-cram-md5.xpi)
+[`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi)
 
-SHA-256: `f35d28f9a2266853c7b1f65776330dfb5bb7f16c3b8b84d481fb0fa031e58c78`
+SHA-256: `2e7eb02d637ecd8269691cef2c851ee97f50af9bac698546c67413807fc77040`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.0.exe`](releases/install_sieve_0.8.0.exe)
+[`releases/install_sieve_0.8.6.exe`](releases/install_sieve_0.8.6.exe)
 
-SHA-256: `5add67f3d5ab3d1292f71189b1d7d75b7d9ab83cf5ab37982db445220f28187d`
+SHA-256: `bf8273a6442870d2c7fb93d38bf12edc7c4ef344f8c2752f8c2132eaa5f502c4`
+
+The Thunderbird package requires Thunderbird 121 or newer.
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing

@@ -12,6 +12,12 @@
 import path from 'path';
 import url from 'url';
 import SieveSentry from './sentry.cjs';
+import { createHash } from 'crypto';
+import { createWriteStream } from 'fs';
+import { mkdtemp, rename, rm } from 'fs/promises';
+import { Readable, Transform } from 'stream';
+import { pipeline } from 'stream/promises';
+import { SieveUpdater } from './libs/managesieve.ui/updater/SieveUpdater.mjs';
 
 import {
   app,
@@ -20,11 +26,95 @@ import {
   safeStorage,
   BrowserWindow,
   Menu,
+  net,
   shell
 } from 'electron';
 
 const DEFAULT_WINDOW_WIDTH = 1200;
 const DEFAULT_WINDOW_HEIGHT = 600;
+const UPDATE_QUIT_DELAY_MS = 750;
+
+/**
+ * Downloads, verifies and starts a published Windows installer.
+ *
+ * Installer metadata is accepted only for the versioned ecxod/sieve GitHub
+ * release URL and must include GitHub's SHA-256 digest.
+ *
+ * @param {object} data
+ *   installer metadata returned by the update checker.
+ * @returns {object}
+ *   launch result.
+ */
+async function downloadAndStartUpdate(data) {
+  if (process.platform !== "win32")
+    throw new Error("Automatic update installation is available only on Windows");
+
+  const installer = (new SieveUpdater()).validateInstaller(data);
+  const downloadDirectory = await mkdtemp(
+    path.join(app.getPath("temp"), "sieve-update-"));
+  const partialPath = path.join(downloadDirectory, `${installer.name}.download`);
+  const installerPath = path.join(downloadDirectory, installer.name);
+  let keepDownload = false;
+
+  try {
+    const response = await net.fetch(installer.url, {
+      redirect: "follow",
+      headers: {
+        "Accept": "application/octet-stream"
+      }
+    });
+
+    if (!response.ok || !response.body)
+      throw new Error(`Update download failed with HTTP ${response.status}`);
+
+    const advertisedLength = Number.parseInt(
+      response.headers.get("content-length"), 10);
+    if (Number.isInteger(advertisedLength) && advertisedLength !== installer.size)
+      throw new Error("The update download size does not match the GitHub release");
+
+    const hash = createHash("sha256");
+    let received = 0;
+    const verifier = new Transform({
+      transform(chunk, encoding, callback) {
+        received += chunk.length;
+
+        if (received > installer.size) {
+          callback(new Error("The update download is larger than expected"));
+          return;
+        }
+
+        hash.update(chunk);
+        callback(null, chunk);
+      }
+    });
+
+    await pipeline(
+      Readable.fromWeb(response.body),
+      verifier,
+      createWriteStream(partialPath, { flags: "wx", mode: 0o600 }));
+
+    if (received !== installer.size)
+      throw new Error("The update download is incomplete");
+
+    const actualDigest = `sha256:${hash.digest("hex")}`;
+    if (actualDigest !== installer.digest)
+      throw new Error("The update installer failed SHA-256 verification");
+
+    await rename(partialPath, installerPath);
+
+    const error = await shell.openPath(installerPath);
+    if (error)
+      throw new Error(`Could not start the update installer: ${error}`);
+
+    keepDownload = true;
+    setTimeout(() => { app.quit(); }, UPDATE_QUIT_DELAY_MS);
+
+    return { started: true, version: installer.version };
+  } finally {
+    if (!keepDownload)
+      await rm(downloadDirectory, { recursive: true, force: true });
+  }
+}
 
 // Out main window, it defines the lifecycle of your application
 // so we need to protect it from the garbage collector and keep a
@@ -131,6 +221,10 @@ async function main() {
 
   ipcMain.handle("get-version", async() => {
     return await app.getVersion();
+  });
+
+  ipcMain.handle("install-update", async(event, installer) => {
+    return await downloadAndStartUpdate(installer);
   });
 
   ipcMain.handle("sentry-get-dsn", () => {

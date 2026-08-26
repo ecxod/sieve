@@ -39,6 +39,107 @@ async function main() {
   });
 
   const i18n = SieveI18n.getInstance();
+  const updateCurrent = document.querySelector("#sieve-update-current-version");
+  const updateLatest = document.querySelector("#sieve-update-latest-version");
+  const updateMessage = document.querySelector("#sieve-update-status");
+  const updateCheck = document.querySelector("#sieve-update-check");
+  const updateInstall = document.querySelector("#sieve-update-install");
+  const updateRelease = document.querySelector("#sieve-update-release");
+  let updateStatus = null;
+
+  /**
+   * Shows a localized update status.
+   *
+   * @param {string} message
+   *   localized message.
+   * @param {string} [style]
+   *   Bootstrap text color suffix.
+   */
+  function showUpdateMessage(message, style = "body-secondary") {
+    updateMessage.classList.remove(
+      "text-body-secondary", "text-success", "text-warning", "text-danger");
+    updateMessage.classList.add(`text-${style}`);
+    updateMessage.textContent = message;
+  }
+
+  /**
+   * Refreshes installed and published release information.
+   */
+  async function refreshUpdateStatus(force = false) {
+    updateCheck.disabled = true;
+    updateInstall.disabled = true;
+    updateInstall.classList.add("d-none");
+    updateRelease.classList.add("d-none");
+    showUpdateMessage(i18n.getString("settings.update.checking"));
+
+    try {
+      updateStatus = await SieveIpcClient.sendMessage(
+        "core", "update-status", { force });
+      updateCurrent.textContent = updateStatus.currentVersion;
+      updateLatest.textContent = updateStatus.latestVersion;
+      updateRelease.classList.remove("d-none");
+
+      if (!updateStatus.updateAvailable) {
+        showUpdateMessage(i18n.getString("settings.update.currentStatus"), "success");
+        return;
+      }
+
+      if (updateStatus.installSupported) {
+        updateInstall.classList.remove("d-none");
+        updateInstall.disabled = false;
+        showUpdateMessage(i18n.getString("settings.update.available"), "warning");
+        return;
+      }
+
+      const reason = updateStatus.platform === "win32"
+        ? "settings.update.noInstaller"
+        : "settings.update.unsupported";
+      showUpdateMessage(
+        `${i18n.getString("settings.update.available")} ${i18n.getString(reason)}`,
+        "warning");
+    } catch (error) {
+      updateStatus = null;
+      showUpdateMessage(
+        `${i18n.getString("settings.update.failed")} ${error?.message || error}`,
+        "danger");
+    } finally {
+      updateCheck.disabled = false;
+    }
+  }
+
+  updateCheck.addEventListener("click", async () => {
+    await refreshUpdateStatus(true);
+  });
+  updateRelease.addEventListener("click", async () => {
+    await SieveIpcClient.sendMessage("core", "update-goto-url");
+  });
+  updateInstall.addEventListener("click", async () => {
+    updateCheck.disabled = true;
+    updateInstall.disabled = true;
+    showUpdateMessage(i18n.getString("settings.update.installing"), "warning");
+
+    try {
+      const result = await SieveIpcClient.sendMessage("core", "update-install");
+
+      if (result.canceled) {
+        showUpdateMessage(i18n.getString("settings.update.canceled"), "warning");
+        updateInstall.disabled = false;
+        return;
+      }
+
+      showUpdateMessage(i18n.getString("settings.update.started"), "success");
+    } catch (error) {
+      showUpdateMessage(
+        `${i18n.getString("settings.update.failed")} ${error?.message || error}`,
+        "danger");
+      updateInstall.disabled = false;
+    } finally {
+      updateCheck.disabled = false;
+    }
+  });
+
+  await refreshUpdateStatus();
+
   const sentryDsn = document.querySelector("#sieve-sentry-dsn");
   const sentryStatus = document.querySelector("#sieve-sentry-status");
 

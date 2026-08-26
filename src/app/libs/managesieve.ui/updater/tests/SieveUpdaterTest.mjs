@@ -19,6 +19,31 @@ if (!suite)
 import { SieveUpdater } from "./../SieveUpdater.mjs";
 
 const NUMBER_SIX = 6;
+const TEST_DIGEST = `sha256:${"a".repeat(64)}`;
+
+/**
+ * Creates GitHub release data for update-status tests.
+ *
+ * @param {string} version
+ *   release version.
+ * @returns {object}
+ *   release response fixture.
+ */
+function createRelease(version) {
+  return {
+    "tag_name": `v${version}`,
+    "html_url": `https://github.com/ecxod/sieve/releases/tag/v${version}`,
+    "published_at": "2026-08-26T12:00:00Z",
+    assets: [{
+      state: "uploaded",
+      name: `install_sieve_${version}.exe`,
+      "browser_download_url":
+        `https://github.com/ecxod/sieve/releases/download/v${version}/install_sieve_${version}.exe`,
+      size: 123456,
+      digest: TEST_DIGEST
+    }]
+  };
+}
 
 suite.add("Major Version Bump", function () {
   suite.assertFalse((new SieveUpdater()).isOlder("6", "5.5.4"));
@@ -132,6 +157,52 @@ suite.add("Manifest - Only older versions", function () {
   };
 
   suite.assertFalse((new SieveUpdater()).compare(manifest, "5.6.8"));
+});
+
+suite.add("GitHub release exposes a verified Windows installer", function () {
+  const status = (new SieveUpdater()).createStatus(
+    createRelease("0.8.7"), "0.8.6", "win32");
+
+  suite.assertTrue(status.updateAvailable);
+  suite.assertTrue(status.installSupported);
+  suite.assertEquals(status.currentVersion, "0.8.6");
+  suite.assertEquals(status.latestVersion, "0.8.7");
+  suite.assertEquals(status.installer.name, "install_sieve_0.8.7.exe");
+  suite.assertEquals(status.installer.digest, TEST_DIGEST);
+});
+
+suite.add("GitHub release does not downgrade or auto-install on Linux", function () {
+  const updater = new SieveUpdater();
+  const current = updater.createStatus(createRelease("0.8.6"), "0.8.6", "win32");
+  const older = updater.createStatus(createRelease("0.8.5"), "0.8.6", "win32");
+  const linux = updater.createStatus(createRelease("0.8.7"), "0.8.6", "linux");
+
+  suite.assertFalse(current.updateAvailable);
+  suite.assertFalse(older.updateAvailable);
+  suite.assertTrue(linux.updateAvailable);
+  suite.assertFalse(linux.installSupported);
+});
+
+suite.add("GitHub release requires trusted installer metadata", function () {
+  const updater = new SieveUpdater();
+  const release = createRelease("0.8.7");
+
+  release.assets[0].digest = null;
+  const status = updater.createStatus(release, "0.8.6", "win32");
+
+  suite.assertTrue(status.updateAvailable);
+  suite.assertFalse(status.installSupported);
+  suite.assertEquals(status.installer, null);
+
+  suite.assertThrows(() => {
+    updater.validateInstaller({
+      version: "0.8.7",
+      name: "install_sieve_0.8.7.exe",
+      url: "https://example.com/install_sieve_0.8.7.exe",
+      size: 123456,
+      digest: TEST_DIGEST
+    });
+  }, "Unexpected update installer URL");
 });
 
 suite.add("Comparator - greater than", function () {

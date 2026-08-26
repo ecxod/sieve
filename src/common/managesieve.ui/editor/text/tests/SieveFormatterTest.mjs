@@ -111,6 +111,87 @@ suite.add("Sieve formatter keeps require commands separate by default", function
   suite.assertEquals(formatSieveScript(script), expected);
 });
 
+suite.add("Sieve formatter adds one blank line after the require section", function () {
+  const script = [
+    'require "fileinto";',
+    '# capability for the next declaration',
+    'require "copy";',
+    'keep;'
+  ].join("\n");
+  const expected = [
+    'require "fileinto";',
+    '# capability for the next declaration',
+    'require "copy";',
+    '',
+    'keep;',
+    ''
+  ].join("\n");
+
+  const formatted = formatSieveScript(script, {
+    blankLineAfterRequires: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto", "copy"]);
+});
+
+suite.add("Sieve formatter separates a combined require section", function () {
+  const formatted = formatSieveScript(
+    'require "fileinto";require "copy";keep;', {
+      combineRequires: true,
+      blankLineAfterRequires: true
+    });
+  const expected = [
+    'require [',
+    '\t"fileinto",',
+    '\t"copy"',
+    '];',
+    '',
+    'keep;',
+    ''
+  ].join("\n");
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto", "copy"]);
+});
+
+suite.add("Sieve formatter adds blank lines after complete if chains", function () {
+  const script = [
+    'if true{keep;}# between branches',
+    'elsif false{discard;}else{stop;}',
+    'if true{if false{stop;}}',
+    'keep;'
+  ].join("\n");
+  const expected = [
+    'if true {',
+    '\tkeep;',
+    '}',
+    '# between branches',
+    'elsif false {',
+    '\tdiscard;',
+    '}',
+    'else {',
+    '\tstop;',
+    '}',
+    '',
+    'if true {',
+    '\tif false {',
+    '\t\tstop;',
+    '\t}',
+    '}',
+    '',
+    'keep;',
+    ''
+  ].join("\n");
+
+  const formatted = formatSieveScript(script, {
+    blankLineAfterIf: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted);
+});
+
 suite.add("Sieve formatter preserves opaque source contents", function () {
   const script = [
     '# leading { comment; }',
@@ -136,9 +217,14 @@ suite.add("Sieve formatter preserves opaque source contents", function () {
 });
 
 suite.add("Sieve formatter is idempotent", function () {
-  const once = formatSieveScript('if allof(true,false){discard;}');
+  const options = {
+    blankLineAfterRequires: true,
+    blankLineAfterIf: true
+  };
+  const once = formatSieveScript(
+    'require "fileinto";if allof(true,false){discard;}keep;', options);
 
-  suite.assertEquals(formatSieveScript(once), once);
+  suite.assertEquals(formatSieveScript(once, options), once);
 });
 
 suite.add("Formatted Sieve remains valid", function () {
@@ -179,6 +265,8 @@ suite.add("Text editor applies formatting as an undoable edit", function () {
 
   SieveTextEditorUI.prototype.format.call({
     cm,
+    getFormatBlankLineAfterIf() { return false; },
+    getFormatBlankLineAfterRequires() { return false; },
     getFormatBraceOnNewLine() { return false; },
     getFormatCombineRequires() { return false; },
     getFormatMultilineLists() { return true; },
@@ -200,7 +288,9 @@ suite.add("Text editor loads formatter preferences", async function () {
     "format-lists-multiline": false,
     "format-tests-multiline": true,
     "format-brace-new-line": true,
-    "format-requires-combined": true
+    "format-requires-combined": true,
+    "format-blank-line-after-requires": true,
+    "format-blank-line-after-if": false
   };
   const loaded = {};
   const editor = {
@@ -209,6 +299,8 @@ suite.add("Text editor loads formatter preferences", async function () {
         async getPreference(name) { return preferences[name]; }
       };
     },
+    async setFormatBlankLineAfterIf(value) { loaded.blankLineAfterIf = value; },
+    async setFormatBlankLineAfterRequires(value) { loaded.blankLineAfterRequires = value; },
     async setFormatBraceOnNewLine(value) { loaded.braces = value; },
     async setFormatCombineRequires(value) { loaded.requires = value; },
     async setFormatMultilineLists(value) { loaded.lists = value; },
@@ -227,8 +319,29 @@ suite.add("Text editor loads formatter preferences", async function () {
     lists: false,
     tests: true,
     braces: true,
-    requires: true
+    requires: true,
+    blankLineAfterRequires: true,
+    blankLineAfterIf: false
   }));
+});
+
+suite.add("Text editor persists formatter blank-line preferences", async function () {
+  const saved = {};
+  const editor = {
+    getController() {
+      return {
+        async setPreference(name, value) { saved[name] = value; }
+      };
+    }
+  };
+
+  await SieveTextEditorUI.prototype.setFormatBlankLineAfterRequires.call(editor, true);
+  await SieveTextEditorUI.prototype.setFormatBlankLineAfterIf.call(editor, true);
+
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterRequires.call(editor));
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterIf.call(editor));
+  suite.assertTrue(saved["format-blank-line-after-requires"]);
+  suite.assertTrue(saved["format-blank-line-after-if"]);
 });
 
 suite.add("Formatter preferences have stable defaults", async function () {
@@ -240,4 +353,6 @@ suite.add("Formatter preferences have stable defaults", async function () {
   suite.assertTrue(await settings.getValue("format-tests-multiline"));
   suite.assertFalse(await settings.getValue("format-brace-new-line"));
   suite.assertFalse(await settings.getValue("format-requires-combined"));
+  suite.assertFalse(await settings.getValue("format-blank-line-after-requires"));
+  suite.assertFalse(await settings.getValue("format-blank-line-after-if"));
 });

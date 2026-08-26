@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.0 is the latest stable release for both distributed packages:**
+**Version 0.8.6 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.0.exe`
-- Thunderbird: `sieve-0.8.0-cram-md5.xpi`
+- Windows: `install_sieve_0.8.6.exe`
+- Thunderbird: `sieve-0.8.6-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -181,6 +181,17 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   warns that they are readable in the JSON file, and the importer encrypts them
   for the destination operating-system user before replacing the validated
   settings.
+- Version `0.8.6` adds a **Spam** tab to the Thunderbird extension and Windows
+  application. It browses and searches the account's spam folder, shows raw
+  headers and rule parameters, restores selected messages safely to `INBOX`,
+  and can append matching allow or block rules to a selected Sieve script.
+  Restoring a message appends the cleaned message before deleting its spam
+  source or duplicate, and rule saving refuses duplicate or stale changes.
+  **Make pretty** can now insert optional blank lines after the leading
+  `require` section and complete `if`/`elsif`/`else` chains. The Windows
+  **Settings** tab also shows the installed and latest GitHub release and can
+  download and launch the exact release installer after validating its size
+  and SHA-256 digest.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -206,9 +217,9 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.0-cram-md5.xpi`](releases/sieve-0.8.0-cram-md5.xpi).
+[`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi).
 
-SHA-256: `f35d28f9a2266853c7b1f65776330dfb5bb7f16c3b8b84d481fb0fa031e58c78`
+SHA-256: `2e7eb02d637ecd8269691cef2c851ee97f50af9bac698546c67413807fc77040`
 
 ### Thunderbird permission notice
 
@@ -217,13 +228,15 @@ your computer** because this extension includes Experiment APIs. The
 privileged socket Experiment is required for the raw ManageSieve TCP
 connection and STARTTLS upgrade, which the standard MailExtension APIs do not
 provide. The packaged implementation does not access local files, launch
-processes, or invoke a shell. Its ordinary manifest permissions are limited to
-reading account metadata, managing its tabs and local settings, and reaching
-`https://sentry.zp1.net/` if the user explicitly configures a DSN.
+processes, or invoke a shell. Its ordinary manifest permissions cover account
+and message access needed by the Spam tab, including explicit message restore,
+move, import, update, and deletion operations. It also manages its tabs and
+local settings and can reach `https://sentry.zp1.net/` only if the user
+explicitly configures a DSN.
 
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.0.exe`](releases/install_sieve_0.8.0.exe).
+[`releases/install_sieve_0.8.6.exe`](releases/install_sieve_0.8.6.exe).
 
-SHA-256: `5add67f3d5ab3d1292f71189b1d7d75b7d9ab83cf5ab37982db445220f28187d`
+SHA-256: `bf8273a6442870d2c7fb93d38bf12edc7c4ef344f8c2752f8c2132eaa5f502c4`

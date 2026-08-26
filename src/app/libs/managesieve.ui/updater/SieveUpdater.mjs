@@ -10,12 +10,161 @@
  */
 
 
-const SIEVE_GITHUB_UPDATE_URL = "https://raw.githubusercontent.com/ecxod/sieve/master/docs/update.json";
+const SIEVE_GITHUB_RELEASE_API = "https://api.github.com/repos/ecxod/sieve/releases/latest";
+const SIEVE_GITHUB_RELEASE_URL = "https://github.com/ecxod/sieve/releases/latest";
+const MAX_INSTALLER_SIZE = 512 * 1024 * 1024;
 
 /**
  * Checks for Updates on github.
  */
 class SieveUpdater {
+
+  /**
+   * Normalizes a GitHub release tag to an application version.
+   *
+   * @param {string} tag
+   *   release tag such as v0.8.0.
+   * @returns {string|null}
+   *   normalized numeric version or null for an invalid tag.
+   */
+  normalizeVersion(tag) {
+    const version = `${tag || ""}`.trim().replace(/^v/iu, "");
+
+    if (!/^\d+(?:\.\d+){1,3}$/u.test(version))
+      return null;
+
+    return version;
+  }
+
+  /**
+   * Validates installer metadata before it reaches the privileged downloader.
+   *
+   * @param {object} installer
+   *   installer metadata obtained from a GitHub release.
+   * @returns {object}
+   *   normalized installer metadata.
+   */
+  validateInstaller(installer) {
+    if (!installer || typeof installer !== "object")
+      throw new Error("Invalid update installer metadata");
+
+    const version = this.normalizeVersion(installer.version);
+    if (version === null)
+      throw new Error("Invalid update installer version");
+
+    const name = `install_sieve_${version}.exe`;
+    if (installer.name !== name)
+      throw new Error("Unexpected update installer name");
+
+    const url = new URL(installer.url);
+    const expectedPath = `/ecxod/sieve/releases/download/v${version}/${name}`;
+    if (url.protocol !== "https:"
+      || url.hostname !== "github.com"
+      || url.pathname !== expectedPath
+      || url.username !== ""
+      || url.password !== ""
+      || url.search !== ""
+      || url.hash !== "")
+      throw new Error("Unexpected update installer URL");
+
+    const size = Number.parseInt(installer.size, 10);
+    if (!Number.isInteger(size) || size < 1 || size > MAX_INSTALLER_SIZE)
+      throw new Error("Invalid update installer size");
+
+    const digest = `${installer.digest || ""}`.toLowerCase();
+    if (!/^sha256:[a-f0-9]{64}$/u.test(digest))
+      throw new Error("A valid SHA-256 installer digest is required");
+
+    return {
+      version,
+      name,
+      url: url.toString(),
+      size,
+      digest
+    };
+  }
+
+  /**
+   * Builds the user-visible update status from a GitHub release.
+   *
+   * @param {object} release
+   *   GitHub latest-release response.
+   * @param {string} currentVersion
+   *   installed application version.
+   * @param {string} platform
+   *   Node platform name.
+   * @returns {object}
+   *   normalized update status.
+   */
+  createStatus(release, currentVersion, platform) {
+    const latestVersion = this.normalizeVersion(release?.tag_name);
+    if (latestVersion === null)
+      throw new Error("GitHub returned an invalid release version");
+
+    const installedVersion = this.normalizeVersion(currentVersion);
+    if (installedVersion === null)
+      throw new Error("The installed application version is invalid");
+
+    const expectedName = `install_sieve_${latestVersion}.exe`;
+    const asset = Array.isArray(release.assets)
+      ? release.assets.find((item) => {
+        return item?.state === "uploaded" && item.name === expectedName;
+      })
+      : null;
+    let installer = null;
+
+    if (asset) {
+      try {
+        installer = this.validateInstaller({
+          version: latestVersion,
+          name: asset.name,
+          url: asset.browser_download_url,
+          size: asset.size,
+          digest: asset.digest
+        });
+      } catch {
+        installer = null;
+      }
+    }
+
+    const updateAvailable = !this.isOlder(latestVersion, installedVersion);
+    const releaseUrl = release.html_url ===
+      `https://github.com/ecxod/sieve/releases/tag/v${latestVersion}`
+      ? release.html_url
+      : SIEVE_GITHUB_RELEASE_URL;
+
+    return {
+      currentVersion: installedVersion,
+      latestVersion,
+      platform,
+      updateAvailable,
+      installSupported: updateAvailable && platform === "win32" && installer !== null,
+      installer,
+      releaseUrl,
+      publishedAt: typeof release.published_at === "string" ? release.published_at : null
+    };
+  }
+
+  /**
+   * Loads the latest published GitHub release.
+   *
+   * @returns {object}
+   *   GitHub release data.
+   */
+  async fetchLatestRelease() {
+    const response = await fetch(SIEVE_GITHUB_RELEASE_API, {
+      cache: "no-store",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      }
+    });
+
+    if (!response.ok)
+      throw new Error(`GitHub update request failed with HTTP ${response.status}`);
+
+    return await response.json();
+  }
 
   /**
    * Converts the given string into an integer
@@ -148,12 +297,20 @@ class SieveUpdater {
    *  true if newer version are available, otherwise false.
    */
   async check() {
+    return (await this.getStatus()).updateAvailable;
+  }
 
-    const currentVersion = await (require('electron').ipcRenderer.invoke("get-version"));
+  /**
+   * Gets the installed and latest-release versions plus installer metadata.
+   *
+   * @returns {object}
+   *   normalized update status.
+   */
+  async getStatus() {
+    const currentVersion = await require('electron').ipcRenderer.invoke("get-version");
 
-    return this.compare(
-      await (await fetch(SIEVE_GITHUB_UPDATE_URL)).json(),
-      currentVersion);
+    return this.createStatus(
+      await this.fetchLatestRelease(), currentVersion, process.platform);
   }
 }
 

@@ -17,6 +17,8 @@ const DEFAULT_FORMAT_LISTS_MULTILINE = true;
 const DEFAULT_FORMAT_TESTS_MULTILINE = true;
 const DEFAULT_FORMAT_BRACE_NEW_LINE = false;
 const DEFAULT_FORMAT_REQUIRES_COMBINED = false;
+const DEFAULT_FORMAT_BLANK_LINE_AFTER_REQUIRES = false;
+const DEFAULT_FORMAT_BLANK_LINE_AFTER_IF = false;
 
 /**
  * Manages the sieve editor settings.
@@ -82,6 +84,14 @@ class SieveEditorSettings {
     if (name === "format-requires-combined")
       return await this.pref.getBoolean(
         "editor.format-requires-combined", DEFAULT_FORMAT_REQUIRES_COMBINED);
+
+    if (name === "format-blank-line-after-requires")
+      return await this.pref.getBoolean(
+        "editor.format-blank-line-after-requires", DEFAULT_FORMAT_BLANK_LINE_AFTER_REQUIRES);
+
+    if (name === "format-blank-line-after-if")
+      return await this.pref.getBoolean(
+        "editor.format-blank-line-after-if", DEFAULT_FORMAT_BLANK_LINE_AFTER_IF);
 
     throw new Error(`Unknown settings ${name}`);
   }

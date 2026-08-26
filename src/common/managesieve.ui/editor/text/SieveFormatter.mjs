@@ -12,6 +12,35 @@
 const SYMBOLS = new Set(["{", "}", "(", ")", "[", "]", ",", ";"]);
 
 /**
+ * Checks whether a token is a comment.
+ *
+ * @param {{ type: string, value: string }} token
+ *   the token to check.
+ * @returns {boolean}
+ *   true when the token contains a comment.
+ */
+function isComment(token) {
+  return token?.type === "line-comment" || token?.type === "block-comment";
+}
+
+/**
+ * Finds the next token which is not a comment.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the offset at which to start looking.
+ * @returns {{ type: string, value: string }|null}
+ *   the next structural token, or null at the end of the script.
+ */
+function nextStructuralToken(tokens, start) {
+  while (isComment(tokens[start]))
+    start++;
+
+  return tokens[start] ?? null;
+}
+
+/**
  * Reads a Sieve multiline string without interpreting its contents.
  *
  * @param {string} script
@@ -152,9 +181,6 @@ function tokenize(script) {
  *   tokens with a single require string list when possible.
  */
 function combineRequireCommands(tokens) {
-  const isComment = (token) => {
-    return token?.type === "line-comment" || token?.type === "block-comment";
-  };
   const leadingComments = [];
   const retainedComments = [];
   const requirements = [];
@@ -278,6 +304,10 @@ function combineRequireCommands(tokens) {
  *   put opening block braces on a separate line.
  * @param {boolean} [options.combineRequires=false]
  *   combine consecutive require commands into one string list.
+ * @param {boolean} [options.blankLineAfterRequires=false]
+ *   add a blank line after the leading require section.
+ * @param {boolean} [options.blankLineAfterIf=false]
+ *   add a blank line after complete if/elsif/else chains.
  * @returns {string}
  *   the formatted source using LF line endings for CodeMirror.
  */
@@ -297,6 +327,8 @@ function formatSieveScript(script, options = {}) {
   const multilineTests = options.multilineTests !== false;
   const braceOnNewLine = options.braceOnNewLine === true;
   const combineRequires = options.combineRequires === true;
+  const blankLineAfterRequires = options.blankLineAfterRequires === true;
+  const blankLineAfterIf = options.blankLineAfterIf === true;
 
   let tokens = tokenize(script);
 
@@ -306,7 +338,9 @@ function formatSieveScript(script, options = {}) {
   let current = "";
   let blockIndentation = 0;
   let continuationIndentation = 0;
+  let statementKeyword = null;
   const delimiters = [];
+  const blocks = [];
 
   const indentation = () => {
     return blockIndentation + continuationIndentation;
@@ -322,6 +356,13 @@ function formatSieveScript(script, options = {}) {
       lines.push(current.trimEnd());
 
     current = "";
+  };
+
+  const addBlankLine = () => {
+    finishLine();
+
+    if (lines.length && lines[lines.length - 1] !== "")
+      lines.push("");
   };
 
   const append = (value, separate = true) => {
@@ -374,6 +415,9 @@ function formatSieveScript(script, options = {}) {
     }
 
     if (token.type !== "symbol") {
+      if (statementKeyword === null)
+        statementKeyword = token.value.toLowerCase();
+
       append(token.value);
       continue;
     }
@@ -384,6 +428,8 @@ function formatSieveScript(script, options = {}) {
 
       append("{", !braceOnNewLine);
       finishLine();
+      blocks.push(statementKeyword);
+      statementKeyword = null;
       blockIndentation++;
       continue;
     }
@@ -393,12 +439,40 @@ function formatSieveScript(script, options = {}) {
       blockIndentation = Math.max(0, blockIndentation - 1);
       append("}", false);
       finishLine();
+
+      const blockKeyword = blocks.length ? blocks.pop() : null;
+      const next = nextStructuralToken(tokens, index + 1);
+      const continuesIf = next?.type === "value"
+        && ["elsif", "else"].includes(next.value.toLowerCase());
+      const closesParentBlock = next?.type === "symbol" && next.value === "}";
+
+      statementKeyword = null;
+
+      if (blankLineAfterIf
+        && ["if", "elsif", "else"].includes(blockKeyword)
+        && next !== null
+        && !continuesIf
+        && !closesParentBlock)
+        addBlankLine();
+
       continue;
     }
 
     if (token.value === ";") {
       append(";", false);
       finishLine();
+
+      const next = nextStructuralToken(tokens, index + 1);
+      const nextIsRequire = next?.type === "value"
+        && next.value.toLowerCase() === "require";
+
+      if (blankLineAfterRequires
+        && statementKeyword === "require"
+        && tokens[index + 1] !== undefined
+        && !nextIsRequire)
+        addBlankLine();
+
+      statementKeyword = null;
       continue;
     }
 

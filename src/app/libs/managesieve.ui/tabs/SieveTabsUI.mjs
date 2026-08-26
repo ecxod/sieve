@@ -293,6 +293,32 @@ class SieveTabUI {
   }
 
   /**
+   * Closes every open script editor, respecting save/discard/cancel prompts.
+   *
+   * @returns {boolean}
+   *   true when every editor was closed, false when closing was canceled.
+   */
+  async closeAll() {
+    const tabs = [...document.querySelectorAll(
+      "#tabs-items [data-sieve-account][data-sieve-name]")]
+      .map((tab) => {
+        return {
+          account: tab.dataset.sieveAccount,
+          name: tab.dataset.sieveName
+        };
+      });
+
+    for (const tab of tabs) {
+      const editor = this.getTab(tab.account, tab.name);
+
+      if (editor && !await editor.close())
+        return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Creates a unique id
    * @returns {string}
    *   the unique id

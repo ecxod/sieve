@@ -49,6 +49,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     this.formatMultilineTests = true;
     this.formatBraceOnNewLine = false;
     this.formatCombineRequires = false;
+    this.formatBlankLineAfterRequires = false;
+    this.formatBlankLineAfterIf = false;
 
     window.addEventListener("sieve-theme-changed", () => {
       if (this.cm)
@@ -164,6 +166,24 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
         ? "#editor-settings-format-requires-combined"
         : "#editor-settings-format-requires-separate")
       .checked = true;
+
+    // Formatter blank lines...
+    document
+      .querySelector("#editor-settings-format-blank-line-after-requires")
+      .addEventListener("change", async (event) => {
+        await this.setFormatBlankLineAfterRequires(event.target.checked);
+      });
+
+    document
+      .querySelector("#editor-settings-format-blank-line-after-if")
+      .addEventListener("change", async (event) => {
+        await this.setFormatBlankLineAfterIf(event.target.checked);
+      });
+
+    document.querySelector("#editor-settings-format-blank-line-after-requires")
+      .checked = this.getFormatBlankLineAfterRequires();
+    document.querySelector("#editor-settings-format-blank-line-after-if")
+      .checked = this.getFormatBlankLineAfterIf();
   }
 
   /**
@@ -377,7 +397,9 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       multilineLists: this.getFormatMultilineLists(),
       multilineTests: this.getFormatMultilineTests(),
       braceOnNewLine: this.getFormatBraceOnNewLine(),
-      combineRequires: this.getFormatCombineRequires()
+      combineRequires: this.getFormatCombineRequires(),
+      blankLineAfterRequires: this.getFormatBlankLineAfterRequires(),
+      blankLineAfterIf: this.getFormatBlankLineAfterIf()
     });
 
     if (formatted === script) {
@@ -824,6 +846,58 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether a blank line is added after the require section.
+   *
+   * @param {boolean} value
+   *   true to add a blank line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatBlankLineAfterRequires(value) {
+    this.formatBlankLineAfterRequires = value === true;
+    await this.getController().setPreference(
+      "format-blank-line-after-requires", this.formatBlankLineAfterRequires);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured spacing after the require section.
+   *
+   * @returns {boolean}
+   *   true when a blank line is added.
+   */
+  getFormatBlankLineAfterRequires() {
+    return this.formatBlankLineAfterRequires;
+  }
+
+  /**
+   * Sets whether a blank line is added after complete if chains.
+   *
+   * @param {boolean} value
+   *   true to add a blank line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatBlankLineAfterIf(value) {
+    this.formatBlankLineAfterIf = value === true;
+    await this.getController().setPreference(
+      "format-blank-line-after-if", this.formatBlankLineAfterIf);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured spacing after if chains.
+   *
+   * @returns {boolean}
+   *   true when a blank line is added.
+   */
+  getFormatBlankLineAfterIf() {
+    return this.formatBlankLineAfterIf;
+  }
+
+  /**
    * @inheritdoc
    */
   async loadSettings() {
@@ -847,6 +921,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     const combineRequires = await this.getController().getPreference("format-requires-combined");
     await this.setFormatCombineRequires(combineRequires);
+
+    const blankLineAfterRequires = await this.getController()
+      .getPreference("format-blank-line-after-requires");
+    await this.setFormatBlankLineAfterRequires(blankLineAfterRequires);
+
+    const blankLineAfterIf = await this.getController()
+      .getPreference("format-blank-line-after-if");
+    await this.setFormatBlankLineAfterIf(blankLineAfterIf);
 
   }
 
@@ -875,6 +957,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const combineRequires = await this.getController().getDefaultPreference("format-requires-combined");
     await this.setFormatCombineRequires(combineRequires);
 
+    const blankLineAfterRequires = await this.getController()
+      .getDefaultPreference("format-blank-line-after-requires");
+    await this.setFormatBlankLineAfterRequires(blankLineAfterRequires);
+
+    const blankLineAfterIf = await this.getController()
+      .getDefaultPreference("format-blank-line-after-if");
+    await this.setFormatBlankLineAfterIf(blankLineAfterIf);
+
     await this.renderSettings();
   }
 
@@ -895,6 +985,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       "format-brace-new-line", this.getFormatBraceOnNewLine());
     await this.getController().setDefaultPreference(
       "format-requires-combined", this.getFormatCombineRequires());
+    await this.getController().setDefaultPreference(
+      "format-blank-line-after-requires", this.getFormatBlankLineAfterRequires());
+    await this.getController().setDefaultPreference(
+      "format-blank-line-after-if", this.getFormatBlankLineAfterIf());
 
   }
 

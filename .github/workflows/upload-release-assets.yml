@@ -29,10 +29,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="$(sed -n 's/  "version": "\([^"]*\)",/\1/p' package.json | head -1)"
+          NOTES_FILE="releases/RELEASE_NOTES_${VERSION}.md"
           if ! gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            gh release create "${{ steps.version.outputs.tag }}" \
-              --title "Sieve ${{ steps.version.outputs.tag }} CRAM-MD5" \
-              --notes "Fork build with CRAM-MD5 support."
+            if [[ -f "$NOTES_FILE" ]]; then
+              gh release create "${{ steps.version.outputs.tag }}" \
+                --title "Sieve ${{ steps.version.outputs.tag }} CRAM-MD5" \
+                --notes-file "$NOTES_FILE"
+            else
+              gh release create "${{ steps.version.outputs.tag }}" \
+                --title "Sieve ${{ steps.version.outputs.tag }} CRAM-MD5" \
+                --notes "Fork build with CRAM-MD5 support."
+            fi
           fi
 
       - name: Upload assets to GitHub release

@@ -157,16 +157,59 @@ async function createImapSpamClient(account, settings) {
 
   const accounts = await (new SieveAccounts().load());
   const sessions = new SieveSessions();
+  const updater = new SieveUpdater();
+  let updateStatusPromise = null;
   let pendingSettingsBackup = null;
+
+  /**
+   * Shares one GitHub request between the startup notice and settings iframe.
+   *
+   * @param {boolean} [force]
+   *   true to bypass the cached request.
+   * @returns {object}
+   *   normalized update status.
+   */
+  async function getUpdateStatus(force = false) {
+    if (force || updateStatusPromise === null) {
+      updateStatusPromise = updater.getStatus().catch((error) => {
+        updateStatusPromise = null;
+        throw error;
+      });
+    }
+
+    return await updateStatusPromise;
+  }
 
   const actions = {
 
     "update-check": async () => {
-      return await (new SieveUpdater()).check();
+      return (await getUpdateStatus()).updateAvailable;
+    },
+
+    "update-status": async (msg) => {
+      return await getUpdateStatus(msg.payload?.force === true);
+    },
+
+    "update-install": async () => {
+      const status = await getUpdateStatus(true);
+
+      if (!status.updateAvailable)
+        throw new Error("No newer GitHub release is available");
+      if (!status.installSupported || !status.installer)
+        throw new Error("No verified Windows installer is available for this release");
+
+      if (!await (new SieveTabUI()).closeAll())
+        return { canceled: true };
+
+      return await ipcRenderer.invoke("install-update", status.installer);
     },
 
     "update-goto-url": () => {
       shell.openExternal('https://github.com/ecxod/sieve/releases/latest');
+    },
+
+    "update-show-settings": () => {
+      document.querySelector("#settings-tab-link").click();
     },
 
     "import-thunderbird": function () {
