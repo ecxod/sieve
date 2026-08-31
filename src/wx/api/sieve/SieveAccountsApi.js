@@ -99,6 +99,51 @@
   }
 
   /**
+   * Returns direct IMAP connection details and the server-side Sent path.
+   *
+   * @param {string} account
+   *   Thunderbird account id.
+   * @returns {object}
+   *   serializable IMAP connection details.
+   */
+  function getImapConnection(account) {
+    const server = getIncomingServer(account);
+    if (`${readProperty(server, "type", "")}`.toLowerCase() !== "imap")
+      throw new Error("Applying a Sieve script to Sent requires an IMAP account");
+
+    const socketType = readProperty(server, "socketType", -1);
+    let security = "";
+    if (socketType === Ci.nsMsgSocketType.SSL)
+      security = "tls";
+    else if (socketType === Ci.nsMsgSocketType.alwaysSTARTTLS)
+      security = "starttls";
+    else
+      throw new Error("The IMAP account must use TLS or STARTTLS");
+
+    const folder = server.rootFolder
+      .getFolderWithFlags(Ci.nsMsgFolderFlags.SentMail);
+    if (!folder)
+      throw new Error("Thunderbird did not report a Sent folder for this account");
+
+    const port = readProperty(server, "port", -1);
+    const sentFolder = firstDefined(
+      getProperty(folder, "onlineName"),
+      getProperty(folder, "name"),
+      getProperty(folder, "prettyName"));
+    if (!sentFolder)
+      throw new Error("Thunderbird did not report the server name of the Sent folder");
+
+    return {
+      hostname: firstDefined(
+        getProperty(server, "realHostName"),
+        getProperty(server, "hostName")),
+      port: port > 0 ? port : (security === "tls" ? 993 : 143),
+      security,
+      sentFolder
+    };
+  }
+
+  /**
    * Serializes a Thunderbird search term into plain WebExtension data.
    *
    * @param {nsIMsgSearchTerm} term
@@ -424,6 +469,10 @@
                 getHostnameFromUri(getProperty(server, "serverURI")),
                 getHostnameFromUri(getProperty(server, "serverUri")),
                 getHostnameFromUri(getProperty(server, "URI")));
+            },
+
+            async getImapConnection(id) {
+              return getImapConnection(id);
             },
 
             async getFilters(id) {

@@ -83,11 +83,19 @@ function readMultilineString(script, start) {
 function tokenize(script) {
   const tokens = [];
   let offset = 0;
+  let lineBreakBefore = false;
+
+  const addToken = (type, value) => {
+    tokens.push({ type, value, lineBreakBefore });
+    lineBreakBefore = false;
+  };
 
   while (offset < script.length) {
     const character = script[offset];
 
     if (/\s/.test(character)) {
+      if (character === "\n" || character === "\r")
+        lineBreakBefore = true;
       offset++;
       continue;
     }
@@ -98,7 +106,7 @@ function tokenize(script) {
       if (end === -1)
         end = script.length;
 
-      tokens.push({ type: "line-comment", value: script.slice(offset, end) });
+      addToken("line-comment", script.slice(offset, end));
       offset = end;
       continue;
     }
@@ -107,7 +115,7 @@ function tokenize(script) {
       let end = script.indexOf("*/", offset + 2);
 
       end = (end === -1) ? script.length : end + 2;
-      tokens.push({ type: "block-comment", value: script.slice(offset, end) });
+      addToken("block-comment", script.slice(offset, end));
       offset = end;
       continue;
     }
@@ -128,7 +136,7 @@ function tokenize(script) {
           escaped = false;
       }
 
-      tokens.push({ type: "value", value: script.slice(offset, end) });
+      addToken("value", script.slice(offset, end));
       offset = end;
       continue;
     }
@@ -136,13 +144,13 @@ function tokenize(script) {
     if (script.slice(offset, offset + "text:".length).toLowerCase() === "text:") {
       const multiline = readMultilineString(script, offset);
 
-      tokens.push({ type: "multiline", value: multiline.value });
+      addToken("multiline", multiline.value);
       offset = multiline.end;
       continue;
     }
 
     if (SYMBOLS.has(character)) {
-      tokens.push({ type: "symbol", value: character });
+      addToken("symbol", character);
       offset++;
       continue;
     }
@@ -161,7 +169,7 @@ function tokenize(script) {
       end++;
     }
 
-    tokens.push({ type: "value", value: script.slice(offset, end) });
+    addToken("value", script.slice(offset, end));
     offset = end;
   }
 
@@ -283,6 +291,236 @@ function combineRequireCommands(tokens) {
 }
 
 /**
+ * Finds the closing brace for a Sieve block.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the opening brace offset.
+ * @returns {int}
+ *   the closing brace offset, or -1 for an incomplete block.
+ */
+function findBlockEnd(tokens, start) {
+  let depth = 0;
+
+  for (let index = start; index < tokens.length; index++) {
+    if (tokens[index].type !== "symbol")
+      continue;
+
+    if (tokens[index].value === "{")
+      depth++;
+    else if (tokens[index].value === "}")
+      depth--;
+
+    if (depth === 0)
+      return index;
+  }
+
+  return -1;
+}
+
+/**
+ * Reads one if/elsif/else chain without splitting its branches.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the offset of the if keyword.
+ * @returns {{ start: int, end: int }|null}
+ *   the complete chain, or null for malformed input.
+ */
+function readIfChain(tokens, start) {
+  if (tokens[start]?.type !== "value"
+    || tokens[start].value.toLowerCase() !== "if")
+    return null;
+
+  let branchStart = start;
+  let chainEnd = -1;
+
+  while (branchStart < tokens.length) {
+    let openingBrace = branchStart + 1;
+
+    while (openingBrace < tokens.length
+      && !(tokens[openingBrace].type === "symbol"
+        && tokens[openingBrace].value === "{"))
+      openingBrace++;
+
+    if (openingBrace === tokens.length)
+      return null;
+
+    chainEnd = findBlockEnd(tokens, openingBrace);
+
+    if (chainEnd === -1)
+      return null;
+
+    let cursor = chainEnd + 1;
+
+    while (isComment(tokens[cursor]))
+      cursor++;
+
+    const keyword = tokens[cursor]?.type === "value"
+      ? tokens[cursor].value.toLowerCase()
+      : null;
+
+    if (keyword !== "elsif" && keyword !== "else")
+      break;
+
+    branchStart = cursor;
+  }
+
+  return { start, end: chainEnd };
+}
+
+/**
+ * Gets the single unambiguous fileinto target used by an if chain.
+ *
+ * Chains without a quoted target, or with several different targets, are not
+ * sortable. This avoids guessing which branch should determine the position.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the first token in the chain.
+ * @param {int} end
+ *   the final token in the chain.
+ * @returns {string|null}
+ *   the normalized fileinto target, or null when it is ambiguous.
+ */
+function getFileintoSortKey(tokens, start, end) {
+  const targets = new Set();
+
+  for (let index = start; index <= end; index++) {
+    if (tokens[index].type !== "value"
+      || tokens[index].value.toLowerCase() !== "fileinto")
+      continue;
+
+    let target = null;
+
+    for (let cursor = index + 1; cursor <= end; cursor++) {
+      if (tokens[cursor].type === "symbol" && tokens[cursor].value === ";")
+        break;
+
+      if (tokens[cursor].type !== "value"
+        || !tokens[cursor].value.startsWith("\""))
+        continue;
+
+      target = tokens[cursor].value
+        .slice(1, -1)
+        .replace(/\\(["\\])/g, "$1")
+        .toLowerCase();
+    }
+
+    if (target !== null)
+      targets.add(target);
+  }
+
+  return targets.size === 1 ? [...targets][0] : null;
+}
+
+/**
+ * Reads a sortable top-level if chain, including its leading comments.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the possible start of a chain or its leading comments.
+ * @returns {{ start: int, end: int, key: string }|null}
+ *   the sortable item, or null when no unambiguous chain starts here.
+ */
+function readSortableIfChain(tokens, start) {
+  let ifStart = start;
+
+  while (isComment(tokens[ifStart])) {
+    if (ifStart === start && start !== 0 && !tokens[ifStart].lineBreakBefore)
+      return null;
+
+    ifStart++;
+  }
+
+  const chain = readIfChain(tokens, ifStart);
+
+  if (chain === null)
+    return null;
+
+  const key = getFileintoSortKey(tokens, chain.start, chain.end);
+
+  if (key === null)
+    return null;
+
+  return { start, end: chain.end, key };
+}
+
+/**
+ * Sorts consecutive, independent top-level if chains by fileinto target.
+ *
+ * Each complete if/elsif/else chain and its leading comments move as one unit.
+ * Non-if statements and ambiguous chains form boundaries which are never
+ * crossed.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @returns {Array<{ type: string, value: string }>}
+ *   tokens with sortable top-level runs ordered by target folder.
+ */
+function sortIfChainsByFileinto(tokens) {
+  const sorted = [];
+  let blockDepth = 0;
+  let index = 0;
+
+  while (index < tokens.length) {
+    const item = blockDepth === 0
+      ? readSortableIfChain(tokens, index)
+      : null;
+
+    if (item !== null) {
+      const run = [item];
+      let cursor = item.end + 1;
+
+      while (cursor < tokens.length) {
+        const next = readSortableIfChain(tokens, cursor);
+
+        if (next === null)
+          break;
+
+        run.push(next);
+        cursor = next.end + 1;
+      }
+
+      run
+        .map((entry, order) => {
+          return { ...entry, order };
+        })
+        .sort((left, right) => {
+          if (left.key < right.key)
+            return -1;
+          if (left.key > right.key)
+            return 1;
+          return left.order - right.order;
+        })
+        .forEach((entry) => {
+          sorted.push(...tokens.slice(entry.start, entry.end + 1));
+        });
+
+      index = cursor;
+      continue;
+    }
+
+    const token = tokens[index++];
+    sorted.push(token);
+
+    if (token.type !== "symbol")
+      continue;
+
+    if (token.value === "{")
+      blockDepth++;
+    else if (token.value === "}")
+      blockDepth = Math.max(0, blockDepth - 1);
+  }
+
+  return sorted;
+}
+
+/**
  * Formats Sieve source with configurable indentation and structural line breaks.
  *
  * Quoted strings, multiline strings and comments are treated as opaque so
@@ -300,6 +538,8 @@ function combineRequireCommands(tokens) {
  *   put list values on separate lines.
  * @param {boolean} [options.multilineTests=true]
  *   put test arguments on separate lines.
+ * @param {boolean} [options.ignoreCompactLineBreaks=false]
+ *   discard source line breaks after commas in compact lists and tests.
  * @param {boolean} [options.braceOnNewLine=false]
  *   put opening block braces on a separate line.
  * @param {boolean} [options.combineRequires=false]
@@ -308,6 +548,8 @@ function combineRequireCommands(tokens) {
  *   add a blank line after the leading require section.
  * @param {boolean} [options.blankLineAfterIf=false]
  *   add a blank line after complete if/elsif/else chains.
+ * @param {boolean} [options.sortIfByFileinto=false]
+ *   sort consecutive top-level if chains by their unambiguous fileinto target.
  * @returns {string}
  *   the formatted source using LF line endings for CodeMirror.
  */
@@ -325,15 +567,19 @@ function formatSieveScript(script, options = {}) {
   const indentUnit = indentWithTabs ? "\t" : " ".repeat(indentWidth);
   const multilineLists = options.multilineLists !== false;
   const multilineTests = options.multilineTests !== false;
+  const ignoreCompactLineBreaks = options.ignoreCompactLineBreaks === true;
   const braceOnNewLine = options.braceOnNewLine === true;
   const combineRequires = options.combineRequires === true;
   const blankLineAfterRequires = options.blankLineAfterRequires === true;
   const blankLineAfterIf = options.blankLineAfterIf === true;
+  const sortIfByFileinto = options.sortIfByFileinto === true;
 
   let tokens = tokenize(script);
 
   if (combineRequires)
     tokens = combineRequireCommands(tokens);
+  if (sortIfByFileinto)
+    tokens = sortIfChainsByFileinto(tokens);
   const lines = [];
   let current = "";
   let blockIndentation = 0;
@@ -480,6 +726,8 @@ function formatSieveScript(script, options = {}) {
       append(",", false);
 
       if (delimiters.length && delimiters[delimiters.length - 1].multiline)
+        finishLine();
+      else if (!ignoreCompactLineBreaks && tokens[index + 1]?.lineBreakBefore)
         finishLine();
       else
         current += " ";

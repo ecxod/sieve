@@ -71,7 +71,7 @@ Install the current package directly:
 
 [`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi)
 
-SHA-256: `2e7eb02d637ecd8269691cef2c851ee97f50af9bac698546c67413807fc77040`
+SHA-256: `7bf97cb842db61db894eef843ad57eeb49c2a3533384f0c3f5df4b11a4fbf9ee`
 
 The matching Windows installer is:
 
@@ -79,7 +79,9 @@ The matching Windows installer is:
 
 SHA-256: `bf8273a6442870d2c7fb93d38bf12edc7c4ef344f8c2752f8c2132eaa5f502c4`
 
-The Thunderbird package requires Thunderbird 121 or newer.
+The Thunderbird package supports Thunderbird 121 through 154. Because it uses
+MailExtension Experiments, each new Thunderbird major version must be verified
+before the maximum compatibility version is raised.
 
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing

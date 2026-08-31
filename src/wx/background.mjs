@@ -23,6 +23,9 @@ import {
   findSpecialFolder,
   replaceDuplicateMessages
 } from "./libs/managesieve.ui/spam/SieveSpamMessage.mjs";
+import {
+  SieveMozImapFilterClient
+} from "./libs/managesieve.ui/imap/SieveMozImapFilterClient.mjs";
 
 initSentry("background");
 
@@ -851,6 +854,43 @@ initSentry("background");
         await sessions.get(account).deleteScript(name);
 
       return rv;
+    },
+
+    "script-apply-sent": async function (msg) {
+      const accountId = msg.payload.account;
+      const name = msg.payload.data;
+
+      logger.logAction(`Apply Script ${name} to Sent for account: ${accountId}`);
+
+      try {
+        const scripts = await sessions.get(accountId).listScripts();
+        if (!scripts.some((script) => { return script.script === name; }))
+          throw new Error("The selected Sieve script no longer exists");
+
+        const settings = await browser.sieve.accounts.getImapConnection(accountId);
+        settings.username = await browser.sieve.accounts.getUsername(accountId);
+        settings.password = await browser.sieve.accounts.getPassword(accountId);
+
+        const filter = new SieveMozImapFilterClient(settings);
+        const snapshot = await filter.prepare();
+        const confirmed = await SieveIpcClient.sendMessage(
+          "accounts", "script-show-apply-sent", {
+            name,
+            folder: snapshot.folder,
+            messages: snapshot.uids.length
+          });
+        if (!confirmed)
+          return { canceled: true };
+
+        const result = await filter.apply(name, snapshot);
+        await SieveIpcClient.sendMessage(
+          "accounts", "script-show-apply-sent-result", result);
+        return result;
+      } catch (ex) {
+        await SieveIpcClient.sendMessage(
+          "accounts", "account-show-error", ex.message || `${ex}`);
+        return { error: true };
+      }
     },
 
     "script-activate": async function (msg) {

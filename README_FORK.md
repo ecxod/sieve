@@ -219,7 +219,11 @@ settings may need to be entered again after this one-time migration.
 The installable package is
 [`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi).
 
-SHA-256: `2e7eb02d637ecd8269691cef2c851ee97f50af9bac698546c67413807fc77040`
+It supports Thunderbird 121 through 154. The upper compatibility limit is
+required because the extension uses MailExtension Experiments and must be
+verified again for each new Thunderbird major version.
+
+SHA-256: `7bf97cb842db61db894eef843ad57eeb49c2a3533384f0c3f5df4b11a4fbf9ee`
 
 ### Thunderbird permission notice
 

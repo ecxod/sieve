@@ -72,6 +72,45 @@ suite.add("Sieve formatter applies compact, spaces and brace preferences", funct
   }), expected);
 });
 
+suite.add("Compact formatting keeps existing comma line breaks by default", function () {
+  const formatted = formatSieveScript([
+    'require ["fileinto",',
+    '"copy"];',
+    'if allof (true,\r',
+    'false) { keep; }'
+  ].join("\n"), {
+    multilineLists: false,
+    multilineTests: false
+  });
+
+  suite.assertEquals(formatted, [
+    'require ["fileinto",',
+    '"copy"];',
+    'if allof (true,',
+    'false) {',
+    '\tkeep;',
+    '}',
+    ''
+  ].join("\n"));
+});
+
+suite.add("Compact option ignores existing comma line breaks", function () {
+  const script = 'require ["fileinto",\n"copy"];if allof (true,\r\nfalse){keep;}';
+  const formatted = formatSieveScript(script, {
+    multilineLists: false,
+    multilineTests: false,
+    ignoreCompactLineBreaks: true
+  });
+
+  suite.assertEquals(formatted, [
+    'require ["fileinto", "copy"];',
+    'if allof (true, false) {',
+    '\tkeep;',
+    '}',
+    ''
+  ].join("\n"));
+});
+
 suite.add("Sieve formatter combines require commands into one list", function () {
   const script = [
     '# capabilities',
@@ -192,6 +231,119 @@ suite.add("Sieve formatter adds blank lines after complete if chains", function 
   suite.parseScript(formatted);
 });
 
+suite.add("Sieve formatter sorts independent if chains by fileinto folder", function () {
+  const script = [
+    'require "fileinto";',
+    '# Zulu rule',
+    'if header :is "subject" "z" { fileinto "Zulu"; }',
+    '# Archive rule',
+    'if header :is "subject" "a" { fileinto "Archive"; }',
+    '# Inbox rule',
+    'if header :is "subject" "i" { fileinto "Inbox"; }',
+    'keep;'
+  ].join("\n");
+  const expected = [
+    'require "fileinto";',
+    '# Archive rule',
+    'if header :is "subject" "a" {',
+    '\tfileinto "Archive";',
+    '}',
+    '# Inbox rule',
+    'if header :is "subject" "i" {',
+    '\tfileinto "Inbox";',
+    '}',
+    '# Zulu rule',
+    'if header :is "subject" "z" {',
+    '\tfileinto "Zulu";',
+    '}',
+    'keep;',
+    ''
+  ].join("\n");
+
+  const formatted = formatSieveScript(script, {
+    sortIfByFileinto: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter moves complete if chains while sorting", function () {
+  const script = [
+    '# Zulu chain',
+    'if false { fileinto "Zulu"; } elsif true { fileinto "Zulu"; }',
+    '# Archive chain',
+    'if true { fileinto "Archive"; } else { fileinto "Archive"; }'
+  ].join("\n");
+  const expected = [
+    '# Archive chain',
+    'if true {',
+    '\tfileinto "Archive";',
+    '}',
+    'else {',
+    '\tfileinto "Archive";',
+    '}',
+    '# Zulu chain',
+    'if false {',
+    '\tfileinto "Zulu";',
+    '}',
+    'elsif true {',
+    '\tfileinto "Zulu";',
+    '}',
+    ''
+  ].join("\n");
+
+  suite.assertEquals(formatSieveScript(script, {
+    sortIfByFileinto: true
+  }), expected);
+});
+
+suite.add("Sieve formatter uses the mailbox after fileinto tag arguments", function () {
+  const formatted = formatSieveScript([
+    'if true { fileinto :flags ["\\\\Seen"] "Zulu"; }',
+    'if true { fileinto :flags ["\\\\Flagged"] "Archive"; }'
+  ].join("\n"), {
+    sortIfByFileinto: true
+  });
+
+  suite.assertTrue(formatted.indexOf('fileinto :flags [')
+    < formatted.indexOf('fileinto :flags [', formatted.indexOf('fileinto :flags [') + 1));
+  suite.assertTrue(formatted.indexOf('"Archive";')
+    < formatted.indexOf('"Zulu";'));
+});
+
+suite.add("Sieve formatter keeps ambiguous and nested if chains in place", function () {
+  const script = [
+    'if true { fileinto "Zulu"; }',
+    'if true { fileinto "Beta"; fileinto "Gamma"; }',
+    'if true { fileinto "Archive"; }',
+    'if true {',
+    'if true { fileinto "Nested-Zulu"; }',
+    'if true { fileinto "Nested-Archive"; }',
+    '}'
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    sortIfByFileinto: true
+  });
+
+  suite.assertTrue(formatted.indexOf('fileinto "Zulu";')
+    < formatted.indexOf('fileinto "Beta";'));
+  suite.assertTrue(formatted.indexOf('fileinto "Beta";')
+    < formatted.indexOf('fileinto "Archive";'));
+  suite.assertTrue(formatted.indexOf('fileinto "Nested-Zulu";')
+    < formatted.indexOf('fileinto "Nested-Archive";'));
+});
+
+suite.add("Sieve formatter keeps if-chain order by default", function () {
+  const formatted = formatSieveScript([
+    'if true { fileinto "Zulu"; }',
+    'if true { fileinto "Archive"; }'
+  ].join("\n"));
+
+  suite.assertTrue(formatted.indexOf('fileinto "Zulu";')
+    < formatted.indexOf('fileinto "Archive";'));
+});
+
 suite.add("Sieve formatter preserves opaque source contents", function () {
   const script = [
     '# leading { comment; }',
@@ -219,7 +371,8 @@ suite.add("Sieve formatter preserves opaque source contents", function () {
 suite.add("Sieve formatter is idempotent", function () {
   const options = {
     blankLineAfterRequires: true,
-    blankLineAfterIf: true
+    blankLineAfterIf: true,
+    sortIfByFileinto: true
   };
   const once = formatSieveScript(
     'require "fileinto";if allof(true,false){discard;}keep;', options);
@@ -269,8 +422,10 @@ suite.add("Text editor applies formatting as an undoable edit", function () {
     getFormatBlankLineAfterRequires() { return false; },
     getFormatBraceOnNewLine() { return false; },
     getFormatCombineRequires() { return false; },
+    getFormatIgnoreCompactLineBreaks() { return false; },
     getFormatMultilineLists() { return true; },
     getFormatMultilineTests() { return true; },
+    getFormatSortIfByFileinto() { return false; },
     getIndentWidth() { return 2; },
     getIndentWithTabs() { return true; }
   });
@@ -287,10 +442,12 @@ suite.add("Text editor loads formatter preferences", async function () {
     "indentation-width": 3,
     "format-lists-multiline": false,
     "format-tests-multiline": true,
+    "format-compact-ignore-line-breaks": true,
     "format-brace-new-line": true,
     "format-requires-combined": true,
     "format-blank-line-after-requires": true,
-    "format-blank-line-after-if": false
+    "format-blank-line-after-if": false,
+    "format-sort-if-by-fileinto": true
   };
   const loaded = {};
   const editor = {
@@ -303,8 +460,10 @@ suite.add("Text editor loads formatter preferences", async function () {
     async setFormatBlankLineAfterRequires(value) { loaded.blankLineAfterRequires = value; },
     async setFormatBraceOnNewLine(value) { loaded.braces = value; },
     async setFormatCombineRequires(value) { loaded.requires = value; },
+    async setFormatIgnoreCompactLineBreaks(value) { loaded.ignoreCompactLineBreaks = value; },
     async setFormatMultilineLists(value) { loaded.lists = value; },
     async setFormatMultilineTests(value) { loaded.tests = value; },
+    async setFormatSortIfByFileinto(value) { loaded.sortIfByFileinto = value; },
     async setIndentWidth(value) { loaded.indentWidth = value; },
     async setIndentWithTabs(value) { loaded.indentWithTabs = value; },
     async setTabWidth(value) { loaded.tabWidth = value; }
@@ -318,14 +477,16 @@ suite.add("Text editor loads formatter preferences", async function () {
     indentWidth: 3,
     lists: false,
     tests: true,
+    ignoreCompactLineBreaks: true,
     braces: true,
     requires: true,
     blankLineAfterRequires: true,
-    blankLineAfterIf: false
+    blankLineAfterIf: false,
+    sortIfByFileinto: true
   }));
 });
 
-suite.add("Text editor persists formatter blank-line preferences", async function () {
+suite.add("Text editor persists formatter preferences", async function () {
   const saved = {};
   const editor = {
     getController() {
@@ -337,11 +498,17 @@ suite.add("Text editor persists formatter blank-line preferences", async functio
 
   await SieveTextEditorUI.prototype.setFormatBlankLineAfterRequires.call(editor, true);
   await SieveTextEditorUI.prototype.setFormatBlankLineAfterIf.call(editor, true);
+  await SieveTextEditorUI.prototype.setFormatIgnoreCompactLineBreaks.call(editor, true);
+  await SieveTextEditorUI.prototype.setFormatSortIfByFileinto.call(editor, true);
 
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterRequires.call(editor));
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterIf.call(editor));
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatIgnoreCompactLineBreaks.call(editor));
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatSortIfByFileinto.call(editor));
   suite.assertTrue(saved["format-blank-line-after-requires"]);
   suite.assertTrue(saved["format-blank-line-after-if"]);
+  suite.assertTrue(saved["format-compact-ignore-line-breaks"]);
+  suite.assertTrue(saved["format-sort-if-by-fileinto"]);
 });
 
 suite.add("Formatter preferences have stable defaults", async function () {
@@ -351,8 +518,10 @@ suite.add("Formatter preferences have stable defaults", async function () {
 
   suite.assertTrue(await settings.getValue("format-lists-multiline"));
   suite.assertTrue(await settings.getValue("format-tests-multiline"));
+  suite.assertFalse(await settings.getValue("format-compact-ignore-line-breaks"));
   suite.assertFalse(await settings.getValue("format-brace-new-line"));
   suite.assertFalse(await settings.getValue("format-requires-combined"));
   suite.assertFalse(await settings.getValue("format-blank-line-after-requires"));
   suite.assertFalse(await settings.getValue("format-blank-line-after-if"));
+  suite.assertFalse(await settings.getValue("format-sort-if-by-fileinto"));
 });

@@ -113,13 +113,16 @@
      *   the host's port
      * @param {int} level
      *   enable logging debug messages
+     * @param {string} [security]
+     *   "tls" for implicit TLS, otherwise a STARTTLS-capable transport.
      */
-    constructor(host, port, level) {
+    constructor(host, port, level, security = "starttls") {
       this.socket = null;
 
       this.host = host;
       this.port = Number.parseInt(port, 10);
       this.level = Number.parseInt(level, 10);
+      this.security = security === "tls" ? "tls" : "starttls";
 
       this.outstream = null;
       this.instream = null;
@@ -258,17 +261,18 @@
 
       // We know if it is before 78 we need to test if it is the really old API
       const services = getServices();
+      const socketTypes = [this.security === "tls" ? "ssl" : "starttls"];
 
       if (services.vc.compare(services.appinfo.platformVersion, "78.0") < 0) {
         if (transportService.createTransport.length === REALLY_OLD_TRANSPORT_API)
-          return transportService.createTransport(["starttls"], TRANSPORT_SECURE, this.host, this.port, proxyInfo);
+          return transportService.createTransport(socketTypes, TRANSPORT_SECURE, this.host, this.port, proxyInfo);
       }
 
       // After 78 we know it is either the old or the new api.
       if (transportService.createTransport.length === OLD_TRANSPORT_API)
-        return transportService.createTransport(["starttls"], this.host, this.port, proxyInfo);
+        return transportService.createTransport(socketTypes, this.host, this.port, proxyInfo);
 
-      return transportService.createTransport(["starttls"], this.host, this.port, proxyInfo, null);
+      return transportService.createTransport(socketTypes, this.host, this.port, proxyInfo, null);
     }
 
     /**
@@ -952,13 +956,15 @@
              *   the remote server's hostname.
              * @param {string} port
              *   the remote server's port.
+             * @param {string} [security]
+             *   optional implicit TLS mode.
              * @returns {string}
              *   JSON encoded creation result containing either the unique id
              *   or the original privileged error.
              */
-            async create(host, port) {
+            async create(host, port, security) {
               try {
-                const socket = new SieveSocket(host, port, 0);
+                const socket = new SieveSocket(host, port, 0, security);
 
                 const id = Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT32_LEN)
                   + "-" + Math.random().toString(STRING_AS_HEX).substr(HEX_PREFIX_LEN, HEX_UINT16_LEN)

@@ -277,6 +277,63 @@ class SieveDeleteScriptDialog extends SieveDialog {
 }
 
 /**
+ * Confirms applying a stored script to a fixed Sent-folder UID snapshot.
+ */
+class SieveApplySentDialog extends SieveDialog {
+
+  /**
+   * @param {object} details
+   *   script, folder and message count.
+   */
+  constructor(details) {
+    super();
+    this.details = details;
+  }
+
+  /** @inheritdoc */
+  getTemplate() {
+    return "./dialogs/dialog.script.apply-sent.html";
+  }
+
+  /** @inheritdoc */
+  onInit() {
+    const dialog = this.getDialog();
+    dialog.querySelector(".sieve-apply-sent-script").textContent = this.details.name;
+    dialog.querySelector(".sieve-apply-sent-folder").textContent = this.details.folder;
+    dialog.querySelector(".sieve-apply-sent-messages").textContent = this.details.messages;
+  }
+}
+
+/**
+ * Displays the FILTER=SIEVE operation summary.
+ */
+class SieveApplySentResultDialog extends SieveDialog {
+
+  /**
+   * @param {object} result
+   *   operation counters.
+   */
+  constructor(result) {
+    super();
+    this.result = result;
+  }
+
+  /** @inheritdoc */
+  getTemplate() {
+    return "./dialogs/dialog.script.apply-sent-result.html";
+  }
+
+  /** @inheritdoc */
+  onInit() {
+    const dialog = this.getDialog();
+    for (const name of ["selected", "filtered", "warnings", "errors"]) {
+      dialog.querySelector(`.sieve-apply-sent-${name}`).textContent =
+        this.result[name] || 0;
+    }
+  }
+}
+
+/**
  * Asks for a name, which should be used to create the new script.
  */
 class SieveCreateScriptDialog extends SieveDialog {
@@ -683,6 +740,8 @@ export {
   SieveRenameScriptDialog,
   SieveCreateScriptDialog,
   SieveDeleteScriptDialog,
+  SieveApplySentDialog,
+  SieveApplySentResultDialog,
   SieveFingerprintDialog,
   SieveDeleteAccountDialog,
   SieveAuthorizationDialog,

@@ -25,7 +25,8 @@
     "gecko": {
       "id": "sieve-cram-md5@ecxod.github.io",
       "update_url": "https://raw.githubusercontent.com/ecxod/sieve/master/docs/update.json",
-      "strict_min_version": "121.0"
+      "strict_min_version": "121.0",
+      "strict_max_version": "154.*"
     }
   },
   "permissions": [

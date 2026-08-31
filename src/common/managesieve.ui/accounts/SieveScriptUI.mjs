@@ -75,6 +75,8 @@ class SieveScriptUI {
 
       elm.querySelector(".sieve-script-rename")
         .addEventListener("click", () => { this.rename(); });
+      elm.querySelector(".sieve-script-apply-sent")
+        .addEventListener("click", () => { this.applySent(); });
       elm.querySelector(".sieve-script-delete")
         .addEventListener("click", () => { this.remove(); });
       elm.querySelector(".sieve-script-edit")
@@ -121,6 +123,21 @@ class SieveScriptUI {
     const rv = await this.account.send("script-delete", this.name);
     if (rv === true)
       await this.account.render();
+  }
+
+  /**
+   * Applies this stored script manually to the account's Sent folder.
+   */
+  async applySent() {
+    const button = document.querySelector(
+      `#siv-script-${this.getId()} .sieve-script-apply-sent`);
+    button.disabled = true;
+
+    try {
+      await this.account.send("script-apply-sent", this.name);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   /**

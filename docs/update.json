@@ -8,7 +8,8 @@
           "update_info_url": "https://github.com/ecxod/sieve/releases/tag/v0.8.6",
           "browser_specific_settings": {
             "gecko": {
-              "strict_min_version": "121.0"
+              "strict_min_version": "121.0",
+              "strict_max_version": "154.*"
             }
           }
         }

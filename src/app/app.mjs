@@ -51,6 +51,9 @@ import {
   SieveImapSpamClient
 } from "./libs/managesieve.ui/spam/SieveImapSpamClient.mjs";
 import {
+  SieveImapFilterClient
+} from "./libs/managesieve.ui/imap/SieveImapFilterClient.mjs";
+import {
   appendSpamRuleToScript,
   createSpamRule
 } from "./libs/managesieve.ui/spam/SieveSpamRule.mjs";
@@ -108,21 +111,21 @@ async function setImapSettings(account, settings) {
 }
 
 /**
- * Creates the direct-IMAP spam adapter with the account's existing login.
+ * Creates an ImapFlow factory with the account's existing login.
  *
  * @param {object} account
  *   application account.
  * @param {object} settings
  *   normalized IMAP connection settings.
- * @returns {Promise<SieveImapSpamClient>}
- *   configured spam adapter.
+ * @returns {Promise<Function>}
+ *   factory for authenticated ImapFlow clients.
  */
-async function createImapSpamClient(account, settings) {
+async function createImapClientFactory(account, settings) {
   const authentication = await account.getAuthentication();
   const username = await authentication.getUsername();
   const password = await authentication.getPassword();
 
-  return new SieveImapSpamClient(() => {
+  return () => {
     return new ImapFlow({
       host: settings.hostname,
       port: settings.port,
@@ -140,7 +143,37 @@ async function createImapSpamClient(account, settings) {
         "support-url": "https://github.com/ecxod/sieve"
       }
     });
-  });
+  };
+}
+
+/**
+ * Creates the direct-IMAP spam adapter with the account's existing login.
+ *
+ * @param {object} account
+ *   application account.
+ * @param {object} settings
+ *   normalized IMAP connection settings.
+ * @returns {Promise<SieveImapSpamClient>}
+ *   configured spam adapter.
+ */
+async function createImapSpamClient(account, settings) {
+  return new SieveImapSpamClient(
+    await createImapClientFactory(account, settings));
+}
+
+/**
+ * Creates the direct-IMAP Sent-folder filter adapter.
+ *
+ * @param {object} account
+ *   application account.
+ * @param {object} settings
+ *   normalized IMAP connection settings.
+ * @returns {Promise<SieveImapFilterClient>}
+ *   configured FILTER=SIEVE adapter.
+ */
+async function createImapFilterClient(account, settings) {
+  return new SieveImapFilterClient(
+    await createImapClientFactory(account, settings));
 }
 
 (async function () {
@@ -844,6 +877,45 @@ async function createImapSpamClient(account, settings) {
         await sessions.get(account).deleteScript(name);
 
       return rv;
+    },
+
+    "script-apply-sent": async function (msg) {
+      const accountId = msg.payload.account;
+      const name = msg.payload.data;
+
+      logger.logAction(`Apply Script ${name} to Sent for account: ${accountId}`);
+
+      try {
+        const account = accounts.getAccountById(accountId);
+        const settings = await getImapSettings(account);
+        if (!settings.enabled)
+          throw new Error("Direct IMAP access is not enabled for this account");
+
+        const scripts = await sessions.get(accountId).listScripts();
+        if (!scripts.some((script) => { return script.script === name; }))
+          throw new Error("The selected Sieve script no longer exists");
+
+        const filter = await createImapFilterClient(account, settings);
+        const snapshot = await filter.prepare();
+        const confirmed = await SieveIpcClient.sendMessage(
+          "accounts", "script-show-apply-sent", {
+            name,
+            folder: snapshot.folder,
+            messages: snapshot.uids.length
+          });
+
+        if (!confirmed)
+          return { canceled: true };
+
+        const result = await filter.apply(name, snapshot);
+        await SieveIpcClient.sendMessage(
+          "accounts", "script-show-apply-sent-result", result);
+        return result;
+      } catch (ex) {
+        await SieveIpcClient.sendMessage(
+          "accounts", "account-show-error", ex.message || `${ex}`);
+        return { error: true };
+      }
     },
 
     "script-activate": async function (msg) {

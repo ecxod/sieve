@@ -47,10 +47,12 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     this.formatMultilineLists = true;
     this.formatMultilineTests = true;
+    this.formatIgnoreCompactLineBreaks = false;
     this.formatBraceOnNewLine = false;
     this.formatCombineRequires = false;
     this.formatBlankLineAfterRequires = false;
     this.formatBlankLineAfterIf = false;
+    this.formatSortIfByFileinto = false;
 
     window.addEventListener("sieve-theme-changed", () => {
       if (this.cm)
@@ -137,6 +139,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
         : "#editor-settings-format-tests-compact")
       .checked = true;
 
+    document
+      .querySelector("#editor-settings-format-compact-ignore-line-breaks")
+      .addEventListener("change", async (event) => {
+        await this.setFormatIgnoreCompactLineBreaks(event.target.checked);
+      });
+    document.querySelector("#editor-settings-format-compact-ignore-line-breaks")
+      .checked = this.getFormatIgnoreCompactLineBreaks();
+
     // Formatter brace style...
     document
       .querySelector("#editor-settings-format-braces-same-line")
@@ -184,6 +194,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       .checked = this.getFormatBlankLineAfterRequires();
     document.querySelector("#editor-settings-format-blank-line-after-if")
       .checked = this.getFormatBlankLineAfterIf();
+
+    document
+      .querySelector("#editor-settings-format-sort-if-by-fileinto")
+      .addEventListener("change", async (event) => {
+        await this.setFormatSortIfByFileinto(event.target.checked);
+      });
+    document.querySelector("#editor-settings-format-sort-if-by-fileinto")
+      .checked = this.getFormatSortIfByFileinto();
   }
 
   /**
@@ -396,10 +414,12 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       indentWidth: this.getIndentWidth(),
       multilineLists: this.getFormatMultilineLists(),
       multilineTests: this.getFormatMultilineTests(),
+      ignoreCompactLineBreaks: this.getFormatIgnoreCompactLineBreaks(),
       braceOnNewLine: this.getFormatBraceOnNewLine(),
       combineRequires: this.getFormatCombineRequires(),
       blankLineAfterRequires: this.getFormatBlankLineAfterRequires(),
-      blankLineAfterIf: this.getFormatBlankLineAfterIf()
+      blankLineAfterIf: this.getFormatBlankLineAfterIf(),
+      sortIfByFileinto: this.getFormatSortIfByFileinto()
     });
 
     if (formatted === script) {
@@ -794,6 +814,33 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether source line breaks after commas are discarded in compact
+   * lists and test groups.
+   *
+   * @param {boolean} value
+   *   true to collapse comma-separated compact items onto one line.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatIgnoreCompactLineBreaks(value) {
+    this.formatIgnoreCompactLineBreaks = value === true;
+    await this.getController().setPreference(
+      "format-compact-ignore-line-breaks", this.formatIgnoreCompactLineBreaks);
+
+    return this;
+  }
+
+  /**
+   * Gets the compact source-line-break policy.
+   *
+   * @returns {boolean}
+   *   true when source line breaks after commas are discarded.
+   */
+  getFormatIgnoreCompactLineBreaks() {
+    return this.formatIgnoreCompactLineBreaks;
+  }
+
+  /**
    * Sets whether opening block braces are put on a separate line.
    *
    * @param {boolean} value
@@ -898,6 +945,32 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether independent if chains are sorted by fileinto target.
+   *
+   * @param {boolean} value
+   *   true to sort unambiguous top-level chains.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatSortIfByFileinto(value) {
+    this.formatSortIfByFileinto = value === true;
+    await this.getController().setPreference(
+      "format-sort-if-by-fileinto", this.formatSortIfByFileinto);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured if-chain sorting policy.
+   *
+   * @returns {boolean}
+   *   true when top-level chains are sorted by fileinto target.
+   */
+  getFormatSortIfByFileinto() {
+    return this.formatSortIfByFileinto;
+  }
+
+  /**
    * @inheritdoc
    */
   async loadSettings() {
@@ -916,6 +989,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const multilineTests = await this.getController().getPreference("format-tests-multiline");
     await this.setFormatMultilineTests(multilineTests);
 
+    const ignoreCompactLineBreaks = await this.getController()
+      .getPreference("format-compact-ignore-line-breaks");
+    await this.setFormatIgnoreCompactLineBreaks(ignoreCompactLineBreaks);
+
     const braceOnNewLine = await this.getController().getPreference("format-brace-new-line");
     await this.setFormatBraceOnNewLine(braceOnNewLine);
 
@@ -929,6 +1006,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const blankLineAfterIf = await this.getController()
       .getPreference("format-blank-line-after-if");
     await this.setFormatBlankLineAfterIf(blankLineAfterIf);
+
+    const sortIfByFileinto = await this.getController()
+      .getPreference("format-sort-if-by-fileinto");
+    await this.setFormatSortIfByFileinto(sortIfByFileinto);
 
   }
 
@@ -951,6 +1032,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const multilineTests = await this.getController().getDefaultPreference("format-tests-multiline");
     await this.setFormatMultilineTests(multilineTests);
 
+    const ignoreCompactLineBreaks = await this.getController()
+      .getDefaultPreference("format-compact-ignore-line-breaks");
+    await this.setFormatIgnoreCompactLineBreaks(ignoreCompactLineBreaks);
+
     const braceOnNewLine = await this.getController().getDefaultPreference("format-brace-new-line");
     await this.setFormatBraceOnNewLine(braceOnNewLine);
 
@@ -964,6 +1049,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const blankLineAfterIf = await this.getController()
       .getDefaultPreference("format-blank-line-after-if");
     await this.setFormatBlankLineAfterIf(blankLineAfterIf);
+
+    const sortIfByFileinto = await this.getController()
+      .getDefaultPreference("format-sort-if-by-fileinto");
+    await this.setFormatSortIfByFileinto(sortIfByFileinto);
 
     await this.renderSettings();
   }
@@ -982,6 +1071,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     await this.getController().setDefaultPreference(
       "format-tests-multiline", this.getFormatMultilineTests());
     await this.getController().setDefaultPreference(
+      "format-compact-ignore-line-breaks", this.getFormatIgnoreCompactLineBreaks());
+    await this.getController().setDefaultPreference(
       "format-brace-new-line", this.getFormatBraceOnNewLine());
     await this.getController().setDefaultPreference(
       "format-requires-combined", this.getFormatCombineRequires());
@@ -989,6 +1080,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       "format-blank-line-after-requires", this.getFormatBlankLineAfterRequires());
     await this.getController().setDefaultPreference(
       "format-blank-line-after-if", this.getFormatBlankLineAfterIf());
+    await this.getController().setDefaultPreference(
+      "format-sort-if-by-fileinto", this.getFormatSortIfByFileinto());
 
   }
 

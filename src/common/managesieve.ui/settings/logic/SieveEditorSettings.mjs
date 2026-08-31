@@ -15,10 +15,12 @@ const DEFAULT_INDENTATION_POLICY = false;
 const DEFAULT_INDENTATION_WIDTH = 2;
 const DEFAULT_FORMAT_LISTS_MULTILINE = true;
 const DEFAULT_FORMAT_TESTS_MULTILINE = true;
+const DEFAULT_FORMAT_IGNORE_COMPACT_LINE_BREAKS = false;
 const DEFAULT_FORMAT_BRACE_NEW_LINE = false;
 const DEFAULT_FORMAT_REQUIRES_COMBINED = false;
 const DEFAULT_FORMAT_BLANK_LINE_AFTER_REQUIRES = false;
 const DEFAULT_FORMAT_BLANK_LINE_AFTER_IF = false;
+const DEFAULT_FORMAT_SORT_IF_BY_FILEINTO = false;
 
 /**
  * Manages the sieve editor settings.
@@ -77,6 +79,11 @@ class SieveEditorSettings {
       return await this.pref.getBoolean(
         "editor.format-tests-multiline", DEFAULT_FORMAT_TESTS_MULTILINE);
 
+    if (name === "format-compact-ignore-line-breaks")
+      return await this.pref.getBoolean(
+        "editor.format-compact-ignore-line-breaks",
+        DEFAULT_FORMAT_IGNORE_COMPACT_LINE_BREAKS);
+
     if (name === "format-brace-new-line")
       return await this.pref.getBoolean(
         "editor.format-brace-new-line", DEFAULT_FORMAT_BRACE_NEW_LINE);
@@ -92,6 +99,10 @@ class SieveEditorSettings {
     if (name === "format-blank-line-after-if")
       return await this.pref.getBoolean(
         "editor.format-blank-line-after-if", DEFAULT_FORMAT_BLANK_LINE_AFTER_IF);
+
+    if (name === "format-sort-if-by-fileinto")
+      return await this.pref.getBoolean(
+        "editor.format-sort-if-by-fileinto", DEFAULT_FORMAT_SORT_IF_BY_FILEINTO);
 
     throw new Error(`Unknown settings ${name}`);
   }

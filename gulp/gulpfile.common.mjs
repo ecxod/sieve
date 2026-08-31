@@ -359,7 +359,10 @@ async function updateVersion() {
     "update_link": `https://github.com/ecxod/sieve/releases/download/v${version}/sieve-${version}-cram-md5.xpi`,
     "update_info_url": `https://github.com/ecxod/sieve/releases/tag/v${version}`,
     "browser_specific_settings": {
-      "gecko": { "strict_min_version": "121.0" }
+      "gecko": {
+        "strict_min_version": "121.0",
+        "strict_max_version": "154.*"
+      }
     }
   });
 

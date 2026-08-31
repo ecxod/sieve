@@ -3,4 +3,5 @@ build/
 __pycache__/
 .venv/
 sieve-cram-md5-push-20260819/releases/
+releases/
 src/web/config.ini

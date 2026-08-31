@@ -25,6 +25,13 @@
             "name": "port",
             "type": "string",
             "description": "The remote's port"
+          },
+          {
+            "name": "security",
+            "type": "string",
+            "optional": true,
+            "enum": ["starttls", "tls"],
+            "description": "Optional implicit TLS mode; defaults to a STARTTLS-capable transport"
           }
         ]
       },

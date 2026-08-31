@@ -345,6 +345,14 @@
     ]
   });
 
+  tests.set("imap-sieve-folder-filter", {
+    script: "${workspace}/managesieve.ui/imap/tests/SieveImapFilterClientTest.mjs",
+    require: [
+      "${workspace}/managesieve.ui/imap/SieveImapFilterClient.mjs",
+      "${workspace}/managesieve.ui/imap/SieveMozImapFilterClient.mjs"
+    ]
+  });
+
   tests.set("sieve-formatter", {
     script: "${workspace}/managesieve.ui/editor/text/tests/SieveFormatterTest.mjs",
     extend: "rfc5228",

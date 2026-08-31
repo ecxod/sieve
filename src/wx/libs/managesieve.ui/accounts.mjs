@@ -21,6 +21,8 @@ import { SieveAccounts } from "./accounts/SieveAccounts.mjs";
 import {
   SieveCreateScriptDialog,
   SieveDeleteScriptDialog,
+  SieveApplySentDialog,
+  SieveApplySentResultDialog,
   SieveRenameScriptDialog,
   SieveFingerprintDialog,
   SieveScriptBusyDialog,
@@ -50,6 +52,23 @@ async function onCreateScript() {
  */
 async function onDeleteScript(name) {
   return await (new SieveDeleteScriptDialog(name)).show();
+}
+
+/**
+ * Confirms applying a stored rule set to Sent.
+ * @param {object} details operation preview.
+ * @returns {Promise<boolean>} confirmation result.
+ */
+async function onApplySent(details) {
+  return await (new SieveApplySentDialog(details)).show();
+}
+
+/**
+ * Shows the Sent filtering summary.
+ * @param {object} result operation counters.
+ */
+async function onApplySentResult(result) {
+  await (new SieveApplySentResultDialog(result)).show();
 }
 
 /**
@@ -170,6 +189,10 @@ async function main() {
       async () => { return await onCreateScript(); });
     SieveIpcClient.setRequestHandler("accounts", "script-show-delete",
       async (msg) => { return await onDeleteScript(msg.payload); });
+    SieveIpcClient.setRequestHandler("accounts", "script-show-apply-sent",
+      async (msg) => { return await onApplySent(msg.payload); });
+    SieveIpcClient.setRequestHandler("accounts", "script-show-apply-sent-result",
+      async (msg) => { await onApplySentResult(msg.payload); });
     SieveIpcClient.setRequestHandler("accounts", "script-show-rename",
       async (msg) => { return await onRenameScript(msg.payload); });
     SieveIpcClient.setRequestHandler("accounts", "script-show-busy",
