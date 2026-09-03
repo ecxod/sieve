@@ -45,6 +45,40 @@ function bytesToBinaryString(value) {
 }
 
 /**
+ * Extracts the raw RFC 822 header block for copy and paste display.
+ *
+ * @param {Uint8Array} source
+ *   complete RFC 822 message bytes.
+ * @returns {string}
+ *   header block without the empty separator line.
+ */
+function extractRawMessageHeaders(source) {
+  const raw = bytesToBinaryString(source);
+  let boundary = raw.indexOf(HEADER_SEPARATOR_CRLF);
+
+  if (boundary < 0)
+    boundary = raw.indexOf(HEADER_SEPARATOR_LF);
+  if (boundary < 0)
+    throw new Error("The selected message has no complete RFC 822 header block");
+
+  const bytes = binaryStringToBytes(raw.slice(0, boundary));
+  return (new TextDecoder()).decode(bytes);
+}
+
+/**
+ * Extracts one normalized email address from a display address.
+ *
+ * @param {*} value
+ *   for example `Person <person@example.test>`.
+ * @returns {string}
+ *   lowercase address or an empty string.
+ */
+function extractEmailAddress(value) {
+  const matches = `${value || ""}`.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+/giu);
+  return matches?.length ? matches[matches.length - 1].toLocaleLowerCase() : "";
+}
+
+/**
  * Removes Rspamd/SpamAssassin verdict headers and the configured subject
  * prefix while leaving every other source byte untouched.
  *
@@ -193,6 +227,8 @@ async function replaceDuplicateMessages(operations) {
 export {
   binaryStringToBytes,
   cleanSpamMessage,
+  extractEmailAddress,
+  extractRawMessageHeaders,
   findSpecialFolder,
   matchesSpamSearch,
   replaceDuplicateMessages

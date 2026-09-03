@@ -89,7 +89,23 @@ body {
   min-width: 14rem;
 }
 
+.sieve-inbox-search {
+  flex: 1 1 24rem;
+  min-width: 14rem;
+}
+
 .sieve-spam-toolbar {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 10;
+  padding: 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 0.35rem;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.16);
+}
+
+.sieve-inbox-toolbar {
   position: sticky;
   top: 0.75rem;
   z-index: 10;
@@ -104,11 +120,50 @@ body {
   width: 2.5rem;
 }
 
+.sieve-inbox-select-column {
+  width: 4.5rem;
+}
+
 .sieve-spam-table {
   width: 100%;
   min-width: 46rem;
   height: auto !important;
   table-layout: fixed;
+}
+
+.sieve-inbox-table {
+  width: 100%;
+  min-width: 46rem;
+  height: auto !important;
+  table-layout: fixed;
+}
+
+.sieve-inbox-table th:nth-child(2),
+.sieve-inbox-table td:nth-child(2) {
+  width: 10.5rem;
+}
+
+.sieve-inbox-table th:nth-child(3),
+.sieve-inbox-table td:nth-child(3) {
+  width: 28%;
+}
+
+.sieve-inbox-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sieve-inbox-table tbody tr {
+  cursor: pointer;
+}
+
+.sieve-inbox-rule-headers,
+.sieve-inbox-rule-source {
+  white-space: pre;
+  overflow: auto;
+  font-size: 0.82rem;
 }
 
 .sieve-spam-table > thead,

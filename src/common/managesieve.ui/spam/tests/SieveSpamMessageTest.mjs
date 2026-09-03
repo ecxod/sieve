@@ -8,12 +8,16 @@ if (!suite)
 import {
   binaryStringToBytes,
   cleanSpamMessage,
+  extractEmailAddress,
+  extractRawMessageHeaders,
   findSpecialFolder,
   matchesSpamSearch,
   replaceDuplicateMessages
 } from "./../SieveSpamMessage.mjs";
 import {
   getCleanFlags,
+  getSelectableMailboxPaths,
+  resolveInboxFolder,
   resolveSpamFolders,
   SieveImapSpamClient
 } from "./../SieveImapSpamClient.mjs";
@@ -23,6 +27,13 @@ import {
   findSpamRuleMatches,
   quoteSieve
 } from "./../SieveSpamRule.mjs";
+import {
+  appendInboxRuleToScript,
+  createInboxRuleTemplate,
+  getInboxRuleRequirements,
+  inspectInboxRuleMailboxes
+} from "./../../inbox/SieveInboxRule.mjs";
+import { SieveInboxUI } from "./../../accounts/SieveInboxUI.mjs";
 
 /**
  *
@@ -64,6 +75,24 @@ suite.add("Spam cleanup preserves non-spam source bytes", function () {
   suite.assertEquals(result.headersRemoved, 0);
   suite.assertEquals(result.data.length, payload.length);
   suite.assertEquals(result.data[result.data.length - 1], 0xff);
+});
+
+suite.add("Inbox headers and display addresses are extracted safely", function () {
+  const source = binaryStringToBytes([
+    "From: Person <person@example.test>",
+    "Subject: Encoded =?UTF-8?Q?subject?=",
+    "\tcontinued",
+    "",
+    "Body: not a header"
+  ].join("\r\n"));
+
+  const headers = extractRawMessageHeaders(source);
+  suite.assertTrue(headers.includes("Subject: Encoded"));
+  suite.assertTrue(headers.includes("\r\n\tcontinued"));
+  suite.assertFalse(headers.includes("Body: not a header"));
+  suite.assertEquals(
+    extractEmailAddress("Person <Person@Example.Test>"), "person@example.test");
+  suite.assertEquals(extractEmailAddress("without an address"), "");
 });
 
 suite.add("Special folders support legacy and current account shapes", function () {
@@ -172,6 +201,17 @@ suite.add("IMAP special-use folders and ham keywords are resolved", function () 
   suite.assertTrue(flags.includes("rspamdallow"));
   suite.assertFalse(flags.includes("\\Deleted"));
   suite.assertFalse(flags.includes("$Junk"));
+});
+
+suite.add("Inbox and selectable IMAP folders are resolved independently", function () {
+  const mailboxes = [
+    { path: "INBOX", specialUse: "\\Inbox", flags: new Set() },
+    { path: "Archive", flags: new Set() },
+    { path: "Virtual", flags: new Set(["\\Noselect"]) }
+  ];
+
+  suite.assertEquals(resolveInboxFolder(mailboxes), "INBOX");
+  suite.assertEquals(getSelectableMailboxPaths(mailboxes).join(","), "INBOX,Archive");
 });
 
 suite.add("Direct IMAP restore appends before deleting source and duplicates", async function () {
@@ -310,6 +350,145 @@ suite.add("Spam rule search reports shared parameters and source lines", functio
   suite.assertTrue(matches[0].active);
   suite.assertEquals(matches[0].matches[0].type, "sender");
   suite.assertEquals(matches[0].matches[0].occurrences[0].line, 2);
+});
+
+suite.add("Inbox rule template and append manage safe requirements", function () {
+  const template = createInboxRuleTemplate({
+    senderAddress: "Person@Example.Test",
+    subject: "Expected subject"
+  }, "Archive/Customers");
+
+  suite.assertTrue(template.includes('address :is "from" "person@example.test"'));
+  suite.assertTrue(template.includes('fileinto :create "Archive/Customers";'));
+  suite.assertEquals(
+    getInboxRuleRequirements(template).join(","), "fileinto,mailbox");
+
+  const updated = appendInboxRuleToScript(
+    'require "fileinto";\nkeep;\n', template);
+  suite.assertTrue(updated.startsWith('require ["mailbox"];\nrequire "fileinto";'));
+  suite.assertTrue(updated.includes("# BEGIN sieve-inbox-rule inbox-rule-"));
+  suite.parseScript(updated, ["fileinto", "mailbox"]);
+
+  suite.assertThrows(() => {
+    appendInboxRuleToScript(updated, template);
+  }, "This Inbox rule already exists in the selected script");
+});
+
+suite.add("Inbox mailbox check ignores opaque fileinto text", function () {
+  const snippet = [
+    '# fileinto "Comment";',
+    'if header :contains "Subject" "fileinto \\"String\\"" {',
+    '  fileinto :copy :create "INBOX/Customers";',
+    '}'
+  ].join("\n");
+  const existing = inspectInboxRuleMailboxes(
+    snippet, ["INBOX", "INBOX/Customers"]);
+  suite.assertEquals(existing.state, "ok");
+  suite.assertEquals(existing.existing.join(","), "INBOX/Customers");
+  suite.assertEquals(existing.missing.length, 0);
+  suite.assertEquals(
+    getInboxRuleRequirements(snippet).join(","), "fileinto,copy,mailbox");
+
+  const missing = inspectInboxRuleMailboxes(
+    'fileinto :create "Missing";', ["INBOX"]);
+  suite.assertEquals(missing.state, "warning");
+  suite.assertEquals(missing.missing[0], "Missing");
+});
+
+suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async function () {
+  const calls = [];
+  const client = {
+    usable: true,
+    mailbox: false,
+    connect: async () => { calls.push("connect"); },
+    logout: async () => { calls.push("logout"); },
+    close: () => { calls.push("close"); },
+    list: async () => {
+      return [
+        { path: "INBOX", specialUse: "\\Inbox", flags: new Set() },
+        { path: "Archive", flags: new Set() }
+      ];
+    },
+    getMailboxLock: async () => {
+      client.mailbox = { uidValidity: 9n, exists: 1 };
+      return { release: () => { calls.push("release"); } };
+    },
+    fetchAll: async () => {
+      return [{
+        uid: 12,
+        internalDate: new Date("2026-09-03T10:00:00Z"),
+        envelope: {
+          from: [{ name: "Person", address: "person@example.test" }],
+          to: [{ address: "customer@example.test" }],
+          subject: "Hello"
+        }
+      }];
+    },
+    fetchOne: async () => {
+      return {
+        headers: Buffer.from("From: Person <person@example.test>\r\nSubject: Hello\r\n\r\n"),
+        envelope: {
+          from: [{ name: "Person", address: "person@example.test" }],
+          to: [{ address: "customer@example.test" }],
+          subject: "Hello",
+          messageId: "<message@example.test>"
+        }
+      };
+    }
+  };
+  const service = new SieveImapSpamClient(() => { return client; });
+  const inbox = await service.listInbox();
+  const details = await service.getInboxDetails("9:12");
+
+  suite.assertEquals(inbox.folderName, "INBOX");
+  suite.assertEquals(inbox.mailboxes.join(","), "INBOX,Archive");
+  suite.assertEquals(inbox.messages[0].id, "9:12");
+  suite.assertEquals(details.senderAddress, "person@example.test");
+  suite.assertTrue(details.headers.includes("Subject: Hello"));
+  suite.assertEquals(calls.filter((item) => { return item === "logout"; }).length, 2);
+});
+
+suite.add("Inbox selection state enables only one rule action", function () {
+  const createButton = { disabled: true };
+  const controls = [
+    { value: "message-1", checked: false },
+    { value: "message-2", checked: false }
+  ];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.root = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-create-rule")
+        return createButton;
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === ".sieve-inbox-select" ? controls : [];
+    }
+  };
+
+  inbox.selectMessage("message-2");
+  suite.assertEquals(inbox.selectedId, "message-2");
+  suite.assertFalse(createButton.disabled);
+  suite.assertFalse(controls[0].checked);
+  suite.assertTrue(controls[1].checked);
+});
+
+suite.add("Inbox mailbox input preserves freely edited rules", function () {
+  const source = { value: "custom rule" };
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.lastTemplate = "generated rule";
+  inbox.root = {
+    querySelector() { return source; }
+  };
+  let updates = 0;
+  inbox.createTemplate = () => { updates++; };
+
+  inbox.updateTemplateMailbox();
+  suite.assertEquals(updates, 0);
+
+  source.value = "generated rule";
+  inbox.updateTemplateMailbox();
+  suite.assertEquals(updates, 1);
 });
 
 suite.add("Direct IMAP details returns raw headers and rule parameters", async function () {

@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.7
+## Stable release 0.8.8
 
-**Version 0.8.7 is the latest stable release for both the Windows EXE and the
+**Version 0.8.8 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.7` uses the same version for the Windows application and the
+Release `0.8.8` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -48,7 +48,9 @@ Thunderbird extension. The extension includes:
   after the leading `require` section and complete `if`/`elsif`/`else` chains;
   an additional opt-in setting sorts consecutive, independent top-level `if`
   chains alphabetically by an unambiguous quoted `fileinto` destination,
-  moving their comments and complete branch chains together
+  moving their comments and complete branch chains together; further opt-in
+  settings combine equivalent sibling `if` rules with `anyof` and add
+  `fileinto :create` plus the required `mailbox` capability
 - a guarded **Apply to Sent** action which can manually apply a saved personal
   script to a confirmed snapshot of non-deleted Sent messages when the IMAP
   server offers `FILTER=SIEVE`; it verifies UIDVALIDITY, excludes messages
@@ -57,6 +59,9 @@ Thunderbird extension. The extension includes:
   account's spam folder; selected messages can be restored safely to `INBOX`,
   and matching allow/block rules can be inspected or appended to a chosen
   Sieve script without overwriting an independently changed script
+- an **Inbox** tab with searchable messages and copyable raw headers; its
+  integrated rule editor can lint, format, and safely append a rule to a chosen
+  server script while checking literal `fileinto` targets against IMAP folders
 - a save-or-discard warning when an editor with changes relative to the loaded
   server script is closed; cancelling or a failed save keeps the editor open
 - a visible add-on name beside **Create Server** and the fork/version footer
@@ -72,19 +77,19 @@ and optional error-tracking settings. Remembered passwords are included only
 after an explicit choice and a clear-text warning. The global **Settings** tab
 also contains update management which displays the installed and latest GitHub
 release versions and can download, verify, and start the matching Windows
-installer.
+installer while showing its current phase, downloaded bytes, and percentage.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.7-cram-md5.xpi`](releases/sieve-0.8.7-cram-md5.xpi)
+[`releases/sieve-0.8.8-cram-md5.xpi`](releases/sieve-0.8.8-cram-md5.xpi)
 
-SHA-256: `b9124ffa0433ffed4a9db3799a6ff5814cc7934bf1bbe40c791fe53dbf8a7104`
+SHA-256: `649f0e2e283a0650f3daf437cd2a55c383e15fbf170007c3bf8513a7adca28e6`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.7.exe`](releases/install_sieve_0.8.7.exe)
+[`releases/install_sieve_0.8.8.exe`](releases/install_sieve_0.8.8.exe)
 
-SHA-256: `59e76e1c833a9ff6b4c48caa2281f8fd268c668bcdb437155fb87c3e6572f358`
+SHA-256: `5c61211716c6475ff339aca9dc2f71f96c5719b0c7fa73baba9558cd7193c1e8`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified

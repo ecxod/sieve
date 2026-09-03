@@ -40,6 +40,9 @@ import {
 } from "./libs/managesieve.ui/settings/logic/SieveSettingsBackup.mjs";
 
 import { SieveUpdater } from "./libs/managesieve.ui/updater/SieveUpdater.mjs";
+import {
+  normalizeUpdateProgress
+} from "./libs/managesieve.ui/updater/SieveUpdateProgress.mjs";
 import { SieveTabUI } from "./libs/managesieve.ui/tabs/SieveTabsUI.mjs";
 
 import { SieveThunderbirdProfiles } from "./libs/managesieve.ui/importer/logic/SieveThunderbirdProfile.mjs";
@@ -57,6 +60,9 @@ import {
   appendSpamRuleToScript,
   createSpamRule
 } from "./libs/managesieve.ui/spam/SieveSpamRule.mjs";
+import {
+  appendInboxRuleToScript
+} from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 
 const IMAP_DEFAULT_PORT = 993;
 const IMAP_CONNECTION_TIMEOUT = 30000;
@@ -192,7 +198,15 @@ async function createImapFilterClient(account, settings) {
   const sessions = new SieveSessions();
   const updater = new SieveUpdater();
   let updateStatusPromise = null;
+  let updateInstallProgress = { phase: "canceled" };
   let pendingSettingsBackup = null;
+
+  ipcRenderer.on("update-install-progress", (event, progress) => {
+    const normalized = normalizeUpdateProgress(progress);
+
+    if (normalized !== null)
+      updateInstallProgress = normalized;
+  });
 
   /**
    * Shares one GitHub request between the startup notice and settings iframe.
@@ -223,18 +237,37 @@ async function createImapFilterClient(account, settings) {
       return await getUpdateStatus(msg.payload?.force === true);
     },
 
+    "update-install-progress": () => {
+      return updateInstallProgress;
+    },
+
     "update-install": async () => {
-      const status = await getUpdateStatus(true);
+      updateInstallProgress = { phase: "checking" };
 
-      if (!status.updateAvailable)
-        throw new Error("No newer GitHub release is available");
-      if (!status.installSupported || !status.installer)
-        throw new Error("No verified Windows installer is available for this release");
+      try {
+        const status = await getUpdateStatus(true);
 
-      if (!await (new SieveTabUI()).closeAll())
-        return { canceled: true };
+        if (!status.updateAvailable)
+          throw new Error("No newer GitHub release is available");
+        if (!status.installSupported || !status.installer)
+          throw new Error("No verified Windows installer is available for this release");
 
-      return await ipcRenderer.invoke("install-update", status.installer);
+        updateInstallProgress = normalizeUpdateProgress({
+          phase: "preparing",
+          received: 0,
+          total: status.installer.size
+        });
+
+        if (!await (new SieveTabUI()).closeAll()) {
+          updateInstallProgress = { phase: "canceled" };
+          return { canceled: true };
+        }
+
+        return await ipcRenderer.invoke("install-update", status.installer);
+      } catch (error) {
+        updateInstallProgress = { phase: "failed" };
+        throw error;
+      }
     },
 
     "update-goto-url": () => {
@@ -404,6 +437,97 @@ async function createImapFilterClient(account, settings) {
 
       const spam = await createImapSpamClient(account, settings);
       return await spam.unspam(messageIds, !!msg.payload.permanentAllow);
+    },
+
+    "account-inbox-list": async function (msg) {
+      logger.logAction(`List IMAP Inbox messages for ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled) {
+        return {
+          configured: false,
+          folderName: "IMAP",
+          mailboxes: [],
+          messages: []
+        };
+      }
+
+      const inbox = await createImapSpamClient(account, settings);
+      return {
+        configured: true,
+        ...await inbox.listInbox()
+      };
+    },
+
+    "account-inbox-details": async function (msg) {
+      logger.logAction(`Load IMAP Inbox headers for ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP Inbox access is not enabled");
+
+      const inbox = await createImapSpamClient(account, settings);
+      return await inbox.getInboxDetails(msg.payload.messageId);
+    },
+
+    "account-inbox-rule-scripts": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Load scripts for Inbox rule editor on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        return { connected: false, scripts: [] };
+
+      const session = sessions.get(id);
+      const scripts = [];
+      for (const item of await session.listScripts()) {
+        scripts.push({
+          name: item.script,
+          active: !!item.active,
+          content: await session.getScript(item.script)
+        });
+      }
+      return { connected: true, scripts };
+    },
+
+    "account-inbox-rule-check": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      logger.logAction(`Check Inbox rule for ${name} on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== msg.payload.expected)
+        throw new Error("The server script changed; reopen the Inbox rule editor");
+
+      await session.checkScript(
+        appendInboxRuleToScript(current, msg.payload.snippet));
+      return { valid: true };
+    },
+
+    "account-inbox-rule-save": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      logger.logAction(`Save Inbox rule to ${name} on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+      if ((new SieveTabUI()).has(id, name))
+        throw new Error("Close the open editor for this script before changing it");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== msg.payload.expected)
+        throw new Error("The server script changed; reopen the Inbox rule editor");
+
+      const updated = appendInboxRuleToScript(current, msg.payload.snippet);
+      await session.checkScript(updated);
+      await session.putScript(name, updated);
+      return { name };
     },
 
     "account-get-settings": async function (msg) {

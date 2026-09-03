@@ -1,0 +1,72 @@
+<div class="sieve-inbox-content tab-pane fade p-3" role="tabpanel">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 sieve-inbox-toolbar">
+    <label class="visually-hidden sieve-inbox-search-label" for="sieve-inbox-search">Inbox durchsuchen</label>
+    <input type="search" class="form-control form-control-sm sieve-inbox-search"
+      placeholder="Absender, Empfänger oder Betreff suchen" autocomplete="off">
+    <button type="button" class="btn btn-sm btn-outline-secondary sieve-inbox-refresh">Aktualisieren</button>
+    <button type="button" class="btn btn-sm btn-primary sieve-inbox-create-rule" disabled>Create Sieve Rule</button>
+  </div>
+
+  <div class="alert alert-secondary py-2 sieve-inbox-status" role="status" aria-live="polite"></div>
+
+  <div class="table-responsive sieve-inbox-table-wrap">
+    <table class="table table-hover align-middle sieve-inbox-table">
+      <thead>
+        <tr>
+          <th scope="col" class="sieve-inbox-select-column"></th>
+          <th scope="col">Datum</th>
+          <th scope="col">Absender</th>
+          <th scope="col">Betreff</th>
+        </tr>
+      </thead>
+      <tbody class="sieve-inbox-rows"></tbody>
+    </table>
+  </div>
+
+  <div class="modal fade sieve-inbox-rule-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title sieve-inbox-rule-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label sieve-inbox-rule-headers-label"></label>
+          <textarea class="form-control font-monospace sieve-inbox-rule-headers" rows="10"
+            readonly spellcheck="false" wrap="off"></textarea>
+
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label class="form-label sieve-inbox-rule-script-label"></label>
+              <select class="form-select sieve-inbox-rule-script"></select>
+              <div class="form-text sieve-inbox-rule-connection"></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label sieve-inbox-rule-mailbox-label"></label>
+              <div class="input-group">
+                <input type="text" class="form-control sieve-inbox-rule-mailbox"
+                  list="sieve-inbox-mailboxes" autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary sieve-inbox-rule-template"></button>
+              </div>
+              <datalist id="sieve-inbox-mailboxes" class="sieve-inbox-rule-mailboxes"></datalist>
+            </div>
+          </div>
+
+          <label class="form-label mt-3 sieve-inbox-rule-source-label"></label>
+          <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="16"
+            spellcheck="false" wrap="off"></textarea>
+          <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status"
+            role="status" aria-live="polite"></div>
+          <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-lint-status d-none"
+            role="status" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary sieve-inbox-rule-lint">Lint</button>
+          <button type="button" class="btn btn-outline-secondary sieve-inbox-rule-pretty">Pretty Print</button>
+          <button type="button" class="btn btn-primary sieve-inbox-rule-save">Speichern</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="settings.cancel"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

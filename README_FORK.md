@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.7 is the latest stable release for both distributed packages:**
+**Version 0.8.8 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.7.exe`
-- Thunderbird: `sieve-0.8.7-cram-md5.xpi`
+- Windows: `install_sieve_0.8.8.exe`
+- Thunderbird: `sieve-0.8.8-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -203,6 +203,16 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   applied manually to a confirmed snapshot of non-deleted Sent messages when
   the IMAP server offers `FILTER=SIEVE`; the action verifies UIDVALIDITY,
   excludes messages arriving after confirmation, and never performs `EXPUNGE`.
+- Version `0.8.8` adds an **Inbox** tab to the Thunderbird extension and Windows
+  application. It lists and searches Inbox messages, opens a rule editor with
+  copyable raw headers, and can lint, format, and safely append the rule to a
+  selected Sieve script. Literal `fileinto` targets are checked against the
+  account's IMAP folders before saving. **Make pretty** can now combine safe
+  groups of equivalent sibling `if` rules into one `anyof` rule and can add
+  `:create` plus the required `mailbox` capability to `fileinto` actions. Both
+  transformations are opt-in and preserve comments, strings, and multiline
+  text. The Windows updater now reports its current phase, byte count, and
+  percentage while downloading and starting a verified installer.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -228,13 +238,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.7-cram-md5.xpi`](releases/sieve-0.8.7-cram-md5.xpi).
+[`releases/sieve-0.8.8-cram-md5.xpi`](releases/sieve-0.8.8-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `b9124ffa0433ffed4a9db3799a6ff5814cc7934bf1bbe40c791fe53dbf8a7104`
+SHA-256: `649f0e2e283a0650f3daf437cd2a55c383e15fbf170007c3bf8513a7adca28e6`
 
 ### Thunderbird permission notice
 
@@ -252,6 +262,6 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.7.exe`](releases/install_sieve_0.8.7.exe).
+[`releases/install_sieve_0.8.8.exe`](releases/install_sieve_0.8.8.exe).
 
-SHA-256: `59e76e1c833a9ff6b4c48caa2281f8fd268c668bcdb437155fb87c3e6572f358`
+SHA-256: `5c61211716c6475ff339aca9dc2f71f96c5719b0c7fa73baba9558cd7193c1e8`

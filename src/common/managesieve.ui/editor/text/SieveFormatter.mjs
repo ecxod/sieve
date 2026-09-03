@@ -177,6 +177,79 @@ function tokenize(script) {
 }
 
 /**
+ * Reads one leading Sieve require command.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   offset of the require keyword.
+ * @returns {{ end: int, requirements: Array, comments: Array }|null}
+ *   parsed command, or null when it is malformed.
+ */
+function readRequireCommand(tokens, start) {
+  if (tokens[start]?.type !== "value"
+    || tokens[start].value.toLowerCase() !== "require")
+    return null;
+
+  const requirements = [];
+  const comments = [];
+  let cursor = start + 1;
+
+  while (isComment(tokens[cursor]))
+    comments.push(tokens[cursor++]);
+
+  if (tokens[cursor]?.type === "symbol" && tokens[cursor].value === "[") {
+    cursor++;
+    let expectValue = true;
+
+    while (tokens[cursor]
+      && !(tokens[cursor].type === "symbol" && tokens[cursor].value === "]")) {
+      if (isComment(tokens[cursor])) {
+        comments.push(tokens[cursor++]);
+        continue;
+      }
+
+      if (expectValue
+        && tokens[cursor].type === "value"
+        && tokens[cursor].value.startsWith("\"")) {
+        requirements.push(tokens[cursor]);
+        expectValue = false;
+        cursor++;
+        continue;
+      }
+
+      if (!expectValue
+        && tokens[cursor].type === "symbol"
+        && tokens[cursor].value === ",") {
+        expectValue = true;
+        cursor++;
+        continue;
+      }
+
+      return null;
+    }
+
+    if (!tokens[cursor] || requirements.length === 0 || expectValue)
+      return null;
+
+    cursor++;
+  } else if (tokens[cursor]?.type === "value"
+    && tokens[cursor].value.startsWith("\"")) {
+    requirements.push(tokens[cursor++]);
+  } else {
+    return null;
+  }
+
+  while (isComment(tokens[cursor]))
+    comments.push(tokens[cursor++]);
+
+  if (tokens[cursor]?.type !== "symbol" || tokens[cursor].value !== ";")
+    return null;
+
+  return { end: cursor, requirements, comments };
+}
+
+/**
  * Combines consecutive require commands at the start of a script.
  *
  * Leading and inter-command comments are retained. If the require section is
@@ -200,63 +273,15 @@ function combineRequireCommands(tokens) {
 
   while (tokens[offset]?.type === "value"
     && tokens[offset].value.toLowerCase() === "require") {
-    const commandRequirements = [];
-    let cursor = offset + 1;
+    const command = readRequireCommand(tokens, offset);
 
-    while (isComment(tokens[cursor]))
-      retainedComments.push(tokens[cursor++]);
-
-    if (tokens[cursor]?.type === "symbol" && tokens[cursor].value === "[") {
-      cursor++;
-      let expectValue = true;
-
-      while (tokens[cursor]
-        && !(tokens[cursor].type === "symbol" && tokens[cursor].value === "]")) {
-        if (isComment(tokens[cursor])) {
-          retainedComments.push(tokens[cursor++]);
-          continue;
-        }
-
-        if (expectValue
-          && tokens[cursor].type === "value"
-          && tokens[cursor].value.startsWith("\"")) {
-          commandRequirements.push(tokens[cursor]);
-          expectValue = false;
-          cursor++;
-          continue;
-        }
-
-        if (!expectValue
-          && tokens[cursor].type === "symbol"
-          && tokens[cursor].value === ",") {
-          expectValue = true;
-          cursor++;
-          continue;
-        }
-
-        return tokens;
-      }
-
-      if (!tokens[cursor] || commandRequirements.length === 0 || expectValue)
-        return tokens;
-
-      cursor++;
-    } else if (tokens[cursor]?.type === "value"
-      && tokens[cursor].value.startsWith("\"")) {
-      commandRequirements.push(tokens[cursor++]);
-    } else {
-      return tokens;
-    }
-
-    while (isComment(tokens[cursor]))
-      retainedComments.push(tokens[cursor++]);
-
-    if (tokens[cursor]?.type !== "symbol" || tokens[cursor].value !== ";")
+    if (command === null)
       return tokens;
 
-    requirements.push(...commandRequirements);
+    requirements.push(...command.requirements);
+    retainedComments.push(...command.comments);
     commands++;
-    offset = cursor + 1;
+    offset = command.end + 1;
 
     while (isComment(tokens[offset]))
       retainedComments.push(tokens[offset++]);
@@ -287,6 +312,253 @@ function combineRequireCommands(tokens) {
     ...combined,
     ...retainedComments,
     ...tokens.slice(offset)
+  ];
+}
+
+/**
+ * Finds the semicolon ending a simple action command.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   first token after the command keyword.
+ * @returns {int}
+ *   semicolon offset, or -1 when the command is malformed.
+ */
+function findSimpleCommandEnd(tokens, start) {
+  const delimiters = [];
+
+  for (let index = start; index < tokens.length; index++) {
+    const token = tokens[index];
+
+    if (token.type !== "symbol")
+      continue;
+
+    if (token.value === "[" || token.value === "(") {
+      delimiters.push(token.value === "[" ? "]" : ")");
+      continue;
+    }
+
+    if (token.value === "]" || token.value === ")") {
+      if (delimiters.pop() !== token.value)
+        return -1;
+
+      continue;
+    }
+
+    if (delimiters.length)
+      continue;
+
+    if (token.value === ";")
+      return index;
+
+    if (token.value === "{" || token.value === "}")
+      return -1;
+  }
+
+  return -1;
+}
+
+/**
+ * Checks whether a token starts a new Sieve statement.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} index
+ *   token offset.
+ * @returns {boolean}
+ *   true when the token can be a command keyword.
+ */
+function isStatementStart(tokens, index) {
+  let previous = index - 1;
+
+  while (isComment(tokens[previous]))
+    previous--;
+
+  if (previous < 0)
+    return true;
+
+  return tokens[previous].type === "symbol"
+    && [";", "{", "}"].includes(tokens[previous].value);
+}
+
+/**
+ * Adds :create to complete fileinto actions which do not already use it.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @returns {{ tokens: Array, usesCreate: boolean }}
+ *   transformed tokens and whether a valid fileinto action was found.
+ */
+function addCreateToFileintoCommands(tokens) {
+  const transformed = [];
+  let usesCreate = false;
+
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+
+    if (token.type !== "value"
+      || token.value.toLowerCase() !== "fileinto"
+      || !isStatementStart(tokens, index)) {
+      transformed.push(token);
+      continue;
+    }
+
+    const end = findSimpleCommandEnd(tokens, index + 1);
+
+    if (end === -1) {
+      transformed.push(token);
+      continue;
+    }
+
+    let target = end - 1;
+
+    while (target > index && isComment(tokens[target]))
+      target--;
+
+    const hasMailboxTarget = tokens[target]?.type === "multiline"
+      || (tokens[target]?.type === "value"
+        && tokens[target].value.startsWith("\""));
+
+    if (!hasMailboxTarget) {
+      transformed.push(token);
+      continue;
+    }
+
+    const hasCreate = tokens.slice(index + 1, end).some((item) => {
+      return item.type === "value" && item.value.toLowerCase() === ":create";
+    });
+
+    transformed.push(...tokens.slice(index, target));
+
+    if (!hasCreate)
+      transformed.push({ type: "value", value: ":create" });
+
+    transformed.push(...tokens.slice(target, end + 1));
+
+    usesCreate = true;
+    index = end;
+  }
+
+  return { tokens: transformed, usesCreate };
+}
+
+/**
+ * Decodes a quoted Sieve string used as a fileinto destination.
+ *
+ * @param {string} value
+ *   quoted Sieve string.
+ * @returns {string}
+ *   decoded string value.
+ */
+function decodeQuotedString(value) {
+  return value.slice(1, -1).replace(/\\(["\\])/g, "$1");
+}
+
+/**
+ * Finds complete fileinto actions without interpreting comments or strings.
+ *
+ * Multiline and computed destinations are reported as unverifiable instead of
+ * guessing a mailbox name. This is shared by the Inbox rule helper so its
+ * mailbox warning follows the same token boundaries as the formatter.
+ *
+ * @param {string} script
+ *   Sieve source or rule snippet.
+ * @returns {Array<{ mailbox: string|null, tags: string[] }>}
+ *   discovered fileinto actions.
+ */
+function inspectFileintoActions(script) {
+  const tokens = tokenize(`${script || ""}`.replace(/\r\n?/g, "\n"));
+  const actions = [];
+
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+
+    if (token.type !== "value"
+      || token.value.toLowerCase() !== "fileinto"
+      || !isStatementStart(tokens, index))
+      continue;
+
+    const end = findSimpleCommandEnd(tokens, index + 1);
+    if (end === -1)
+      continue;
+
+    let target = end - 1;
+    while (target > index && isComment(tokens[target]))
+      target--;
+
+    const targetToken = tokens[target];
+    const mailbox = targetToken?.type === "value"
+      && targetToken.value.startsWith("\"")
+      ? decodeQuotedString(targetToken.value) : null;
+    const tags = tokens.slice(index + 1, target)
+      .filter((item) => {
+        return item.type === "value" && item.value.startsWith(":");
+      })
+      .map((item) => { return item.value.toLowerCase(); });
+
+    actions.push({ mailbox, tags });
+    index = end;
+  }
+
+  return actions;
+}
+
+/**
+ * Adds a missing capability to the leading require section.
+ *
+ * The new command is inserted directly after the last valid require command,
+ * before comments belonging to the first executable statement. A malformed
+ * leading require section is left untouched.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {string} requirement
+ *   capability name without quotes.
+ * @returns {Array|null}
+ *   updated tokens, or null when the leading require section is malformed.
+ */
+function ensureRequirement(tokens, requirement) {
+  let offset = 0;
+  let lastRequireEnd = -1;
+  let found = false;
+
+  while (isComment(tokens[offset]))
+    offset++;
+
+  let cursor = offset;
+
+  while (tokens[cursor]?.type === "value"
+    && tokens[cursor].value.toLowerCase() === "require") {
+    const command = readRequireCommand(tokens, cursor);
+
+    if (command === null)
+      return null;
+
+    found ||= command.requirements.some((item) => {
+      return item.value.slice(1, -1) === requirement;
+    });
+    lastRequireEnd = command.end;
+    cursor = command.end + 1;
+
+    while (isComment(tokens[cursor]))
+      cursor++;
+  }
+
+  if (found)
+    return tokens;
+
+  const insertion = lastRequireEnd === -1 ? offset : lastRequireEnd + 1;
+  const command = [
+    { type: "value", value: "require" },
+    { type: "value", value: `"${requirement}"` },
+    { type: "symbol", value: ";" }
+  ];
+
+  return [
+    ...tokens.slice(0, insertion),
+    ...command,
+    ...tokens.slice(insertion)
   ];
 }
 
@@ -521,6 +793,259 @@ function sortIfChainsByFileinto(tokens) {
 }
 
 /**
+ * Creates a stable comparison value for a non-comment Sieve token.
+ *
+ * Sieve identifiers are case-insensitive, while quoted and multiline strings
+ * retain their exact value.
+ *
+ * @param {{ type: string, value: string }} token
+ *   the token to normalize.
+ * @returns {string}
+ *   a comparison-safe token signature.
+ */
+function getStructuralTokenSignature(token) {
+  let value = token.value;
+
+  if (token.type === "value" && !value.startsWith("\""))
+    value = value.toLowerCase();
+
+  return `${token.type}:${value.length}:${value}`;
+}
+
+/**
+ * Describes an action body which can safely be shared by an anyof rule.
+ *
+ * Comments do not affect action equality. They are retained in slots between
+ * the surrounding structural tokens so combining blocks never discards them.
+ * A final stop command guarantees that the original sibling if statements
+ * could execute the common action body at most once.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the first token inside the action block.
+ * @param {int} end
+ *   the token after the action block.
+ * @returns {{ structural: Array, comments: Array, signature: string }|null}
+ *   the mergeable body description, or null when no terminal stop exists.
+ */
+function readMergeableActionBody(tokens, start, end) {
+  const structural = [];
+  const comments = [[]];
+
+  for (let index = start; index < end; index++) {
+    if (isComment(tokens[index])) {
+      comments[structural.length].push(tokens[index]);
+      continue;
+    }
+
+    structural.push(tokens[index]);
+    comments.push([]);
+  }
+
+  const stop = structural[structural.length - 2];
+  const semicolon = structural[structural.length - 1];
+
+  if (stop?.type !== "value"
+    || stop.value.toLowerCase() !== "stop"
+    || semicolon?.type !== "symbol"
+    || semicolon.value !== ";")
+    return null;
+
+  return {
+    structural,
+    comments,
+    signature: structural.map(getStructuralTokenSignature).join("|")
+  };
+}
+
+/**
+ * Reads a standalone if statement which is eligible for anyof combining.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @param {int} start
+ *   the possible start of leading comments or an if statement.
+ * @param {int} limit
+ *   the token after the current sibling scope.
+ * @returns {object|null}
+ *   the mergeable statement description, or null when it is not eligible.
+ */
+function readMergeableIf(tokens, start, limit) {
+  let ifStart = start;
+
+  while (ifStart < limit && isComment(tokens[ifStart]))
+    ifStart++;
+
+  if (tokens[ifStart]?.type !== "value"
+    || tokens[ifStart].value.toLowerCase() !== "if")
+    return null;
+
+  let openingBrace = ifStart + 1;
+
+  while (openingBrace < limit
+    && !(tokens[openingBrace].type === "symbol"
+      && tokens[openingBrace].value === "{"))
+    openingBrace++;
+
+  if (openingBrace === limit)
+    return null;
+
+  const closingBrace = findBlockEnd(tokens, openingBrace);
+
+  if (closingBrace === -1 || closingBrace >= limit)
+    return null;
+
+  let afterStatement = closingBrace + 1;
+
+  while (afterStatement < limit && isComment(tokens[afterStatement]))
+    afterStatement++;
+
+  const branch = tokens[afterStatement]?.type === "value"
+    ? tokens[afterStatement].value.toLowerCase()
+    : null;
+
+  if (branch === "elsif" || branch === "else")
+    return null;
+
+  const condition = tokens.slice(ifStart + 1, openingBrace);
+
+  if (!condition.some((token) => { return !isComment(token); }))
+    return null;
+
+  const body = readMergeableActionBody(tokens, openingBrace + 1, closingBrace);
+
+  if (body === null)
+    return null;
+
+  return {
+    start,
+    end: closingBrace,
+    ifToken: tokens[ifStart],
+    openingBraceToken: tokens[openingBrace],
+    closingBraceToken: tokens[closingBrace],
+    leadingComments: tokens.slice(start, ifStart),
+    condition,
+    body
+  };
+}
+
+/**
+ * Combines the comments and one structural copy of identical action bodies.
+ *
+ * @param {object[]} statements
+ *   the if statements being combined.
+ * @returns {Array<{ type: string, value: string }>}
+ *   one shared action body without comment loss.
+ */
+function combineActionBodies(statements) {
+  const combined = [];
+  const structural = statements[0].body.structural;
+
+  for (let index = 0; index <= structural.length; index++) {
+    statements.forEach((statement) => {
+      combined.push(...statement.body.comments[index]);
+    });
+
+    if (index < structural.length)
+      combined.push(structural[index]);
+  }
+
+  return combined;
+}
+
+/**
+ * Combines adjacent standalone sibling if statements with identical, terminal
+ * action bodies into one anyof statement. Every brace scope is processed
+ * independently, so executable statements and nesting boundaries are never
+ * crossed.
+ *
+ * @param {Array<{ type: string, value: string }>} tokens
+ *   the tokenized Sieve source.
+ * @returns {Array<{ type: string, value: string }>}
+ *   tokens with safe sibling runs combined.
+ */
+function combineIfBlocksWithAnyof(tokens) {
+  const createToken = (type, value) => {
+    return { type, value, lineBreakBefore: false };
+  };
+
+  const transformScope = (source, start, end) => {
+    const transformed = [];
+    let index = start;
+
+    while (index < end) {
+      const first = readMergeableIf(source, index, end);
+
+      if (first !== null) {
+        const statements = [first];
+        let cursor = first.end + 1;
+
+        while (cursor < end) {
+          const next = readMergeableIf(source, cursor, end);
+
+          if (next === null || next.body.signature !== first.body.signature)
+            break;
+
+          statements.push(next);
+          cursor = next.end + 1;
+        }
+
+        if (statements.length > 1) {
+          transformed.push(
+            first.ifToken,
+            createToken("value", "anyof"),
+            createToken("symbol", "(")
+          );
+
+          statements.forEach((statement, statementIndex) => {
+            transformed.push(...statement.leadingComments, ...statement.condition);
+
+            if (statementIndex + 1 < statements.length)
+              transformed.push(createToken("symbol", ","));
+          });
+
+          const body = combineActionBodies(statements);
+
+          transformed.push(
+            createToken("symbol", ")"),
+            first.openingBraceToken,
+            ...transformScope(body, 0, body.length),
+            first.closingBraceToken
+          );
+
+          index = cursor;
+          continue;
+        }
+      }
+
+      const token = source[index];
+
+      if (token.type === "symbol" && token.value === "{") {
+        const blockEnd = findBlockEnd(source, index);
+
+        if (blockEnd !== -1 && blockEnd < end) {
+          transformed.push(
+            token,
+            ...transformScope(source, index + 1, blockEnd),
+            source[blockEnd]
+          );
+          index = blockEnd + 1;
+          continue;
+        }
+      }
+
+      transformed.push(token);
+      index++;
+    }
+
+    return transformed;
+  };
+
+  return transformScope(tokens, 0, tokens.length);
+}
+
+/**
  * Formats Sieve source with configurable indentation and structural line breaks.
  *
  * Quoted strings, multiline strings and comments are treated as opaque so
@@ -550,6 +1075,10 @@ function sortIfChainsByFileinto(tokens) {
  *   add a blank line after complete if/elsif/else chains.
  * @param {boolean} [options.sortIfByFileinto=false]
  *   sort consecutive top-level if chains by their unambiguous fileinto target.
+ * @param {boolean} [options.combineIfWithAnyof=false]
+ *   combine safe sibling if statements with identical terminal action bodies.
+ * @param {boolean} [options.ensureFileintoCreate=false]
+ *   add :create to fileinto actions and require the mailbox capability.
  * @returns {string}
  *   the formatted source using LF line endings for CodeMirror.
  */
@@ -573,13 +1102,28 @@ function formatSieveScript(script, options = {}) {
   const blankLineAfterRequires = options.blankLineAfterRequires === true;
   const blankLineAfterIf = options.blankLineAfterIf === true;
   const sortIfByFileinto = options.sortIfByFileinto === true;
+  const combineIfWithAnyof = options.combineIfWithAnyof === true;
+  const ensureFileintoCreate = options.ensureFileintoCreate === true;
 
   let tokens = tokenize(script);
+
+  if (ensureFileintoCreate) {
+    const transformed = addCreateToFileintoCommands(tokens);
+
+    if (transformed.usesCreate) {
+      const withRequirement = ensureRequirement(transformed.tokens, "mailbox");
+
+      if (withRequirement !== null)
+        tokens = withRequirement;
+    }
+  }
 
   if (combineRequires)
     tokens = combineRequireCommands(tokens);
   if (sortIfByFileinto)
     tokens = sortIfChainsByFileinto(tokens);
+  if (combineIfWithAnyof)
+    tokens = combineIfBlocksWithAnyof(tokens);
   const lines = [];
   let current = "";
   let blockIndentation = 0;
@@ -777,4 +1321,4 @@ function formatSieveScript(script, options = {}) {
   return `${lines.join("\n")}\n`;
 }
 
-export { formatSieveScript };
+export { formatSieveScript, inspectFileintoActions };

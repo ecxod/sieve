@@ -12,6 +12,7 @@
 import { SieveAbstractAccountUI } from "./SieveAbstractAccountUI.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { SieveInboxUI } from "./SieveInboxUI.mjs";
 import { SieveSpamUI } from "./SieveSpamUI.mjs";
 
 import { SieveCredentialsSettingsUI } from "./../settings/ui/SieveCredentialSettingsUI.mjs";
@@ -54,6 +55,32 @@ class SieveNodeAccountUI extends SieveAbstractAccountUI{
 
     const spam = new SieveSpamUI(this, spamPane);
     tab.addEventListener("shown.bs.tab", () => { spam.render(); });
+
+    const inboxPane = await (new SieveTemplate()).load("./accounts/account.inbox.html");
+    const inboxPaneId = `sieve-inbox-content-${this.id}`;
+    inboxPane.id = inboxPaneId;
+    account.querySelector(".sieve-account-body").append(inboxPane);
+
+    const inboxItem = document.createElement("li");
+    inboxItem.className = "nav-item sieve-account-expanded";
+    inboxItem.classList.toggle("d-none", account.dataset.collapsed === "true");
+
+    const inboxTab = document.createElement("a");
+    inboxTab.className = "sieve-inbox-tab nav-link";
+    inboxTab.href = `#${inboxPaneId}`;
+    inboxTab.dataset.bsToggle = "tab";
+    inboxTab.setAttribute("role", "tab");
+    inboxTab.setAttribute("aria-controls", inboxPaneId);
+    try {
+      inboxTab.textContent = SieveI18n.getInstance().getString("account.inbox.tab");
+    } catch {
+      inboxTab.textContent = "Inbox";
+    }
+    inboxItem.append(inboxTab);
+    account.querySelector(".sieve-account-tabs").append(inboxItem);
+
+    const inbox = new SieveInboxUI(this, inboxPane);
+    inboxTab.addEventListener("shown.bs.tab", () => { inbox.render(); });
   }
 
   /**

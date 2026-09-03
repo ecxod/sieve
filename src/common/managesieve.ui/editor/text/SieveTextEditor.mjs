@@ -53,6 +53,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     this.formatBlankLineAfterRequires = false;
     this.formatBlankLineAfterIf = false;
     this.formatSortIfByFileinto = false;
+    this.formatCombineIfWithAnyof = false;
+    this.formatFileintoCreate = false;
 
     window.addEventListener("sieve-theme-changed", () => {
       if (this.cm)
@@ -202,6 +204,22 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       });
     document.querySelector("#editor-settings-format-sort-if-by-fileinto")
       .checked = this.getFormatSortIfByFileinto();
+
+    document
+      .querySelector("#editor-settings-format-combine-if-with-anyof")
+      .addEventListener("change", async (event) => {
+        await this.setFormatCombineIfWithAnyof(event.target.checked);
+      });
+    document.querySelector("#editor-settings-format-combine-if-with-anyof")
+      .checked = this.getFormatCombineIfWithAnyof();
+
+    document
+      .querySelector("#editor-settings-format-fileinto-create")
+      .addEventListener("change", async (event) => {
+        await this.setFormatFileintoCreate(event.target.checked);
+      });
+    document.querySelector("#editor-settings-format-fileinto-create")
+      .checked = this.getFormatFileintoCreate();
   }
 
   /**
@@ -419,7 +437,9 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       combineRequires: this.getFormatCombineRequires(),
       blankLineAfterRequires: this.getFormatBlankLineAfterRequires(),
       blankLineAfterIf: this.getFormatBlankLineAfterIf(),
-      sortIfByFileinto: this.getFormatSortIfByFileinto()
+      sortIfByFileinto: this.getFormatSortIfByFileinto(),
+      combineIfWithAnyof: this.getFormatCombineIfWithAnyof(),
+      ensureFileintoCreate: this.getFormatFileintoCreate()
     });
 
     if (formatted === script) {
@@ -971,6 +991,58 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
   }
 
   /**
+   * Sets whether safe sibling if statements are combined with anyof.
+   *
+   * @param {boolean} value
+   *   true to combine identical action bodies ending in stop.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatCombineIfWithAnyof(value) {
+    this.formatCombineIfWithAnyof = value === true;
+    await this.getController().setPreference(
+      "format-combine-if-with-anyof", this.formatCombineIfWithAnyof);
+
+    return this;
+  }
+
+  /**
+   * Gets the configured safe if-combining policy.
+   *
+   * @returns {boolean}
+   *   true when sibling if statements are combined with anyof.
+   */
+  getFormatCombineIfWithAnyof() {
+    return this.formatCombineIfWithAnyof;
+  }
+
+  /**
+   * Sets whether fileinto actions automatically create missing mailboxes.
+   *
+   * @param {boolean} value
+   *   true to add :create and require the mailbox capability.
+   * @returns {SieveEditorUI}
+   *   a self reference.
+   */
+  async setFormatFileintoCreate(value) {
+    this.formatFileintoCreate = value === true;
+    await this.getController().setPreference(
+      "format-fileinto-create", this.formatFileintoCreate);
+
+    return this;
+  }
+
+  /**
+   * Gets the automatic mailbox creation policy.
+   *
+   * @returns {boolean}
+   *   true when fileinto actions receive :create.
+   */
+  getFormatFileintoCreate() {
+    return this.formatFileintoCreate;
+  }
+
+  /**
    * @inheritdoc
    */
   async loadSettings() {
@@ -1010,6 +1082,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     const sortIfByFileinto = await this.getController()
       .getPreference("format-sort-if-by-fileinto");
     await this.setFormatSortIfByFileinto(sortIfByFileinto);
+
+    const combineIfWithAnyof = await this.getController()
+      .getPreference("format-combine-if-with-anyof");
+    await this.setFormatCombineIfWithAnyof(combineIfWithAnyof);
+
+    const fileintoCreate = await this.getController()
+      .getPreference("format-fileinto-create");
+    await this.setFormatFileintoCreate(fileintoCreate);
 
   }
 
@@ -1054,6 +1134,14 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       .getDefaultPreference("format-sort-if-by-fileinto");
     await this.setFormatSortIfByFileinto(sortIfByFileinto);
 
+    const combineIfWithAnyof = await this.getController()
+      .getDefaultPreference("format-combine-if-with-anyof");
+    await this.setFormatCombineIfWithAnyof(combineIfWithAnyof);
+
+    const fileintoCreate = await this.getController()
+      .getDefaultPreference("format-fileinto-create");
+    await this.setFormatFileintoCreate(fileintoCreate);
+
     await this.renderSettings();
   }
 
@@ -1082,6 +1170,10 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       "format-blank-line-after-if", this.getFormatBlankLineAfterIf());
     await this.getController().setDefaultPreference(
       "format-sort-if-by-fileinto", this.getFormatSortIfByFileinto());
+    await this.getController().setDefaultPreference(
+      "format-combine-if-with-anyof", this.getFormatCombineIfWithAnyof());
+    await this.getController().setDefaultPreference(
+      "format-fileinto-create", this.getFormatFileintoCreate());
 
   }
 

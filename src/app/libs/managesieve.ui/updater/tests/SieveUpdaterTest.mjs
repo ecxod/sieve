@@ -17,6 +17,11 @@ if (!suite)
   throw new Error("Could not initialize test suite");
 
 import { SieveUpdater } from "./../SieveUpdater.mjs";
+import {
+  normalizeUpdateProgress,
+  SieveUpdateProgress
+} from "./../SieveUpdateProgress.mjs";
+import { SieveUpdateProgressUI } from "./../SieveUpdateProgressUI.mjs";
 
 const NUMBER_SIX = 6;
 const TEST_DIGEST = `sha256:${"a".repeat(64)}`;
@@ -42,6 +47,36 @@ function createRelease(version) {
       size: 123456,
       digest: TEST_DIGEST
     }]
+  };
+}
+
+/**
+ * Creates a minimal element used to verify progress UI state changes.
+ *
+ * @returns {object}
+ *   element stub.
+ */
+function createProgressElement() {
+  const classes = new Set(["d-none", "progress-bar-animated"]);
+  const attributes = new Map();
+
+  return {
+    textContent: "",
+    style: {},
+    classList: {
+      add(name) { classes.add(name); },
+      remove(name) { classes.delete(name); },
+      toggle(name, force) {
+        if (force)
+          classes.add(name);
+        else
+          classes.delete(name);
+      },
+      contains(name) { return classes.has(name); }
+    },
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
+    getAttribute(name) { return attributes.get(name); }
   };
 }
 
@@ -203,6 +238,105 @@ suite.add("GitHub release requires trusted installer metadata", function () {
       digest: TEST_DIGEST
     });
   }, "Unexpected update installer URL");
+});
+
+suite.add("Update progress reports real bytes once per percentage", function () {
+  const events = [];
+  const progress = new SieveUpdateProgress(200, (event) => {
+    events.push(event);
+  });
+
+  progress.setPhase("downloading");
+  progress.addChunk(1);
+  progress.addChunk(1);
+  progress.addChunk(98);
+  progress.addChunk(100);
+  progress.beginVerification();
+  progress.setPhase("starting");
+  progress.setPhase("started");
+
+  suite.assertEquals(events.length, 7);
+  suite.assertEquals(events[0].percent, 0);
+  suite.assertEquals(events[1].received, 2);
+  suite.assertEquals(events[1].percent, 1);
+  suite.assertEquals(events[2].percent, 50);
+  suite.assertEquals(events[3].percent, 100);
+  suite.assertEquals(events[4].phase, "verifying");
+  suite.assertEquals(events[5].phase, "starting");
+  suite.assertEquals(events[6].phase, "started");
+});
+
+suite.add("Update progress rejects incomplete and oversized downloads", function () {
+  const events = [];
+  const incomplete = new SieveUpdateProgress(10, (event) => {
+    events.push(event);
+  });
+
+  incomplete.addChunk(9);
+  suite.assertThrows(() => {
+    incomplete.beginVerification();
+  }, "The update download is incomplete");
+
+  suite.assertThrows(() => {
+    incomplete.addChunk(2);
+  }, "The update download is larger than expected");
+
+  incomplete.setPhase("failed");
+  suite.assertEquals(events[1].phase, "failed");
+  suite.assertEquals(events[1].received, 9);
+});
+
+suite.add("Update progress messages are normalized at the UI boundary", function () {
+  const progress = normalizeUpdateProgress({
+    phase: "downloading",
+    received: 49,
+    total: 100
+  });
+
+  suite.assertEquals(progress.percent, 49);
+  suite.assertEquals(normalizeUpdateProgress({ phase: "unknown" }), null);
+  suite.assertEquals(normalizeUpdateProgress({
+    phase: "downloading",
+    received: 101,
+    total: 100
+  }), null);
+});
+
+suite.add("Update progress UI follows download, success and failure states", function () {
+  const elements = {
+    container: createProgressElement(),
+    label: createProgressElement(),
+    size: createProgressElement(),
+    bar: createProgressElement()
+  };
+  const ui = new SieveUpdateProgressUI({
+    getString(key) { return key; }
+  }, elements);
+
+  ui.show({
+    phase: "downloading",
+    received: 49,
+    total: 100,
+    percent: 49
+  });
+  suite.assertFalse(elements.container.classList.contains("d-none"));
+  suite.assertEquals(
+    elements.label.textContent, "settings.update.progress.downloading");
+  suite.assertEquals(elements.bar.style.width, "49%");
+  suite.assertEquals(elements.bar.getAttribute("aria-valuenow"), "49");
+  suite.assertTrue(elements.bar.classList.contains("progress-bar-animated"));
+
+  ui.show({ phase: "started" });
+  suite.assertTrue(elements.bar.classList.contains("bg-success"));
+  suite.assertFalse(elements.bar.classList.contains("progress-bar-animated"));
+
+  ui.show({ phase: "failed" });
+  suite.assertTrue(elements.bar.classList.contains("bg-danger"));
+  suite.assertFalse(elements.bar.classList.contains("bg-success"));
+
+  ui.hide();
+  suite.assertTrue(elements.container.classList.contains("d-none"));
+  suite.assertEquals(elements.bar.style.width, "0%");
 });
 
 suite.add("Comparator - greater than", function () {

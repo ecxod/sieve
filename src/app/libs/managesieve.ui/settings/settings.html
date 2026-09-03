@@ -24,6 +24,18 @@
         <dd id="sieve-update-latest-version" class="col-sm-8 mb-1">–</dd>
       </dl>
       <p id="sieve-update-status" class="small" role="status"></p>
+      <div id="sieve-update-progress-container" class="d-none mb-3" aria-live="polite">
+        <div class="d-flex justify-content-between gap-3 small mb-1">
+          <span id="sieve-update-progress-label"></span>
+          <span id="sieve-update-progress-size" class="text-nowrap"></span>
+        </div>
+        <div class="progress" style="height: .75rem;">
+          <div id="sieve-update-progress" role="progressbar"
+            class="progress-bar progress-bar-striped progress-bar-animated"
+            aria-labelledby="sieve-update-progress-label" aria-valuemin="0"
+            aria-valuemax="100"></div>
+        </div>
+      </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <button data-i18n="settings.update.check" id="sieve-update-check"
           type="button" class="btn btn-sm btn-outline-primary"></button>

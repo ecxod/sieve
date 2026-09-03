@@ -9,11 +9,15 @@
 /* global bootstrap */
 
 const SETTINGS_RELOAD_DELAY_MS = 750;
+const UPDATE_PROGRESS_POLL_DELAY_MS = 125;
 
 import { SieveI18n } from "./libs/managesieve.ui/utils/SieveI18n.mjs";
 import { SieveIpcClient } from "./libs/managesieve.ui/utils/SieveIpcClient.mjs";
 import { SieveTemplate } from "./libs/managesieve.ui/utils/SieveTemplate.mjs";
 import { SieveTheme } from "./libs/managesieve.ui/utils/SieveTheme.mjs";
+import {
+  SieveUpdateProgressUI
+} from "./libs/managesieve.ui/updater/SieveUpdateProgressUI.mjs";
 
 /**
  * Initializes the global application settings page.
@@ -45,7 +49,65 @@ async function main() {
   const updateCheck = document.querySelector("#sieve-update-check");
   const updateInstall = document.querySelector("#sieve-update-install");
   const updateRelease = document.querySelector("#sieve-update-release");
+  const updateProgressContainer = document.querySelector(
+    "#sieve-update-progress-container");
+  const updateProgressLabel = document.querySelector(
+    "#sieve-update-progress-label");
+  const updateProgressSize = document.querySelector(
+    "#sieve-update-progress-size");
+  const updateProgressBar = document.querySelector("#sieve-update-progress");
+  const updateProgress = new SieveUpdateProgressUI(i18n, {
+    container: updateProgressContainer,
+    label: updateProgressLabel,
+    size: updateProgressSize,
+    bar: updateProgressBar
+  });
   let updateStatus = null;
+  let updateProgressGeneration = 0;
+
+  /**
+   * Polls progress while the parent frame owns the pending installer request.
+   *
+   * @param {number} generation
+   *   active polling generation.
+   */
+  async function pollUpdateProgress(generation) {
+    try {
+      const progress = await SieveIpcClient.sendMessage(
+        "core", "update-install-progress");
+
+      if (generation !== updateProgressGeneration)
+        return;
+
+      updateProgress.show(progress);
+    } catch {
+      // The pending install request reports the actionable error itself.
+    }
+
+    if (generation !== updateProgressGeneration)
+      return;
+
+    window.setTimeout(() => {
+      pollUpdateProgress(generation);
+    }, UPDATE_PROGRESS_POLL_DELAY_MS);
+  }
+
+  /**
+   * Starts a new progress polling generation.
+   */
+  function startUpdateProgressPolling() {
+    const generation = ++updateProgressGeneration;
+
+    updateProgress.show({ phase: "checking" });
+    pollUpdateProgress(generation);
+  }
+
+  /**
+   * Stops the current progress polling generation.
+   */
+  function stopUpdateProgressPolling() {
+    updateProgressGeneration++;
+  }
 
   /**
    * Shows a localized update status.
@@ -66,6 +128,8 @@ async function main() {
    * Refreshes installed and published release information.
    */
   async function refreshUpdateStatus(force = false) {
+    stopUpdateProgressPolling();
+    updateProgress.hide();
     updateCheck.disabled = true;
     updateInstall.disabled = true;
     updateInstall.classList.add("d-none");
@@ -117,23 +181,28 @@ async function main() {
     updateCheck.disabled = true;
     updateInstall.disabled = true;
     showUpdateMessage(i18n.getString("settings.update.installing"), "warning");
+    startUpdateProgressPolling();
 
     try {
       const result = await SieveIpcClient.sendMessage("core", "update-install");
 
       if (result.canceled) {
+        updateProgress.hide();
         showUpdateMessage(i18n.getString("settings.update.canceled"), "warning");
         updateInstall.disabled = false;
         return;
       }
 
+      updateProgress.show({ phase: "started" });
       showUpdateMessage(i18n.getString("settings.update.started"), "success");
     } catch (error) {
+      updateProgress.show({ phase: "failed" });
       showUpdateMessage(
         `${i18n.getString("settings.update.failed")} ${error?.message || error}`,
         "danger");
       updateInstall.disabled = false;
     } finally {
+      stopUpdateProgressPolling();
       updateCheck.disabled = false;
     }
   });

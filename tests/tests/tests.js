@@ -338,10 +338,16 @@
 
   tests.set("thunderbird-spam-message", {
     script: "${workspace}/managesieve.ui/spam/tests/SieveSpamMessageTest.mjs",
+    extend: "rfc5228",
     require: [
+      "${workspace}/libSieve/extensions/copy/logic/SieveCopy.mjs",
+      "${workspace}/libSieve/extensions/mailbox/logic/SieveMailbox.mjs",
       "${workspace}/managesieve.ui/spam/SieveSpamMessage.mjs",
       "${workspace}/managesieve.ui/spam/SieveImapSpamClient.mjs",
-      "${workspace}/managesieve.ui/spam/SieveSpamRule.mjs"
+      "${workspace}/managesieve.ui/spam/SieveSpamRule.mjs",
+      "${workspace}/managesieve.ui/editor/text/SieveFormatter.mjs",
+      "${workspace}/managesieve.ui/inbox/SieveInboxRule.mjs",
+      "${workspace}/managesieve.ui/accounts/SieveInboxUI.mjs"
     ]
   });
 
@@ -358,6 +364,8 @@
     extend: "rfc5228",
     require: [
       "${workspace}/libSieve/extensions/vacation/logic/SieveVacation.mjs",
+      "${workspace}/libSieve/extensions/copy/logic/SieveCopy.mjs",
+      "${workspace}/libSieve/extensions/mailbox/logic/SieveMailbox.mjs",
       "${workspace}/managesieve.ui/editor/text/SieveFormatter.mjs",
       "${workspace}/managesieve.ui/editor/text/SieveTextEditor.mjs"
     ]

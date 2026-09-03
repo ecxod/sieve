@@ -20,9 +20,14 @@ import { captureException, initSentry } from "./libs/managesieve.ui/utils/SieveS
 import {
   binaryStringToBytes,
   cleanSpamMessage,
+  extractEmailAddress,
+  extractRawMessageHeaders,
   findSpecialFolder,
   replaceDuplicateMessages
 } from "./libs/managesieve.ui/spam/SieveSpamMessage.mjs";
+import {
+  appendInboxRuleToScript
+} from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 import {
   SieveMozImapFilterClient
 } from "./libs/managesieve.ui/imap/SieveMozImapFilterClient.mjs";
@@ -102,6 +107,47 @@ initSentry("background");
     }
 
     return messages;
+  }
+
+  /**
+   * Collects selectable IMAP paths from Thunderbird's account folder tree.
+   *
+   * @param {object} account
+   *   Thunderbird mail account.
+   * @returns {string[]}
+   *   server mailbox paths.
+   */
+  function listAccountMailboxPaths(account) {
+    const pending = [];
+    const result = [];
+    const visited = new Set();
+
+    if (account.rootFolder)
+      pending.push(account.rootFolder);
+    if (Array.isArray(account.folders))
+      pending.push(...account.folders);
+
+    while (pending.length) {
+      const folder = pending.shift();
+      if (!folder || visited.has(folder))
+        continue;
+      visited.add(folder);
+
+      if (folder.path) {
+        let path = `${folder.path}`.replace(/^\/+/, "");
+        try {
+          path = decodeURIComponent(path);
+        } catch {
+          // Keep Thunderbird's original path when it is not URI encoded.
+        }
+        if (path)
+          result.push(path);
+      }
+      if (Array.isArray(folder.subFolders))
+        pending.push(...folder.subFolders);
+    }
+
+    return [...new Set(result)];
   }
 
   /**
@@ -574,6 +620,112 @@ initSentry("background");
         subjectPrefixesRemoved: results.filter((item) => {return item.subjectChanged;}).length,
         headersRemoved: results.reduce((total, item) => {return total + item.headersRemoved;}, 0)
       };
+    },
+
+    "account-inbox-list": async function (msg) {
+      const account = await getMailAccount(msg.payload.account);
+      const inbox = findSpecialFolder(account, "inbox");
+      if (!inbox)
+        throw new Error("Thunderbird has no inbox for this account");
+
+      const messages = await listFolderMessages(inbox);
+      messages.sort((left, right) => {return new Date(right.date) - new Date(left.date);});
+
+      return {
+        configured: true,
+        folderName: inbox.name || "Inbox",
+        mailboxes: listAccountMailboxPaths(account),
+        messages: messages.map((message) => {
+          return {
+            id: `${message.id}`,
+            author: message.author || "",
+            date: message.date ? new Date(message.date).toISOString() : "",
+            recipients: message.recipients || [],
+            subject: message.subject || ""
+          };
+        })
+      };
+    },
+
+    "account-inbox-details": async function (msg) {
+      const account = await getMailAccount(msg.payload.account);
+      const inbox = findSpecialFolder(account, "inbox");
+      const message = await browser.messages.get(Number(msg.payload.messageId));
+      if (!inbox || !message.folder || !isSameFolder(message.folder, inbox))
+        throw new Error("The selected message is no longer in this account's Inbox");
+
+      const senderAddress = extractEmailAddress(message.author);
+      const recipientValues = [
+        ...(message.recipients || []),
+        ...(message.ccList || [])
+      ];
+      return {
+        id: `${message.id}`,
+        headers: extractRawMessageHeaders(await getRawMessageBytes(message.id)),
+        sender: message.author || "",
+        senderAddress,
+        senderDomain: senderAddress.includes("@")
+          ? senderAddress.slice(senderAddress.lastIndexOf("@") + 1) : "",
+        recipients: recipientValues,
+        recipientAddresses: [...new Set(recipientValues
+          .map(extractEmailAddress).filter(Boolean))],
+        subject: message.subject || "",
+        messageId: message.headerMessageId || ""
+      };
+    },
+
+    "account-inbox-rule-scripts": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Load scripts for Inbox rule editor on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        return { connected: false, scripts: [] };
+
+      const session = sessions.get(id);
+      const scripts = [];
+      for (const item of await session.listScripts()) {
+        scripts.push({
+          name: item.script,
+          active: !!item.active,
+          content: await session.getScript(item.script)
+        });
+      }
+      return { connected: true, scripts };
+    },
+
+    "account-inbox-rule-check": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== msg.payload.expected)
+        throw new Error("The server script changed; reopen the Inbox rule editor");
+
+      await session.checkScript(
+        appendInboxRuleToScript(current, msg.payload.snippet));
+      return { valid: true };
+    },
+
+    "account-inbox-rule-save": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+      if ((await getTabs(id, name)).length)
+        throw new Error("Close the open editor for this script before changing it");
+
+      const session = sessions.get(id);
+      const current = await session.getScript(name);
+      if (current !== msg.payload.expected)
+        throw new Error("The server script changed; reopen the Inbox rule editor");
+
+      const updated = appendInboxRuleToScript(current, msg.payload.snippet);
+      await session.checkScript(updated);
+      await session.putScript(name, updated);
+      return { name };
     },
 
     "account-filters-list": async function (msg) {

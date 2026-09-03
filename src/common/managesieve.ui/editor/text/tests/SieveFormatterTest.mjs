@@ -344,6 +344,241 @@ suite.add("Sieve formatter keeps if-chain order by default", function () {
     < formatted.indexOf('fileinto "Archive";'));
 });
 
+suite.add("Sieve formatter combines safe sibling if blocks with anyof", function () {
+  const script = [
+    '# Sender rule',
+    'if address :is "from" "a@example.org" { fileinto "Customers"; stop; }',
+    '# Subject rule',
+    'if header :contains "subject" "Order" { fileinto "Customers"; stop; }'
+  ].join("\n");
+  const expected = [
+    'if anyof (',
+    '\t# Sender rule',
+    '\taddress :is "from" "a@example.org",',
+    '\t# Subject rule',
+    '\theader :contains "subject" "Order"',
+    ') {',
+    '\tfileinto "Customers";',
+    '\tstop;',
+    '}',
+    ''
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    combineIfWithAnyof: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter combines sibling if blocks at nested levels", function () {
+  const script = [
+    'if envelope :domain "to" "example.org" {',
+    'if header :is "subject" "Invoice" { fileinto "Accounting"; stop; }',
+    'if header :is "subject" "Reminder" { fileinto "Accounting"; stop; }',
+    '}'
+  ].join("\n");
+  const expected = [
+    'if envelope :domain "to" "example.org" {',
+    '\tif anyof (',
+    '\t\theader :is "subject" "Invoice",',
+    '\t\theader :is "subject" "Reminder"',
+    '\t) {',
+    '\t\tfileinto "Accounting";',
+    '\t\tstop;',
+    '\t}',
+    '}',
+    ''
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    combineIfWithAnyof: true
+  });
+
+  suite.assertEquals(formatted, expected);
+  suite.parseScript(formatted, ["fileinto", "envelope"]);
+});
+
+suite.add("Sieve formatter keeps unsafe or separated if blocks independent", function () {
+  const script = [
+    'if true { fileinto "First"; stop; }',
+    'keep;',
+    'if false { fileinto "First"; stop; }',
+    'if true { fileinto "Second"; }',
+    'if false { fileinto "Second"; }',
+    'if true { fileinto "Third"; stop; }',
+    'elsif false { fileinto "Third"; stop; }',
+    'if false { fileinto "Third"; stop; }'
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    combineIfWithAnyof: true
+  });
+
+  suite.assertFalse(formatted.includes("anyof"));
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter preserves comments from combined action bodies", function () {
+  const script = [
+    'if true { # First action comment',
+    'FILEINTO "Archive"; stop; }',
+    'if false { /* Second action comment */',
+    'fileinto "Archive"; STOP; }'
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    combineIfWithAnyof: true
+  });
+
+  suite.assertTrue(formatted.includes("if anyof ("));
+  suite.assertTrue(formatted.includes("# First action comment"));
+  suite.assertTrue(formatted.includes("/* Second action comment */"));
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter combines commented conditions in compact mode", function () {
+  const formatted = formatSieveScript([
+    '# First condition',
+    'if true { fileinto "Archive"; stop; }',
+    '# Second condition',
+    'if false { fileinto "Archive"; stop; }'
+  ].join("\n"), {
+    combineIfWithAnyof: true,
+    multilineTests: false
+  });
+
+  suite.assertTrue(formatted.includes("# First condition"));
+  suite.assertTrue(formatted.includes("# Second condition"));
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter combines after fileinto sorting", function () {
+  const script = [
+    'if header :is "subject" "z1" { fileinto "Zulu"; stop; }',
+    'if header :is "subject" "a" { fileinto "Archive"; stop; }',
+    'if header :is "subject" "z2" { fileinto "Zulu"; stop; }'
+  ].join("\n");
+  const formatted = formatSieveScript(script, {
+    sortIfByFileinto: true,
+    combineIfWithAnyof: true
+  });
+
+  suite.assertTrue(formatted.indexOf('fileinto "Archive";')
+    < formatted.indexOf("if anyof ("));
+  suite.assertEquals(formatted.match(/fileinto "Zulu";/gu)?.length, 1);
+  suite.parseScript(formatted, ["fileinto"]);
+});
+
+suite.add("Sieve formatter keeps safe if blocks independent by default", function () {
+  const formatted = formatSieveScript([
+    'if true { fileinto "Archive"; stop; }',
+    'if false { fileinto "Archive"; stop; }'
+  ].join("\n"));
+
+  suite.assertFalse(formatted.includes("anyof"));
+  suite.assertEquals(formatted.match(/fileinto "Archive";/gu)?.length, 2);
+});
+
+suite.add("Sieve formatter anyof combining is idempotent", function () {
+  const options = { combineIfWithAnyof: true };
+  const once = formatSieveScript([
+    'if true { fileinto "Archive"; stop; }',
+    'if false { fileinto "Archive"; stop; }'
+  ].join("\n"), options);
+
+  suite.assertEquals(formatSieveScript(once, options), once);
+});
+
+suite.add("Sieve formatter adds :create and the mailbox requirement", function () {
+  const formatted = formatSieveScript([
+    '# capabilities',
+    'require ["fileinto", "copy"];',
+    '# rules',
+    'if true {',
+    'fileinto :copy "Archive";',
+    'fileinto :CREATE "Existing";',
+    '}'
+  ].join("\n"), {
+    ensureFileintoCreate: true,
+    combineRequires: true
+  });
+
+  suite.assertEquals(formatted, [
+    '# capabilities',
+    'require [',
+    '\t"fileinto",',
+    '\t"copy",',
+    '\t"mailbox"',
+    '];',
+    '# rules',
+    'if true {',
+    '\tfileinto :copy :create "Archive";',
+    '\tfileinto :CREATE "Existing";',
+    '}',
+    ''
+  ].join("\n"));
+  suite.parseScript(formatted, ["fileinto", "copy", "mailbox"]);
+});
+
+suite.add("Sieve formatter fileinto creation preserves opaque content", function () {
+  const formatted = formatSieveScript([
+    'require ["fileinto", "mailbox"];',
+    '# fileinto "Comment";',
+    'if header :contains "subject" "fileinto in a string" {',
+    'fileinto # destination',
+    '"Archive";',
+    'fileinto text:',
+    'fileinto "Multiline content";',
+    '.',
+    ';',
+    '}'
+  ].join("\n"), { ensureFileintoCreate: true });
+
+  suite.assertTrue(formatted.includes('# fileinto "Comment";'));
+  suite.assertTrue(formatted.includes('"fileinto in a string"'));
+  suite.assertTrue(formatted.includes([
+    '\tfileinto # destination',
+    '\t:create "Archive";'
+  ].join("\n")));
+  suite.assertTrue(formatted.includes([
+    '\tfileinto :create text:',
+    'fileinto "Multiline content";',
+    '.',
+    '\t;'
+  ].join("\n")));
+  suite.assertEquals(formatted.match(/"mailbox"/gu)?.length, 1);
+  suite.parseScript(formatted, ["fileinto", "mailbox"]);
+});
+
+suite.add("Sieve formatter fileinto creation is conservative and optional", function () {
+  const source = 'require "fileinto"; fileinto "Archive";';
+  const withoutOption = formatSieveScript(source);
+  const malformedRequire = formatSieveScript(
+    'require ["fileinto",]; fileinto "Archive";',
+    { ensureFileintoCreate: true });
+  const withoutAction = formatSieveScript(
+    'if header :contains "subject" "fileinto" { keep; }',
+    { ensureFileintoCreate: true });
+
+  suite.assertFalse(withoutOption.includes(":create"));
+  suite.assertFalse(malformedRequire.includes(":create"));
+  suite.assertFalse(malformedRequire.includes('"mailbox"'));
+  suite.assertFalse(withoutAction.includes('require "mailbox"'));
+});
+
+suite.add("Sieve formatter fileinto creation is idempotent", function () {
+  const options = {
+    ensureFileintoCreate: true,
+    combineRequires: true,
+    blankLineAfterRequires: true
+  };
+  const once = formatSieveScript([
+    'require "fileinto";',
+    '# rule',
+    'fileinto "Archive";'
+  ].join("\n"), options);
+
+  suite.assertEquals(formatSieveScript(once, options), once);
+});
+
 suite.add("Sieve formatter preserves opaque source contents", function () {
   const script = [
     '# leading { comment; }',
@@ -421,7 +656,9 @@ suite.add("Text editor applies formatting as an undoable edit", function () {
     getFormatBlankLineAfterIf() { return false; },
     getFormatBlankLineAfterRequires() { return false; },
     getFormatBraceOnNewLine() { return false; },
+    getFormatCombineIfWithAnyof() { return false; },
     getFormatCombineRequires() { return false; },
+    getFormatFileintoCreate() { return false; },
     getFormatIgnoreCompactLineBreaks() { return false; },
     getFormatMultilineLists() { return true; },
     getFormatMultilineTests() { return true; },
@@ -447,7 +684,9 @@ suite.add("Text editor loads formatter preferences", async function () {
     "format-requires-combined": true,
     "format-blank-line-after-requires": true,
     "format-blank-line-after-if": false,
-    "format-sort-if-by-fileinto": true
+    "format-sort-if-by-fileinto": true,
+    "format-combine-if-with-anyof": true,
+    "format-fileinto-create": true
   };
   const loaded = {};
   const editor = {
@@ -459,7 +698,9 @@ suite.add("Text editor loads formatter preferences", async function () {
     async setFormatBlankLineAfterIf(value) { loaded.blankLineAfterIf = value; },
     async setFormatBlankLineAfterRequires(value) { loaded.blankLineAfterRequires = value; },
     async setFormatBraceOnNewLine(value) { loaded.braces = value; },
+    async setFormatCombineIfWithAnyof(value) { loaded.combineIfWithAnyof = value; },
     async setFormatCombineRequires(value) { loaded.requires = value; },
+    async setFormatFileintoCreate(value) { loaded.fileintoCreate = value; },
     async setFormatIgnoreCompactLineBreaks(value) { loaded.ignoreCompactLineBreaks = value; },
     async setFormatMultilineLists(value) { loaded.lists = value; },
     async setFormatMultilineTests(value) { loaded.tests = value; },
@@ -482,7 +723,9 @@ suite.add("Text editor loads formatter preferences", async function () {
     requires: true,
     blankLineAfterRequires: true,
     blankLineAfterIf: false,
-    sortIfByFileinto: true
+    sortIfByFileinto: true,
+    combineIfWithAnyof: true,
+    fileintoCreate: true
   }));
 });
 
@@ -498,15 +741,21 @@ suite.add("Text editor persists formatter preferences", async function () {
 
   await SieveTextEditorUI.prototype.setFormatBlankLineAfterRequires.call(editor, true);
   await SieveTextEditorUI.prototype.setFormatBlankLineAfterIf.call(editor, true);
+  await SieveTextEditorUI.prototype.setFormatCombineIfWithAnyof.call(editor, true);
+  await SieveTextEditorUI.prototype.setFormatFileintoCreate.call(editor, true);
   await SieveTextEditorUI.prototype.setFormatIgnoreCompactLineBreaks.call(editor, true);
   await SieveTextEditorUI.prototype.setFormatSortIfByFileinto.call(editor, true);
 
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterRequires.call(editor));
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatBlankLineAfterIf.call(editor));
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatCombineIfWithAnyof.call(editor));
+  suite.assertTrue(SieveTextEditorUI.prototype.getFormatFileintoCreate.call(editor));
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatIgnoreCompactLineBreaks.call(editor));
   suite.assertTrue(SieveTextEditorUI.prototype.getFormatSortIfByFileinto.call(editor));
   suite.assertTrue(saved["format-blank-line-after-requires"]);
   suite.assertTrue(saved["format-blank-line-after-if"]);
+  suite.assertTrue(saved["format-combine-if-with-anyof"]);
+  suite.assertTrue(saved["format-fileinto-create"]);
   suite.assertTrue(saved["format-compact-ignore-line-breaks"]);
   suite.assertTrue(saved["format-sort-if-by-fileinto"]);
 });
@@ -524,4 +773,6 @@ suite.add("Formatter preferences have stable defaults", async function () {
   suite.assertFalse(await settings.getValue("format-blank-line-after-requires"));
   suite.assertFalse(await settings.getValue("format-blank-line-after-if"));
   suite.assertFalse(await settings.getValue("format-sort-if-by-fileinto"));
+  suite.assertFalse(await settings.getValue("format-combine-if-with-anyof"));
+  suite.assertFalse(await settings.getValue("format-fileinto-create"));
 });

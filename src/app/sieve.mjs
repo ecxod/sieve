@@ -18,6 +18,9 @@ import { mkdtemp, rename, rm } from 'fs/promises';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { SieveUpdater } from './libs/managesieve.ui/updater/SieveUpdater.mjs';
+import {
+  SieveUpdateProgress
+} from './libs/managesieve.ui/updater/SieveUpdateProgress.mjs';
 
 import {
   app,
@@ -42,10 +45,12 @@ const UPDATE_QUIT_DELAY_MS = 750;
  *
  * @param {object} data
  *   installer metadata returned by the update checker.
+ * @param {Function} onProgress
+ *   receiver for download and installer progress.
  * @returns {object}
  *   launch result.
  */
-async function downloadAndStartUpdate(data) {
+async function downloadAndStartUpdate(data, onProgress) {
   if (process.platform !== "win32")
     throw new Error("Automatic update installation is available only on Windows");
 
@@ -54,9 +59,12 @@ async function downloadAndStartUpdate(data) {
     path.join(app.getPath("temp"), "sieve-update-"));
   const partialPath = path.join(downloadDirectory, `${installer.name}.download`);
   const installerPath = path.join(downloadDirectory, installer.name);
+  const progress = new SieveUpdateProgress(installer.size, onProgress);
   let keepDownload = false;
 
   try {
+    progress.setPhase("downloading");
+
     const response = await net.fetch(installer.url, {
       redirect: "follow",
       headers: {
@@ -73,13 +81,12 @@ async function downloadAndStartUpdate(data) {
       throw new Error("The update download size does not match the GitHub release");
 
     const hash = createHash("sha256");
-    let received = 0;
     const verifier = new Transform({
       transform(chunk, encoding, callback) {
-        received += chunk.length;
-
-        if (received > installer.size) {
-          callback(new Error("The update download is larger than expected"));
+        try {
+          progress.addChunk(chunk.length);
+        } catch (error) {
+          callback(error);
           return;
         }
 
@@ -93,8 +100,7 @@ async function downloadAndStartUpdate(data) {
       verifier,
       createWriteStream(partialPath, { flags: "wx", mode: 0o600 }));
 
-    if (received !== installer.size)
-      throw new Error("The update download is incomplete");
+    progress.beginVerification();
 
     const actualDigest = `sha256:${hash.digest("hex")}`;
     if (actualDigest !== installer.digest)
@@ -102,14 +108,19 @@ async function downloadAndStartUpdate(data) {
 
     await rename(partialPath, installerPath);
 
+    progress.setPhase("starting");
     const error = await shell.openPath(installerPath);
     if (error)
       throw new Error(`Could not start the update installer: ${error}`);
 
+    progress.setPhase("started");
     keepDownload = true;
     setTimeout(() => { app.quit(); }, UPDATE_QUIT_DELAY_MS);
 
     return { started: true, version: installer.version };
+  } catch (error) {
+    progress.setPhase("failed");
+    throw error;
   } finally {
     if (!keepDownload)
       await rm(downloadDirectory, { recursive: true, force: true });
@@ -224,7 +235,16 @@ async function main() {
   });
 
   ipcMain.handle("install-update", async(event, installer) => {
-    return await downloadAndStartUpdate(installer);
+    const onProgress = (progress) => {
+      try {
+        if (!event.sender.isDestroyed())
+          event.sender.send("update-install-progress", progress);
+      } catch {
+        // A closing renderer must not invalidate a verified update download.
+      }
+    };
+
+    return await downloadAndStartUpdate(installer, onProgress);
   });
 
   ipcMain.handle("sentry-get-dsn", () => {

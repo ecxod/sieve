@@ -21,6 +21,8 @@ const DEFAULT_FORMAT_REQUIRES_COMBINED = false;
 const DEFAULT_FORMAT_BLANK_LINE_AFTER_REQUIRES = false;
 const DEFAULT_FORMAT_BLANK_LINE_AFTER_IF = false;
 const DEFAULT_FORMAT_SORT_IF_BY_FILEINTO = false;
+const DEFAULT_FORMAT_COMBINE_IF_WITH_ANYOF = false;
+const DEFAULT_FORMAT_FILEINTO_CREATE = false;
 
 /**
  * Manages the sieve editor settings.
@@ -103,6 +105,14 @@ class SieveEditorSettings {
     if (name === "format-sort-if-by-fileinto")
       return await this.pref.getBoolean(
         "editor.format-sort-if-by-fileinto", DEFAULT_FORMAT_SORT_IF_BY_FILEINTO);
+
+    if (name === "format-combine-if-with-anyof")
+      return await this.pref.getBoolean(
+        "editor.format-combine-if-with-anyof", DEFAULT_FORMAT_COMBINE_IF_WITH_ANYOF);
+
+    if (name === "format-fileinto-create")
+      return await this.pref.getBoolean(
+        "editor.format-fileinto-create", DEFAULT_FORMAT_FILEINTO_CREATE);
 
     throw new Error(`Unknown settings ${name}`);
   }

@@ -69,6 +69,47 @@ function resolveSpamFolders(mailboxes) {
 }
 
 /**
+ * Resolves the account Inbox without requiring a Junk mailbox to exist.
+ *
+ * @param {object[]} mailboxes
+ *   ImapFlow LIST response.
+ * @returns {string}
+ *   Inbox path.
+ */
+function resolveInboxFolder(mailboxes) {
+  const inbox = mailboxes.find((mailbox) => {
+    return `${mailbox.specialUse || ""}`.toLocaleLowerCase() === "\\inbox";
+  }) || mailboxes.find((mailbox) => {
+    return `${mailbox.path || mailbox.name || ""}`.toLocaleLowerCase() === "inbox";
+  });
+
+  if (!inbox)
+    throw new Error("The IMAP server did not report an Inbox folder");
+
+  return inbox.path;
+}
+
+/**
+ * Returns selectable server mailbox paths from an IMAP LIST response.
+ *
+ * @param {object[]} mailboxes
+ *   ImapFlow LIST response.
+ * @returns {string[]}
+ *   mailbox paths in server order.
+ */
+function getSelectableMailboxPaths(mailboxes) {
+  return mailboxes.filter((mailbox) => {
+    const flags = mailbox.flags instanceof Set
+      ? [...mailbox.flags] : (mailbox.flags || []);
+    return !flags.some((flag) => {
+      return `${flag}`.toLocaleLowerCase() === "\\noselect";
+    });
+  }).map((mailbox) => {
+    return `${mailbox.path || mailbox.name || ""}`;
+  }).filter(Boolean);
+}
+
+/**
  * Creates a selection identifier that becomes invalid if the mailbox is
  * recreated and receives a new UIDVALIDITY value.
  *
@@ -208,6 +249,46 @@ class SieveImapSpamClient {
   }
 
   /**
+   * Lists Inbox envelopes and selectable mailboxes for the rule helper.
+   *
+   * @returns {Promise<object>}
+   *   serialized Inbox view.
+   */
+  async listInbox() {
+    return await this.withClient(async (client) => {
+      const mailboxes = await client.list();
+      const inbox = resolveInboxFolder(mailboxes);
+      const lock = await client.getMailboxLock(inbox, { readOnly: true });
+
+      try {
+        const uidValidity = `${client.mailbox.uidValidity}`;
+        const messages = client.mailbox.exists
+          ? await client.fetchAll("1:*", {
+            uid: true,
+            envelope: true,
+            internalDate: true
+          }) : [];
+
+        return {
+          folderName: inbox,
+          mailboxes: getSelectableMailboxPaths(mailboxes),
+          messages: messages.map((message) => {
+            return {
+              id: createMessageId(uidValidity, message.uid),
+              date: message.internalDate || message.envelope?.date || null,
+              author: (message.envelope?.from || []).map(formatAddress).join(", "),
+              recipients: (message.envelope?.to || []).map(formatAddress),
+              subject: message.envelope?.subject || ""
+            };
+          }).reverse()
+        };
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /**
    * Loads raw headers and decoded rule parameters for one Junk message.
    *
    * @param {string} id
@@ -250,6 +331,61 @@ class SieveImapSpamClient {
           sender: senders.map(formatAddress).join(", "),
           senderAddress,
           senderDomain,
+          recipients: recipients.map(formatAddress),
+          recipientAddresses: [...new Set(recipients
+            .map((address) => { return `${address.address || ""}`.trim(); })
+            .filter(Boolean))],
+          subject: envelope.subject || "",
+          messageId: envelope.messageId || ""
+        };
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /**
+   * Loads raw headers and rule parameters for one Inbox message.
+   *
+   * @param {string} id
+   *   opaque message selection identifier.
+   * @returns {Promise<object>}
+   *   headers and normalized message parameters.
+   */
+  async getInboxDetails(id) {
+    return await this.withClient(async (client) => {
+      const inbox = resolveInboxFolder(await client.list());
+      const selection = parseMessageId(id);
+      const lock = await client.getMailboxLock(inbox, { readOnly: true });
+
+      try {
+        if (`${client.mailbox.uidValidity}` !== selection.uidValidity)
+          throw new Error("The Inbox changed; refresh the message list and try again");
+
+        const message = await client.fetchOne(selection.uid, {
+          uid: true,
+          headers: true,
+          envelope: true
+        }, { uid: true });
+        if (!message || !message.headers)
+          throw new Error("The selected Inbox message no longer exists");
+
+        const envelope = message.envelope || {};
+        const senders = envelope.from || envelope.sender || [];
+        const recipients = [
+          ...(envelope.to || []),
+          ...(envelope.cc || [])
+        ];
+        const senderAddress = `${senders[0]?.address || ""}`.trim();
+
+        return {
+          id,
+          headers: message.headers.toString("utf8").replace(/\r?\n$/, ""),
+          sender: senders.map(formatAddress).join(", "),
+          senderAddress,
+          senderDomain: senderAddress.includes("@")
+            ? senderAddress.slice(senderAddress.lastIndexOf("@") + 1).toLocaleLowerCase()
+            : "",
           recipients: recipients.map(formatAddress),
           recipientAddresses: [...new Set(recipients
             .map((address) => { return `${address.address || ""}`.trim(); })
@@ -401,8 +537,10 @@ class SieveImapSpamClient {
 export {
   createMessageId,
   formatAddress,
+  getSelectableMailboxPaths,
   getCleanFlags,
   parseMessageId,
+  resolveInboxFolder,
   resolveSpamFolders,
   SieveImapSpamClient
 };

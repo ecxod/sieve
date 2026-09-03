@@ -254,6 +254,7 @@ export {
   appendSpamRuleToScript,
   createSpamRule,
   findSpamRuleMatches,
+  getRequirements,
   normalizeAddress,
   quoteSieve
 };
