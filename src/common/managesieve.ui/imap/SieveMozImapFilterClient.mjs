@@ -336,6 +336,49 @@ class SieveMozImapFilterClient {
   }
 
   /**
+   * Resolves one displayed Inbox message to its newest matching IMAP UID.
+   *
+   * Thunderbird's WebExtension message id is local, so the stable Message-ID
+   * header is used at the raw IMAP boundary. Only one UID is selected even if
+   * a server contains duplicate copies.
+   *
+   * @param {string} folder
+   *   server-side Inbox path.
+   * @param {string} messageId
+   *   RFC Message-ID of the displayed newest message.
+   * @returns {Promise<object>}
+   *   exact one-message snapshot.
+   */
+  async prepareInbox(folder, messageId) {
+    folder = `${folder || ""}`.trim();
+    messageId = `${messageId || ""}`.trim();
+    if (!folder)
+      throw new Error("Thunderbird did not report the server name of the Inbox");
+    if (!messageId)
+      throw new Error("The newest Inbox message has no Message-ID header");
+
+    return await this.withConnection(async (connection) => {
+      const lines = await connection.command(`SELECT ${quoteImap(folder)}`);
+      const validity = lines
+        .map((line) => { return /\[UIDVALIDITY (\d+)\]/i.exec(line); })
+        .find(Boolean);
+      if (!validity)
+        throw new Error("The IMAP server did not report UIDVALIDITY for Inbox");
+
+      const matches = parseSearchUids(await connection.command(
+        `UID SEARCH UNDELETED HEADER Message-ID ${quoteImap(messageId)}`));
+      if (!matches.length)
+        throw new Error("The newest Inbox message is no longer available");
+
+      return {
+        folder,
+        uidValidity: validity[1],
+        uids: [matches[matches.length - 1]]
+      };
+    });
+  }
+
+  /**
    * Applies a personal script to an earlier UID snapshot.
    *
    * @param {string} script
@@ -362,7 +405,7 @@ class SieveMozImapFilterClient {
         .find(Boolean);
       if (!validity || validity[1] !== snapshot.uidValidity) {
         throw new Error(
-          "The Sent folder was recreated after confirmation; no rule was applied");
+          "The selected folder was recreated after confirmation; no rule was applied");
       }
 
       for (const uids of chunkUidSet(snapshot.uids)) {

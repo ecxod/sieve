@@ -33,7 +33,14 @@ import {
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes
 } from "./../../inbox/SieveInboxRule.mjs";
-import { SieveInboxUI } from "./../../accounts/SieveInboxUI.mjs";
+import {
+  formatInboxDate,
+  SieveInboxUI,
+  sortInboxMessagesByDate
+} from "./../../accounts/SieveInboxUI.mjs";
+import {
+  sortAccountsByDisplayName
+} from "./../../accounts/SieveAccountSort.mjs";
 
 /**
  *
@@ -471,6 +478,71 @@ suite.add("Inbox selection state enables only one rule action", function () {
   suite.assertFalse(createButton.disabled);
   suite.assertFalse(controls[0].checked);
   suite.assertTrue(controls[1].checked);
+});
+
+suite.add("Inbox dates are formatted and sorted chronologically", function () {
+  const localDate = new Date(2026, 8, 4, 7, 8, 9);
+  suite.assertEquals(formatInboxDate(localDate), "2026.09.04, 07:08:09");
+  suite.assertEquals(formatInboxDate("invalid"), "");
+
+  const messages = [
+    { id: "older", date: "2025-12-31T23:59:59Z" },
+    { id: "invalid", date: "not-a-date" },
+    { id: "newer-a", date: "2026-01-02T01:00:00Z" },
+    { id: "newer-b", date: "2026-01-02T01:00:00Z" },
+    { id: "missing", date: "" }
+  ];
+  const sorted = sortInboxMessagesByDate(messages);
+
+  suite.assertEquals(
+    sorted.map((message) => { return message.id; }).join(","),
+    "newer-a,newer-b,older,invalid,missing");
+  suite.assertEquals(messages[0].id, "older");
+});
+
+suite.add("Home accounts are sorted by their visible names", function () {
+  const accounts = [
+    { id: "z", displayName: "Server 10" },
+    { id: "b", displayName: "älpha" },
+    { id: "a", displayName: "Alpha" },
+    { id: "c", displayName: "Server 2" }
+  ];
+  const sorted = sortAccountsByDisplayName(accounts, "de");
+
+  suite.assertEquals(
+    sorted.map((account) => { return account.id; }).join(","), "a,b,c,z");
+  suite.assertEquals(accounts[0].id, "z");
+});
+
+suite.add("Run Sieve selects the newest Inbox message independently of source order", async function () {
+  const button = { disabled: false };
+  const calls = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.messages = [
+    { id: "older", date: "2026-09-03T12:00:00Z", subject: "Older" },
+    { id: "newest", date: "2026-09-04T12:00:00Z", subject: "Newest" }
+  ];
+  inbox.root = {
+    querySelector(selector) {
+      return selector === ".sieve-inbox-apply-latest" ? button : null;
+    }
+  };
+  inbox.account = {
+    async send(action, payload) {
+      calls.push({ action, payload });
+      return { script: "active", filtered: 1, warnings: 0, errors: 0 };
+    }
+  };
+  inbox.string = (key, fallback) => { return fallback; };
+  inbox.confirmApply = () => { return true; };
+  inbox.setStatus = () => {};
+  inbox.render = async () => {};
+
+  await inbox.applyLatest();
+  suite.assertEquals(calls.length, 1);
+  suite.assertEquals(calls[0].action, "account-inbox-apply-latest");
+  suite.assertEquals(calls[0].payload.messageId, "newest");
+  suite.assertFalse(button.disabled);
 });
 
 suite.add("Inbox mailbox input preserves freely edited rules", function () {

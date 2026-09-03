@@ -472,6 +472,33 @@ async function createImapFilterClient(account, settings) {
       return await inbox.getInboxDetails(msg.payload.messageId);
     },
 
+    "account-inbox-apply-latest": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Apply active Sieve script to newest Inbox message on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("Connect the Sieve server before running its rules");
+
+      const active = (await sessions.get(id).listScripts())
+        .find((script) => { return !!script.active; });
+      if (!active)
+        throw new Error("The Sieve server has no active script");
+
+      const account = accounts.getAccountById(id);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP Inbox access is not enabled");
+
+      const filter = await createImapFilterClient(account, settings);
+      const snapshot = await filter.prepareInbox(msg.payload.messageId);
+      const result = await filter.apply(active.script, snapshot);
+      return {
+        ...result,
+        folder: snapshot.folder,
+        script: active.script
+      };
+    },
+
     "account-inbox-rule-scripts": async function (msg) {
       const id = msg.payload.account;
       logger.logAction(`Load scripts for Inbox rule editor on ${id}`);

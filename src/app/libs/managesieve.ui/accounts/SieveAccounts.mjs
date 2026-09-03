@@ -51,7 +51,7 @@ class SieveNodeAccounts extends SieveAbstractAccounts {
 
     }
 
-    super.render(account);
+    await super.render(account);
   }
 
   /**

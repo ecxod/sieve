@@ -674,6 +674,38 @@ initSentry("background");
       };
     },
 
+    "account-inbox-apply-latest": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Apply active Sieve script to newest Inbox message on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("Connect the Sieve server before running its rules");
+
+      const active = (await sessions.get(id).listScripts())
+        .find((script) => { return !!script.active; });
+      if (!active)
+        throw new Error("The Sieve server has no active script");
+
+      const account = await getMailAccount(id);
+      const inbox = findSpecialFolder(account, "inbox");
+      const message = await browser.messages.get(Number(msg.payload.messageId));
+      if (!inbox || !message.folder || !isSameFolder(message.folder, inbox))
+        throw new Error("The newest message is no longer in this account's Inbox");
+
+      const settings = await browser.sieve.accounts.getImapConnection(id);
+      settings.username = await browser.sieve.accounts.getUsername(id);
+      settings.password = await browser.sieve.accounts.getPassword(id);
+      const filter = new SieveMozImapFilterClient(settings);
+      const snapshot = await filter.prepareInbox(
+        inbox.path || inbox.name || "INBOX", message.headerMessageId);
+      const result = await filter.apply(active.script, snapshot);
+      return {
+        ...result,
+        folder: snapshot.folder,
+        script: active.script
+      };
+    },
+
     "account-inbox-rule-scripts": async function (msg) {
       const id = msg.payload.account;
       logger.logAction(`Load scripts for Inbox rule editor on ${id}`);

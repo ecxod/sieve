@@ -347,6 +347,7 @@
       "${workspace}/managesieve.ui/spam/SieveSpamRule.mjs",
       "${workspace}/managesieve.ui/editor/text/SieveFormatter.mjs",
       "${workspace}/managesieve.ui/inbox/SieveInboxRule.mjs",
+      "${workspace}/managesieve.ui/accounts/SieveAccountSort.mjs",
       "${workspace}/managesieve.ui/accounts/SieveInboxUI.mjs"
     ]
   });

@@ -7,6 +7,44 @@ const FILTER_CAPABILITY = "FILTER=SIEVE";
 const FILTER_COMMAND_LIMIT = 8000;
 
 /**
+ * Resolves the Inbox mailbox from an IMAP LIST response.
+ *
+ * @param {object[]} mailboxes
+ *   ImapFlow LIST response.
+ * @returns {string}
+ *   Inbox mailbox path.
+ */
+function resolveInboxFolder(mailboxes) {
+  const inbox = mailboxes.find((mailbox) => {
+    return `${mailbox.specialUse || ""}`.toLocaleLowerCase() === "\\inbox";
+  }) || mailboxes.find((mailbox) => {
+    return `${mailbox.path || mailbox.name || ""}`.toLocaleLowerCase() === "inbox";
+  });
+
+  if (!inbox)
+    throw new Error("The IMAP server did not report an Inbox folder");
+
+  return inbox.path;
+}
+
+/**
+ * Parses an opaque Inbox identifier produced by the direct IMAP list.
+ *
+ * @param {string} id
+ *   UIDVALIDITY:UID identifier.
+ * @returns {{uidValidity: string, uid: number}}
+ *   validated message selection.
+ */
+function parseInboxMessageId(id) {
+  const match = /^([1-9]\d*):([1-9]\d*)$/u.exec(`${id || ""}`);
+  const uid = match ? Number.parseInt(match[2], 10) : Number.NaN;
+  if (!match || !Number.isSafeInteger(uid))
+    throw new Error("The selected Inbox message identifier is invalid");
+
+  return { uidValidity: match[1], uid };
+}
+
+/**
  * Resolves the Sent mailbox from an IMAP LIST response.
  *
  * @param {object[]} mailboxes
@@ -173,6 +211,45 @@ class SieveImapFilterClient {
   }
 
   /**
+   * Confirms that one previously listed Inbox message still exists.
+   *
+   * @param {string} id
+   *   opaque UIDVALIDITY:UID message identifier.
+   * @returns {Promise<object>}
+   *   exact one-message snapshot.
+   */
+  async prepareInbox(id) {
+    const selection = parseInboxMessageId(id);
+
+    return await this.withClient(async (client) => {
+      const folder = resolveInboxFolder(await client.list());
+      const lock = await client.getMailboxLock(folder, { readOnly: true });
+
+      try {
+        if (`${client.mailbox.uidValidity}` !== selection.uidValidity) {
+          throw new Error(
+            "The Inbox was recreated after it was loaded; no rule was applied");
+        }
+
+        const uids = await client.search({
+          uid: `${selection.uid}`,
+          deleted: false
+        }, { uid: true }) || [];
+        if (!uids.some((uid) => { return Number(uid) === selection.uid; }))
+          throw new Error("The newest Inbox message is no longer available");
+
+        return {
+          folder,
+          uidValidity: selection.uidValidity,
+          uids: [selection.uid]
+        };
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /**
    * Applies a personal Sieve script to an earlier UID snapshot.
    *
    * @param {string} script
@@ -204,7 +281,7 @@ class SieveImapFilterClient {
       try {
         if (`${client.mailbox.uidValidity}` !== snapshot.uidValidity) {
           throw new Error(
-            "The Sent folder was recreated after confirmation; no rule was applied");
+            "The selected folder was recreated after confirmation; no rule was applied");
         }
 
         const onFiltered = async (untagged) => {
@@ -254,6 +331,8 @@ class SieveImapFilterClient {
 export {
   chunkUidSet,
   compactUidSet,
+  parseInboxMessageId,
+  resolveInboxFolder,
   resolveSentFolder,
   SieveImapFilterClient
 };

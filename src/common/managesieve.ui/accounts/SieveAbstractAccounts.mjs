@@ -12,6 +12,7 @@
 import { SieveAccountUI } from "./SieveAccountUI.mjs";
 import { SieveIpcClient } from "./../utils/SieveIpcClient.mjs";
 import { SieveLogger } from "./../utils/SieveLogger.mjs";
+import { sortAccountsByDisplayName } from "./SieveAccountSort.mjs";
 
 /**
  * A UI renderer for a list of sieve accounts
@@ -49,10 +50,18 @@ class SieveAbstractAccounts {
     while (items.firstChild)
       items.firstChild.remove();
 
-    const accounts = await SieveIpcClient.sendMessage("core", "accounts-list");
+    const accountIds = await SieveIpcClient.sendMessage("core", "accounts-list");
+    const accounts = sortAccountsByDisplayName(await Promise.all(
+      accountIds.map(async (id) => {
+        return {
+          id,
+          displayName: await SieveIpcClient.sendMessage(
+            "core", "account-get-displayname", { account: id })
+        };
+      })));
 
     for (const item of accounts) {
-      await this.render(item);
+      await this.render(item.id);
     }
   }
 }

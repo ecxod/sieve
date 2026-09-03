@@ -13,6 +13,62 @@ import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
 
 /**
+ * Formats an Inbox date in a locale-independent, sortable representation.
+ *
+ * The displayed components use the user's local time zone, just like the
+ * previous localized date, but do not depend on operating-system locale.
+ *
+ * @param {Date|string|number|null} value
+ *   message date.
+ * @returns {string}
+ *   yyyy.mm.dd, hh:mm:ss or an empty string for an invalid date.
+ */
+function formatInboxDate(value) {
+  if (value === null || value === undefined || value === "")
+    return "";
+
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime()))
+    return "";
+
+  const pad = (part, width = 2) => { return `${part}`.padStart(width, "0"); };
+  return `${pad(date.getFullYear(), 4)}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}, `
+    + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
+ * Sorts Inbox messages newest first without changing the source array.
+ *
+ * Messages with missing or invalid dates stay at the end. Equal timestamps
+ * retain their source order.
+ *
+ * @param {object[]} messages
+ *   messages to sort.
+ * @returns {object[]}
+ *   chronologically sorted copy.
+ */
+function sortInboxMessagesByDate(messages) {
+  return (Array.isArray(messages) ? messages : [])
+    .map((message, index) => {
+      const value = message?.date;
+      const timestamp = value === null || value === undefined || value === ""
+        ? Number.NaN : new Date(value).getTime();
+      return {
+        message,
+        index,
+        timestamp: Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY
+      };
+    })
+    .sort((left, right) => {
+      if (left.timestamp !== right.timestamp)
+        return right.timestamp - left.timestamp;
+
+      return left.index - right.index;
+    })
+    .map((item) => { return item.message; });
+}
+
+/**
  * Renders one account's Inbox and its inline rule helper.
  */
 class SieveInboxUI {
@@ -50,6 +106,8 @@ class SieveInboxUI {
 
     root.querySelector(".sieve-inbox-refresh").textContent
       = this.string("account.inbox.refresh", "Refresh");
+    root.querySelector(".sieve-inbox-apply-latest").textContent
+      = this.string("account.inbox.apply", "Run Sieve now");
     root.querySelector(".sieve-inbox-create-rule").textContent
       = this.string("account.inbox.rule.create", "Create Sieve Rule");
     const headings = root.querySelectorAll("thead th");
@@ -61,6 +119,8 @@ class SieveInboxUI {
     search.addEventListener("input", () => { this.renderRows(); });
     root.querySelector(".sieve-inbox-refresh")
       .addEventListener("click", () => { this.render(); });
+    root.querySelector(".sieve-inbox-apply-latest")
+      .addEventListener("click", () => { this.applyLatest(); });
     root.querySelector(".sieve-inbox-create-rule")
       .addEventListener("click", () => { this.openRuleEditor(); });
 
@@ -107,7 +167,8 @@ class SieveInboxUI {
    */
   getVisibleMessages() {
     const query = this.root.querySelector(".sieve-inbox-search").value;
-    return this.messages.filter((message) => { return matchesSpamSearch(message, query); });
+    return sortInboxMessagesByDate(
+      this.messages.filter((message) => { return matchesSpamSearch(message, query); }));
   }
 
   /**
@@ -149,7 +210,7 @@ class SieveInboxUI {
 
       const date = document.createElement("td");
       date.className = "text-nowrap small";
-      date.textContent = message.date ? new Date(message.date).toLocaleString() : "";
+      date.textContent = formatInboxDate(message.date);
       row.append(date);
 
       const author = document.createElement("td");
@@ -189,6 +250,66 @@ class SieveInboxUI {
   }
 
   /**
+   * Displays the destructive-action confirmation.
+   *
+   * @param {string} prompt
+   *   localized operation summary and warning.
+   * @returns {boolean}
+   *   whether the user accepted the operation.
+   */
+  confirmApply(prompt) {
+    return window.confirm(prompt);
+  }
+
+  /**
+   * Applies the active server-side Sieve script to the newest Inbox message.
+   *
+   * The message is selected from the complete Inbox snapshot, independently
+   * of the current search text. The backend revalidates its identity and does
+   * not perform EXPUNGE.
+   */
+  async applyLatest() {
+    const button = this.root.querySelector(".sieve-inbox-apply-latest");
+    const newest = sortInboxMessagesByDate(this.messages)[0];
+    if (!newest)
+      return;
+
+    const subject = newest.subject
+      || this.string("account.inbox.no.subject", "(No subject)");
+    const prompt = this.string(
+      "account.inbox.apply.confirm",
+      "Apply the active Sieve script to the newest Inbox message from {date} with subject “{subject}”?\n\nRules may mark the original as deleted. No EXPUNGE will be performed.")
+      .replace("{date}", formatInboxDate(newest.date))
+      .replace("{subject}", subject);
+    if (!this.confirmApply(prompt))
+      return;
+
+    button.disabled = true;
+    this.setStatus(this.string(
+      "account.inbox.apply.running", "Applying the active Sieve script…"));
+    try {
+      const result = await this.account.send("account-inbox-apply-latest", {
+        messageId: newest.id
+      });
+      await this.render();
+      const style = result.errors ? "warning" : "success";
+      this.setStatus(`${this.string(
+        "account.inbox.apply.done", "Sieve was run on the newest Inbox message")}: `
+        + `${result.script} (${result.filtered} ${this.string(
+          "account.inbox.apply.filtered", "visible actions or reports")}, `
+        + `${result.warnings} ${this.string(
+          "account.inbox.apply.warnings", "warnings")}, ${result.errors} ${this.string(
+          "account.inbox.apply.errors", "errors")}).`, style);
+    } catch (ex) {
+      this.setStatus(`${this.string(
+        "account.inbox.apply.error", "Could not run Sieve")}: ${ex.message || ex}`,
+      "danger");
+    } finally {
+      button.disabled = this.messages.length === 0;
+    }
+  }
+
+  /**
    * Loads the account Inbox.
    */
   async render() {
@@ -198,6 +319,7 @@ class SieveInboxUI {
     this.rendering = true;
     this.selectedId = null;
     this.root.querySelector(".sieve-inbox-create-rule").disabled = true;
+    this.root.querySelector(".sieve-inbox-apply-latest").disabled = true;
     this.root.querySelector(".sieve-inbox-table-wrap").classList.add("d-none");
     this.setStatus(this.string("account.inbox.loading", "Loading Inbox…"));
 
@@ -206,6 +328,8 @@ class SieveInboxUI {
       this.messages = data.messages || [];
       this.mailboxes = data.mailboxes || [];
       this.renderRows();
+      this.root.querySelector(".sieve-inbox-apply-latest").disabled
+        = this.messages.length === 0 || data.configured === false;
 
       if (data.configured === false) {
         this.setStatus(this.string(
@@ -483,4 +607,4 @@ class SieveInboxUI {
   }
 }
 
-export { SieveInboxUI };
+export { formatInboxDate, SieveInboxUI, sortInboxMessagesByDate };
