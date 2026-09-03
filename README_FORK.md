@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.9 is the latest stable release for both distributed packages:**
+**Version 0.8.10 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.9.exe`
-- Thunderbird: `sieve-0.8.9-cram-md5.xpi`
+- Windows: `install_sieve_0.8.10.exe`
+- Thunderbird: `sieve-0.8.10-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -221,6 +221,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   performs `EXPUNGE`. Account cards on Home are now sorted alphabetically by
   their visible name, and Electron waits for each card render so asynchronous
   completion can no longer randomize the order.
+- Version `0.8.10` checks the ManageSieve connection before the Inbox rule
+  editor loads the **Add to Sieve script** selector. If the account is offline,
+  the application connects it automatically, verifies that the connection is
+  active, updates the account indicator, and only then retrieves the scripts.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -246,13 +250,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.9-cram-md5.xpi`](releases/sieve-0.8.9-cram-md5.xpi).
+[`releases/sieve-0.8.10-cram-md5.xpi`](releases/sieve-0.8.10-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `91e61b4368125a073689037b8e5ebe56bd60cd3bca79ee8863d9ace1338d68b0`
+SHA-256: `bd09c40c666fe58af9524d652d2bee26b8d91905b4aea39f43ea4383aef667f4`
 
 ### Thunderbird permission notice
 
@@ -270,6 +274,6 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.9.exe`](releases/install_sieve_0.8.9.exe).
+[`releases/install_sieve_0.8.10.exe`](releases/install_sieve_0.8.10.exe).
 
-SHA-256: `25d419c7b77c06291e34e3d0b61a5db5a3f403d5219d36105d4fcba648149593`
+SHA-256: `38d0196d28e9c662151be79af8470c3f11d37218ee5ed34434f5c235a25bacdb`

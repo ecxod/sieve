@@ -328,6 +328,8 @@
   "account.inbox.rule.pretty": "Formázás",
   "account.inbox.rule.save": "Mentés",
   "account.inbox.rule.loading": "Fejlécek és Sieve-parancsfájlok betöltése…",
+  "account.inbox.rule.connecting": "Kapcsolódás a Sieve-klienshez…",
+  "account.inbox.rule.connect.failed": "A Sieve-kliens nem tudott kapcsolódni",
   "account.inbox.rule.active": "aktív",
   "account.inbox.rule.connected": "Az ellenőrzés és mentés a teljes kiválasztott fájlt ellenőrzi a kiszolgálón.",
   "account.inbox.rule.offline": "A szabály ellenőrzése vagy mentése előtt csatlakozzon a Sieve-kiszolgálóhoz.",

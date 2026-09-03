@@ -452,6 +452,8 @@
   "account.inbox.rule.pretty": "Schön formatieren",
   "account.inbox.rule.save": "Speichern",
   "account.inbox.rule.loading": "Header und Sieve-Skripte werden geladen…",
+  "account.inbox.rule.connecting": "Der Sieve-Client wird verbunden…",
+  "account.inbox.rule.connect.failed": "Der Sieve-Client konnte nicht verbunden werden",
   "account.inbox.rule.active": "aktiv",
   "account.inbox.rule.connected": "Lint und Speichern prüfen die vollständige ausgewählte Datei auf dem Server.",
   "account.inbox.rule.offline": "Verbinden Sie den Sieve-Server, bevor Sie die Regel prüfen oder speichern.",

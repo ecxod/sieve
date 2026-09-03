@@ -495,6 +495,8 @@
   "account.inbox.rule.pretty" : "Pretty Print",
   "account.inbox.rule.save" : "Save",
   "account.inbox.rule.loading" : "Loading headers and Sieve scripts…",
+  "account.inbox.rule.connecting" : "Connecting the Sieve client…",
+  "account.inbox.rule.connect.failed" : "The Sieve client could not connect",
   "account.inbox.rule.active" : "active",
   "account.inbox.rule.connected" : "Lint and Save validate the complete selected file on the server.",
   "account.inbox.rule.offline" : "Connect the Sieve server before checking or saving the rule.",

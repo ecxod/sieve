@@ -545,6 +545,36 @@ suite.add("Run Sieve selects the newest Inbox message independently of source or
   suite.assertFalse(button.disabled);
 });
 
+suite.add("Inbox rule editor connects Sieve before loading the script selector", async function () {
+  const calls = [];
+  let connected = false;
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.account = {
+    async isConnected() {
+      calls.push("is-connected");
+      return connected;
+    },
+    async send(action) {
+      calls.push(action);
+      if (action === "account-connect")
+        connected = true;
+    },
+    async render() {
+      calls.push("render-account");
+    }
+  };
+  inbox.string = (key, fallback) => { return fallback; };
+  inbox.setStatus = (status) => { calls.push(status); };
+
+  suite.assertTrue(await inbox.ensureSieveConnected());
+  suite.assertEquals(calls.join(","),
+    "is-connected,Connecting the Sieve client…,account-connect,is-connected,render-account");
+
+  calls.length = 0;
+  suite.assertFalse(await inbox.ensureSieveConnected());
+  suite.assertEquals(calls.join(","), "is-connected");
+});
+
 suite.add("Inbox mailbox input preserves freely edited rules", function () {
   const source = { value: "custom rule" };
   const inbox = Object.create(SieveInboxUI.prototype);

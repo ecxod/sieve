@@ -390,6 +390,34 @@ class SieveInboxUI {
   }
 
   /**
+   * Ensures that the account has an active ManageSieve connection.
+   *
+   * The rule editor needs the live script list for its target selector. An
+   * offline account is therefore connected before any scripts are requested.
+   *
+   * @returns {Promise<boolean>}
+   *   true when a new connection was established, otherwise false.
+   */
+  async ensureSieveConnected() {
+    if (await this.account.isConnected())
+      return false;
+
+    this.setStatus(this.string(
+      "account.inbox.rule.connecting", "Connecting the Sieve client…"));
+    await this.account.send("account-connect");
+
+    if (!await this.account.isConnected()) {
+      throw new Error(this.string(
+        "account.inbox.rule.connect.failed", "The Sieve client could not connect"));
+    }
+
+    // Keep the account card's connection indicator in sync without changing
+    // the currently selected Inbox tab.
+    await this.account.render();
+    return true;
+  }
+
+  /**
    * Opens the editor for the selected Inbox message.
    */
   async openRuleEditor() {
@@ -401,6 +429,7 @@ class SieveInboxUI {
       "account.inbox.rule.loading", "Loading headers and Sieve scripts…"));
 
     try {
+      await this.ensureSieveConnected();
       const [details, scripts] = await Promise.all([
         this.account.send("account-inbox-details", { messageId: this.selectedId }),
         this.account.send("account-inbox-rule-scripts")
@@ -444,6 +473,7 @@ class SieveInboxUI {
         = !scripts.connected || !this.scripts.length;
       modal.querySelector(".sieve-inbox-rule-save").disabled
         = !scripts.connected || !this.scripts.length;
+      this.renderRows();
       this.hideEditorStatus();
       this.updateMailboxStatus();
       bootstrap.Modal.getOrCreateInstance(modal).show();
