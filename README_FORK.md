@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.6 is the latest stable release for both distributed packages:**
+**Version 0.8.7 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.6.exe`
-- Thunderbird: `sieve-0.8.6-cram-md5.xpi`
+- Windows: `install_sieve_0.8.7.exe`
+- Thunderbird: `sieve-0.8.7-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -192,6 +192,17 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   **Settings** tab also shows the installed and latest GitHub release and can
   download and launch the exact release installer after validating its size
   and SHA-256 digest.
+- Version `0.8.7` adds an opt-in **Make pretty** setting which sorts consecutive,
+  independent top-level `if` chains alphabetically by their one unambiguous
+  quoted `fileinto` destination. Leading comments and complete
+  `elsif`/`else` chains move with the corresponding rule; ambiguous, nested,
+  or malformed rules and intervening non-`if` statements remain in place. The
+  setting is available and persisted in both the Windows application and the
+  Thunderbird extension. Compact list and condition formatting can also ignore
+  existing comma line breaks on request. A saved personal script can now be
+  applied manually to a confirmed snapshot of non-deleted Sent messages when
+  the IMAP server offers `FILTER=SIEVE`; the action verifies UIDVALIDITY,
+  excludes messages arriving after confirmation, and never performs `EXPUNGE`.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -217,13 +228,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi).
+[`releases/sieve-0.8.7-cram-md5.xpi`](releases/sieve-0.8.7-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `7bf97cb842db61db894eef843ad57eeb49c2a3533384f0c3f5df4b11a4fbf9ee`
+SHA-256: `b9124ffa0433ffed4a9db3799a6ff5814cc7934bf1bbe40c791fe53dbf8a7104`
 
 ### Thunderbird permission notice
 
@@ -241,6 +252,6 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.6.exe`](releases/install_sieve_0.8.6.exe).
+[`releases/install_sieve_0.8.7.exe`](releases/install_sieve_0.8.7.exe).
 
-SHA-256: `bf8273a6442870d2c7fb93d38bf12edc7c4ef344f8c2752f8c2132eaa5f502c4`
+SHA-256: `59e76e1c833a9ff6b4c48caa2281f8fd268c668bcdb437155fb87c3e6572f358`

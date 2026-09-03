@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.6
+## Stable release 0.8.7
 
-**Version 0.8.6 is the latest stable release for both the Windows EXE and the
+**Version 0.8.7 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.6` uses the same version for the Windows application and the
+Release `0.8.7` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -43,9 +43,16 @@ Thunderbird extension. The extension includes:
 - a **Make pretty** action in the source editor that indents nested blocks,
   string lists, and test arguments while preserving strings, comments, and
   multiline text; editor settings control tabs/spaces, compact or multiline
-  lists and tests, whether opening block braces start on a new line, and
-  optional blank lines after the leading `require` section and complete
-  `if`/`elsif`/`else` chains
+  lists and tests, whether compact mode ignores existing comma line breaks,
+  whether opening block braces start on a new line, and optional blank lines
+  after the leading `require` section and complete `if`/`elsif`/`else` chains;
+  an additional opt-in setting sorts consecutive, independent top-level `if`
+  chains alphabetically by an unambiguous quoted `fileinto` destination,
+  moving their comments and complete branch chains together
+- a guarded **Apply to Sent** action which can manually apply a saved personal
+  script to a confirmed snapshot of non-deleted Sent messages when the IMAP
+  server offers `FILTER=SIEVE`; it verifies UIDVALIDITY, excludes messages
+  arriving after confirmation, and never performs `EXPUNGE`
 - a **Spam** tab for browsing, searching, and selecting messages in the
   account's spam folder; selected messages can be restored safely to `INBOX`,
   and matching allow/block rules can be inspected or appended to a chosen
@@ -69,15 +76,15 @@ installer.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.6-cram-md5.xpi`](releases/sieve-0.8.6-cram-md5.xpi)
+[`releases/sieve-0.8.7-cram-md5.xpi`](releases/sieve-0.8.7-cram-md5.xpi)
 
-SHA-256: `7bf97cb842db61db894eef843ad57eeb49c2a3533384f0c3f5df4b11a4fbf9ee`
+SHA-256: `b9124ffa0433ffed4a9db3799a6ff5814cc7934bf1bbe40c791fe53dbf8a7104`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.6.exe`](releases/install_sieve_0.8.6.exe)
+[`releases/install_sieve_0.8.7.exe`](releases/install_sieve_0.8.7.exe)
 
-SHA-256: `bf8273a6442870d2c7fb93d38bf12edc7c4ef344f8c2752f8c2132eaa5f502c4`
+SHA-256: `59e76e1c833a9ff6b4c48caa2281f8fd268c668bcdb437155fb87c3e6572f358`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified
