@@ -400,10 +400,13 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
 
     const errors = await this.getController().checkScript(await this.getScript());
 
-    if (errors && errors !== "")
+    if (errors && errors !== "") {
       this.showSyntaxErrors(errors);
-    else
-      this.hideSyntaxErrors();
+      return false;
+    }
+
+    this.hideSyntaxErrors();
+    return true;
   }
 
   /**

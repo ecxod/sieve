@@ -230,9 +230,16 @@ function findSpamRuleMatches(scripts, details) {
       const occurrences = [];
       lines.forEach((line, index) => {
         if (line.toLocaleLowerCase().includes(needle)) {
+          const contextStart = Math.max(0, index - 1);
+          const contextEnd = Math.min(lines.length, index + 4);
           occurrences.push({
             line: index + 1,
-            excerpt: line.trim().slice(0, 240)
+            excerpt: line.trim().slice(0, 240),
+            context: lines.slice(contextStart, contextEnd)
+              .map((contextLine, contextIndex) => {
+                return `${contextStart + contextIndex + 1}: ${contextLine}`;
+              })
+              .join("\n")
           });
         }
       });

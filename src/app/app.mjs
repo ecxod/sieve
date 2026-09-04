@@ -472,9 +472,9 @@ async function createImapFilterClient(account, settings) {
       return await inbox.getInboxDetails(msg.payload.messageId);
     },
 
-    "account-inbox-apply-latest": async function (msg) {
+    "account-inbox-apply-selected": async function (msg) {
       const id = msg.payload.account;
-      logger.logAction(`Apply active Sieve script to newest Inbox message on ${id}`);
+      logger.logAction(`Apply active Sieve script to selected Inbox message on ${id}`);
 
       if (!sessions.has(id) || !sessions.get(id).isConnected())
         throw new Error("Connect the Sieve server before running its rules");

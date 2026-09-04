@@ -35,6 +35,7 @@ import {
 } from "./../../inbox/SieveInboxRule.mjs";
 import {
   formatInboxDate,
+  formatInboxRuleMatches,
   SieveInboxUI,
   sortInboxMessagesByDate
 } from "./../../accounts/SieveInboxUI.mjs";
@@ -457,15 +458,19 @@ suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async func
 
 suite.add("Inbox selection state enables only one rule action", function () {
   const createButton = { disabled: true };
+  const applyButton = { disabled: true };
   const controls = [
     { value: "message-1", checked: false },
     { value: "message-2", checked: false }
   ];
   const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.inboxConfigured = true;
   inbox.root = {
     querySelector(selector) {
       if (selector === ".sieve-inbox-create-rule")
         return createButton;
+      if (selector === ".sieve-inbox-apply-selected")
+        return applyButton;
       return null;
     },
     querySelectorAll(selector) {
@@ -476,6 +481,7 @@ suite.add("Inbox selection state enables only one rule action", function () {
   inbox.selectMessage("message-2");
   suite.assertEquals(inbox.selectedId, "message-2");
   suite.assertFalse(createButton.disabled);
+  suite.assertFalse(applyButton.disabled);
   suite.assertFalse(controls[0].checked);
   suite.assertTrue(controls[1].checked);
 });
@@ -514,17 +520,19 @@ suite.add("Home accounts are sorted by their visible names", function () {
   suite.assertEquals(accounts[0].id, "z");
 });
 
-suite.add("Run Sieve selects the newest Inbox message independently of source order", async function () {
+suite.add("Run Sieve applies the marked Inbox message", async function () {
   const button = { disabled: false };
   const calls = [];
   const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.inboxConfigured = true;
+  inbox.selectedId = "older";
   inbox.messages = [
     { id: "older", date: "2026-09-03T12:00:00Z", subject: "Older" },
     { id: "newest", date: "2026-09-04T12:00:00Z", subject: "Newest" }
   ];
   inbox.root = {
     querySelector(selector) {
-      return selector === ".sieve-inbox-apply-latest" ? button : null;
+      return selector === ".sieve-inbox-apply-selected" ? button : null;
     }
   };
   inbox.account = {
@@ -538,11 +546,48 @@ suite.add("Run Sieve selects the newest Inbox message independently of source or
   inbox.setStatus = () => {};
   inbox.render = async () => {};
 
-  await inbox.applyLatest();
+  await inbox.applySelected();
   suite.assertEquals(calls.length, 1);
-  suite.assertEquals(calls[0].action, "account-inbox-apply-latest");
-  suite.assertEquals(calls[0].payload.messageId, "newest");
+  suite.assertEquals(calls[0].action, "account-inbox-apply-selected");
+  suite.assertEquals(calls[0].payload.messageId, "older");
   suite.assertFalse(button.disabled);
+});
+
+suite.add("Inbox rule editor formats similar matches from multiple scripts", function () {
+  const matches = findSpamRuleMatches([{
+    name: "active-filter",
+    active: true,
+    content: [
+      "if address :is \"from\" \"person@example.test\" {",
+      "  fileinto \"Customers\";",
+      "}"
+    ].join("\n")
+  }, {
+    name: "subject-filter",
+    active: false,
+    content: "if header :contains \"Subject\" \"Expected subject\" { keep; }"
+  }], {
+    senderAddress: "person@example.test",
+    senderDomain: "example.test",
+    recipientAddresses: ["customer@example.test"],
+    subject: "Expected subject"
+  });
+  const summary = formatInboxRuleMatches(matches, {
+    sender: "Sender address",
+    domain: "Sender domain",
+    recipient: "Recipient",
+    subject: "Subject",
+    active: "active",
+    line: "Line"
+  });
+
+  suite.assertTrue(summary.includes("# active-filter (active)"));
+  suite.assertTrue(summary.includes("Sender address: person@example.test"));
+  suite.assertTrue(summary.includes("Sender domain: example.test"));
+  suite.assertTrue(summary.includes("Line 1:\n1: if address :is"));
+  suite.assertTrue(summary.includes("2:   fileinto \"Customers\";"));
+  suite.assertTrue(summary.includes("# subject-filter"));
+  suite.assertTrue(summary.includes("Subject: Expected subject"));
 });
 
 suite.add("Inbox rule editor connects Sieve before loading the script selector", async function () {

@@ -166,6 +166,22 @@ suite.add("Settings backup rejects invalid preference values", function () {
     "Invalid global setting theme");
 });
 
+suite.add("Global settings preserve the AMOLED and Dark Light themes", async function () {
+  globalThis.localStorage = new MemoryStorage();
+  globalThis.window = { addEventListener() {} };
+  globalThis.frames = [];
+
+  const { SieveAccounts } = await import("./../SieveAccounts.mjs");
+  const accounts = await new SieveAccounts().load();
+
+  await accounts.setTheme("amoled");
+  suite.assertEquals("amoled", await accounts.getTheme());
+  await accounts.setTheme("dark-light");
+  suite.assertEquals("dark-light", await accounts.getTheme());
+  await accounts.setTheme("unknown");
+  suite.assertEquals("system", await accounts.getTheme());
+});
+
 suite.add("Full settings import replaces accounts and re-encrypts passwords", async function () {
   globalThis.localStorage = new MemoryStorage();
   globalThis.window = { addEventListener() {} };

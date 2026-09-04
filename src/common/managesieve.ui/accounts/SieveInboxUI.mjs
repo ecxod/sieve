@@ -10,7 +10,9 @@ import {
   inspectInboxRuleMailboxes
 } from "./../inbox/SieveInboxRule.mjs";
 import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
+import { findSpamRuleMatches } from "./../spam/SieveSpamRule.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
 /**
  * Formats an Inbox date in a locale-independent, sortable representation.
@@ -69,6 +71,33 @@ function sortInboxMessagesByDate(messages) {
 }
 
 /**
+ * Formats possible existing-rule matches for the read-only Inbox helper.
+ *
+ * @param {object[]} matches
+ *   results returned by findSpamRuleMatches().
+ * @param {object} labels
+ *   localized criterion and source labels.
+ * @returns {string}
+ *   copyable match summary.
+ */
+function formatInboxRuleMatches(matches, labels) {
+  const sections = [];
+  for (const result of matches || []) {
+    const lines = [`# ${result.name}${result.active
+      ? ` (${labels.active})` : ""}`];
+    for (const match of result.matches || []) {
+      lines.push(`${labels[match.type] || match.type}: ${match.value}`);
+      for (const occurrence of match.occurrences || []) {
+        lines.push(`${labels.line} ${occurrence.line}:`);
+        lines.push(occurrence.context || occurrence.excerpt);
+      }
+    }
+    sections.push(lines.join("\n"));
+  }
+  return sections.join("\n\n");
+}
+
+/**
  * Renders one account's Inbox and its inline rule helper.
  */
 class SieveInboxUI {
@@ -89,6 +118,7 @@ class SieveInboxUI {
     this.scripts = [];
     this.lastTemplate = "";
     this.rendering = false;
+    this.inboxConfigured = false;
 
     const search = root.querySelector(".sieve-inbox-search");
     const searchLabel = root.querySelector(".sieve-inbox-search-label");
@@ -106,7 +136,7 @@ class SieveInboxUI {
 
     root.querySelector(".sieve-inbox-refresh").textContent
       = this.string("account.inbox.refresh", "Refresh");
-    root.querySelector(".sieve-inbox-apply-latest").textContent
+    root.querySelector(".sieve-inbox-apply-selected").textContent
       = this.string("account.inbox.apply", "Run Sieve now");
     root.querySelector(".sieve-inbox-create-rule").textContent
       = this.string("account.inbox.rule.create", "Create Sieve Rule");
@@ -119,8 +149,8 @@ class SieveInboxUI {
     search.addEventListener("input", () => { this.renderRows(); });
     root.querySelector(".sieve-inbox-refresh")
       .addEventListener("click", () => { this.render(); });
-    root.querySelector(".sieve-inbox-apply-latest")
-      .addEventListener("click", () => { this.applyLatest(); });
+    root.querySelector(".sieve-inbox-apply-selected")
+      .addEventListener("click", () => { this.applySelected(); });
     root.querySelector(".sieve-inbox-create-rule")
       .addEventListener("click", () => { this.openRuleEditor(); });
 
@@ -180,6 +210,8 @@ class SieveInboxUI {
   selectMessage(id) {
     this.selectedId = id;
     this.root.querySelector(".sieve-inbox-create-rule").disabled = !id;
+    this.root.querySelector(".sieve-inbox-apply-selected").disabled
+      = !id || !this.inboxConfigured;
     this.root.querySelectorAll(".sieve-inbox-select").forEach((control) => {
       control.checked = control.value === id;
     });
@@ -262,24 +294,25 @@ class SieveInboxUI {
   }
 
   /**
-   * Applies the active server-side Sieve script to the newest Inbox message.
+   * Applies the active server-side Sieve script to the selected Inbox message.
    *
-   * The message is selected from the complete Inbox snapshot, independently
-   * of the current search text. The backend revalidates its identity and does
-   * not perform EXPUNGE.
+   * The backend revalidates the selected message's identity and does not
+   * perform EXPUNGE.
    */
-  async applyLatest() {
-    const button = this.root.querySelector(".sieve-inbox-apply-latest");
-    const newest = sortInboxMessagesByDate(this.messages)[0];
-    if (!newest)
+  async applySelected() {
+    const button = this.root.querySelector(".sieve-inbox-apply-selected");
+    const selected = this.messages.find((message) => {
+      return message.id === this.selectedId;
+    });
+    if (!selected)
       return;
 
-    const subject = newest.subject
+    const subject = selected.subject
       || this.string("account.inbox.no.subject", "(No subject)");
     const prompt = this.string(
       "account.inbox.apply.confirm",
-      "Apply the active Sieve script to the newest Inbox message from {date} with subject “{subject}”?\n\nRules may mark the original as deleted. No EXPUNGE will be performed.")
-      .replace("{date}", formatInboxDate(newest.date))
+      "Apply the active Sieve script to the selected Inbox message from {date} with subject “{subject}”?\n\nRules may mark the original as deleted. No EXPUNGE will be performed.")
+      .replace("{date}", formatInboxDate(selected.date))
       .replace("{subject}", subject);
     if (!this.confirmApply(prompt))
       return;
@@ -288,13 +321,13 @@ class SieveInboxUI {
     this.setStatus(this.string(
       "account.inbox.apply.running", "Applying the active Sieve script…"));
     try {
-      const result = await this.account.send("account-inbox-apply-latest", {
-        messageId: newest.id
+      const result = await this.account.send("account-inbox-apply-selected", {
+        messageId: selected.id
       });
       await this.render();
       const style = result.errors ? "warning" : "success";
       this.setStatus(`${this.string(
-        "account.inbox.apply.done", "Sieve was run on the newest Inbox message")}: `
+        "account.inbox.apply.done", "Sieve was run on the selected Inbox message")}: `
         + `${result.script} (${result.filtered} ${this.string(
           "account.inbox.apply.filtered", "visible actions or reports")}, `
         + `${result.warnings} ${this.string(
@@ -305,7 +338,7 @@ class SieveInboxUI {
         "account.inbox.apply.error", "Could not run Sieve")}: ${ex.message || ex}`,
       "danger");
     } finally {
-      button.disabled = this.messages.length === 0;
+      button.disabled = !this.selectedId || !this.inboxConfigured;
     }
   }
 
@@ -318,8 +351,9 @@ class SieveInboxUI {
 
     this.rendering = true;
     this.selectedId = null;
+    this.inboxConfigured = false;
     this.root.querySelector(".sieve-inbox-create-rule").disabled = true;
-    this.root.querySelector(".sieve-inbox-apply-latest").disabled = true;
+    this.root.querySelector(".sieve-inbox-apply-selected").disabled = true;
     this.root.querySelector(".sieve-inbox-table-wrap").classList.add("d-none");
     this.setStatus(this.string("account.inbox.loading", "Loading Inbox…"));
 
@@ -327,9 +361,8 @@ class SieveInboxUI {
       const data = await this.account.send("account-inbox-list");
       this.messages = data.messages || [];
       this.mailboxes = data.mailboxes || [];
+      this.inboxConfigured = data.configured !== false;
       this.renderRows();
-      this.root.querySelector(".sieve-inbox-apply-latest").disabled
-        = this.messages.length === 0 || data.configured === false;
 
       if (data.configured === false) {
         this.setStatus(this.string(
@@ -364,6 +397,8 @@ class SieveInboxUI {
       = this.string("account.inbox.rule.script", "Add to Sieve script");
     modal.querySelector(".sieve-inbox-rule-mailbox-label").textContent
       = this.string("account.inbox.rule.mailbox", "Destination mailbox for template");
+    modal.querySelector(".sieve-inbox-rule-similar-label").textContent
+      = this.string("account.inbox.rule.similar", "Possible existing rules (read only)");
     modal.querySelector(".sieve-inbox-rule-source-label").textContent
       = this.string("account.inbox.rule.source", "Sieve rule");
     modal.querySelector(".sieve-inbox-rule-template").textContent
@@ -463,6 +498,7 @@ class SieveInboxUI {
       modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
       this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
       modal.querySelector(".sieve-inbox-rule-source").value = this.lastTemplate;
+      this.updateSimilarRuleMatches();
       modal.querySelector(".sieve-inbox-rule-connection").textContent
         = scripts.connected
           ? this.string("account.inbox.rule.connected",
@@ -482,6 +518,42 @@ class SieveInboxUI {
         "account.inbox.rule.error", "Could not open the rule editor")}: ${ex.message || ex}`,
       "danger");
     }
+  }
+
+  /**
+   * Shows possible rules sharing message parameters across all server scripts.
+   *
+   * The result is deliberately separate from the editable snippet so saving a
+   * new rule can never append an existing rule a second time.
+   */
+  updateSimilarRuleMatches() {
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    const source = modal.querySelector(".sieve-inbox-rule-similar");
+    const status = modal.querySelector(".sieve-inbox-rule-similar-status");
+    const matches = findSpamRuleMatches(this.scripts, this.details);
+    const labels = {
+      sender: this.string("account.spam.rule.sender", "Sender address"),
+      domain: this.string("account.spam.rule.domain", "Sender domain"),
+      recipient: this.string("account.spam.rule.recipient", "Recipient"),
+      subject: this.string("account.spam.rule.subject", "Subject"),
+      active: this.string("account.inbox.rule.active", "active"),
+      line: this.string("account.spam.matches.line", "Line")
+    };
+
+    source.value = formatInboxRuleMatches(matches, labels);
+    if (!matches.length) {
+      status.className = "form-text text-success sieve-inbox-rule-similar-status";
+      status.textContent = this.string(
+        "account.inbox.rule.similar.none",
+        "No existing rule with the same email address, domain, recipient or subject was found.");
+      return;
+    }
+
+    status.className = "form-text text-warning sieve-inbox-rule-similar-status";
+    status.textContent = this.string(
+      "account.inbox.rule.similar.found",
+      "{count} Sieve script(s) contain possible similar rules. Check them before saving a new rule.")
+      .replace("{count}", `${matches.length}`);
   }
 
   /**
@@ -579,12 +651,14 @@ class SieveInboxUI {
    * Checks the complete resulting script on the Sieve server.
    */
   async lintRule() {
+    const button = this.root.querySelector(".sieve-inbox-rule-lint");
     try {
       this.setEditorStatus(this.string(
         "account.inbox.rule.lint.running", "Checking complete script on the server…"));
       await this.account.send("account-inbox-rule-check", this.getRulePayload());
       this.setEditorStatus(this.string(
         "account.inbox.rule.lint.ok", "The complete script is valid."), "success");
+      showCheckSuccess(button);
     } catch (ex) {
       this.setEditorStatus(`${this.string(
         "account.inbox.rule.lint.error", "The script is not valid")}: ${ex.message || ex}`,
@@ -637,4 +711,9 @@ class SieveInboxUI {
   }
 }
 
-export { formatInboxDate, SieveInboxUI, sortInboxMessagesByDate };
+export {
+  formatInboxDate,
+  formatInboxRuleMatches,
+  SieveInboxUI,
+  sortInboxMessagesByDate
+};

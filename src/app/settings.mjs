@@ -34,9 +34,15 @@ async function main() {
     await (new SieveTemplate()).load("./libs/managesieve.ui/settings/settings.html"));
 
   const theme = document.querySelector("#sieve-theme");
+  const themeCurrent = document.querySelector("#sieve-theme-current");
+  const updateThemeCurrent = () => {
+    themeCurrent.textContent = theme.selectedOptions[0]?.textContent || theme.value;
+  };
   theme.value = themePreference;
+  updateThemeCurrent();
   theme.addEventListener("change", async () => {
     SieveTheme.apply(theme.value);
+    updateThemeCurrent();
     await SieveIpcClient.sendMessage("core", "settings-set-theme", {
       theme: theme.value
     });

@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.10 is the latest stable release for both distributed packages:**
+**Version 0.8.11 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.10.exe`
-- Thunderbird: `sieve-0.8.10-cram-md5.xpi`
+- Windows: `install_sieve_0.8.11.exe`
+- Thunderbird: `sieve-0.8.11-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -28,9 +28,11 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 - Version `0.6.1.4` identifies the Windows application as the `ecxod/sieve`
   CRAM-MD5 fork in a small persistent footer. It also removes the donation
   buttons and the project's donation links and metadata.
-- The Windows application now offers **System**, **Light**, and **Dark** under
-  **Settings → Appearance**. The selected theme is persisted and is applied to
-  the application, all open tabs, and CodeMirror syntax highlighting.
+- The Windows application offers **System**, **Light**, **Dark**, **Dark Light**,
+  and **AMOLED** under **Settings → Appearance**. The dark variants use clearer
+  card and button edges, while AMOLED uses a black background. The selected
+  theme is persisted and is applied to the application, all open tabs, and
+  CodeMirror syntax highlighting.
 - Server cards on **Home** can be reduced to their server name by clicking the
   server-name tab. This state is stored per server; a collapsed server does not
   load its script list until it is expanded.
@@ -225,6 +227,15 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   editor loads the **Add to Sieve script** selector. If the account is offline,
   the application connects it automatically, verifies that the connection is
   active, updates the account indicator, and only then retrieves the scripts.
+- Version `0.8.11` applies **Run Sieve now** to the explicitly selected Inbox
+  message instead of assuming the newest message. It rechecks the message and
+  UIDVALIDITY and still never issues `EXPUNGE`. The Inbox rule editor shows
+  possible existing sender, domain, recipient, and subject rules with nearby
+  source context in a separate read-only field. Successful syntax checks turn
+  their button green and fade back gradually. The Windows appearance dialog
+  adds **Dark Light** and black **AMOLED** themes with clearer card and button
+  borders. A Debian/Devuan package recipe is included without systemd or
+  maintainer scripts.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -250,13 +261,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.10-cram-md5.xpi`](releases/sieve-0.8.10-cram-md5.xpi).
+[`releases/sieve-0.8.11-cram-md5.xpi`](releases/sieve-0.8.11-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `bd09c40c666fe58af9524d652d2bee26b8d91905b4aea39f43ea4383aef667f4`
+SHA-256: `90d3cd895849ecb5e4234d170d082dc6747e9829ea6d66225b3077fe115b5ce1`
 
 ### Thunderbird permission notice
 
@@ -274,6 +285,19 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.10.exe`](releases/install_sieve_0.8.10.exe).
+[`releases/install_sieve_0.8.11.exe`](releases/install_sieve_0.8.11.exe).
 
-SHA-256: `38d0196d28e9c662151be79af8470c3f11d37218ee5ed34434f5c235a25bacdb`
+SHA-256: `2b5d6e237848da6c298951dc767d9f9d6afd9d92d20fdd3d19869c33a3de9f46`
+
+## Linux package
+
+The existing Electron application can also be packaged for Debian-compatible
+Linux systems, including Devuan, without systemd or maintainer scripts:
+
+```sh
+npm run package-linux-deb
+```
+
+The resulting `build/sieve-<version>-linux-amd64.deb` installs the application
+under `/opt/sieve-cram-md5`, the launcher as `/usr/bin/sieve-cram-md5`, and a
+desktop-menu entry with the application icon.

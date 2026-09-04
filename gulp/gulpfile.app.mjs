@@ -13,7 +13,7 @@ import gulp from 'gulp';
 import logger from 'gulplog';
 
 import { existsSync } from 'fs';
-import { chmod, unlink } from 'fs/promises';
+import { chmod, cp, mkdir, rm, symlink, unlink, writeFile } from 'fs/promises';
 
 import { promisify } from 'util';
 import { exec } from 'child_process';
@@ -44,6 +44,8 @@ const MAC_PLATFORM = "mas";
 const APP_IMAGE_RELEASE_URL = "https://api.github.com/repos/AppImage/appimagetool/releases";
 const APP_IMAGE_TOOL_NAME = "appimagetool-x86_64.AppImage";
 const APP_IMAGE_DIR = path.join(OUTPUT_DIR_APP, "sieve.AppDir");
+const DEBIAN_PACKAGE_NAME = "sieve-cram-md5";
+const DEBIAN_PACKAGE_DIR = path.join(OUTPUT_DIR_APP, "sieve-debian-amd64");
 
 const OUTPUT_DIR_APP_WIN32 = path.join(OUTPUT_DIR_APP, `sieve-${WIN_PLATFORM}-${WIN_ARCH}`);
 const OUTPUT_DIR_APP_LINUX = path.join(OUTPUT_DIR_APP, `sieve-${LINUX_PLATFORM}-${LINUX_ARCH}`);
@@ -239,6 +241,81 @@ async function packageLinux() {
   };
 
   await packager(options);
+}
+
+/**
+ * Packages the Linux Electron application as a Debian archive.
+ *
+ * The package contains only static files and deliberately has no maintainer
+ * scripts or systemd dependency, so it is suitable for Debian and Devuan.
+ */
+async function packageDebian() {
+  const version = (await common.getPackageVersion()).join(".");
+  const destination = path.resolve(path.join(
+    common.BASE_DIR_BUILD, `sieve-${version}-linux-amd64.deb`));
+  const appDir = path.join(DEBIAN_PACKAGE_DIR, "opt", DEBIAN_PACKAGE_NAME);
+  const binDir = path.join(DEBIAN_PACKAGE_DIR, "usr", "bin");
+  const desktopDir = path.join(
+    DEBIAN_PACKAGE_DIR, "usr", "share", "applications");
+  const iconDir = path.join(
+    DEBIAN_PACKAGE_DIR, "usr", "share", "icons", "hicolor", "64x64", "apps");
+  const documentationDir = path.join(
+    DEBIAN_PACKAGE_DIR, "usr", "share", "doc", DEBIAN_PACKAGE_NAME);
+
+  await rm(DEBIAN_PACKAGE_DIR, { recursive: true, force: true });
+  await unlink(destination).catch((ex) => {
+    if (ex.code !== "ENOENT")
+      throw ex;
+  });
+
+  await mkdir(path.join(DEBIAN_PACKAGE_DIR, "DEBIAN"), { recursive: true });
+  await mkdir(binDir, { recursive: true });
+  await mkdir(desktopDir, { recursive: true });
+  await mkdir(iconDir, { recursive: true });
+  await mkdir(documentationDir, { recursive: true });
+  await cp(OUTPUT_DIR_APP_LINUX, appDir, { recursive: true });
+  await chmod(appDir, 0o755);
+  await symlink(
+    `../../opt/${DEBIAN_PACKAGE_NAME}/sieve`,
+    path.join(binDir, DEBIAN_PACKAGE_NAME));
+  await cp(
+    path.join(common.BASE_DIR_COMMON, "icons", "linux.png"),
+    path.join(iconDir, `${DEBIAN_PACKAGE_NAME}.png`));
+  await cp(
+    "./LICENSE.md",
+    path.join(documentationDir, "copyright"));
+  await chmod(path.join(documentationDir, "copyright"), 0o644);
+
+  await writeFile(path.join(desktopDir, `${DEBIAN_PACKAGE_NAME}.desktop`),
+    `[Desktop Entry]\n`
+    + `Name=Sieve CRAM-MD5\n`
+    + `Comment=Manage server-side Sieve mail filters\n`
+    + `Exec=${DEBIAN_PACKAGE_NAME}\n`
+    + `Icon=${DEBIAN_PACKAGE_NAME}\n`
+    + `Terminal=false\n`
+    + `Type=Application\n`
+    + `Categories=Network;Email;Utility;\n`
+    + `StartupWMClass=sieve\n`, "utf8");
+
+  await writeFile(path.join(DEBIAN_PACKAGE_DIR, "DEBIAN", "control"),
+    `Package: ${DEBIAN_PACKAGE_NAME}\n`
+    + `Version: ${version}\n`
+    + `Section: mail\n`
+    + `Priority: optional\n`
+    + `Architecture: amd64\n`
+    + `Maintainer: ecxod\n`
+    + `Homepage: https://github.com/ecxod/sieve\n`
+    + `Depends: libasound2, libatk-bridge2.0-0, libc6, libcairo2, libcups2, `
+    + `libdbus-1-3, libdrm2, libexpat1, libgbm1, libglib2.0-0, libgtk-3-0, `
+    + `libnspr4, libnss3, libpango-1.0-0, libsecret-1-0, libx11-6, `
+    + `libx11-xcb1, libxcb1, libxcomposite1, libxdamage1, libxext6, libxfixes3, `
+    + `libxkbcommon0, libxrandr2, xdg-utils\n`
+    + `Description: graphical ManageSieve editor with CRAM-MD5 support\n`
+    + ` Edit server-side Sieve mail-filter scripts in a standalone desktop app.\n`,
+    "utf8");
+
+  await promisify(exec)(
+    `dpkg-deb --root-owner-group --build "${DEBIAN_PACKAGE_DIR}" "${destination}"`);
 }
 
 /**
@@ -457,6 +534,7 @@ export default {
 
   packageWin32: packageWin32,
   packageLinux: packageLinux,
+  packageDebian: packageDebian,
   packageMacOS: packageMacOS,
 
   zipWin32: zipWin32,

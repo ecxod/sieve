@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.10
+## Stable release 0.8.11
 
-**Version 0.8.10 is the latest stable release for both the Windows EXE and the
+**Version 0.8.11 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.10` uses the same version for the Windows application and the
+Release `0.8.11` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -61,15 +61,19 @@ Thunderbird extension. The extension includes:
   Sieve script without overwriting an independently changed script
 - an **Inbox** tab with searchable messages and copyable raw headers; its
   integrated rule editor can lint, format, and safely append a rule to a chosen
-  server script while checking literal `fileinto` targets against IMAP folders;
+  server script while checking literal `fileinto` targets against IMAP folders
+  and showing possible existing rules with the same sender, domain, recipient,
+  or subject in a separate read-only field;
   dates use `yyyy.mm.dd, hh:mm:ss` and are ordered newest first, and a guarded
-  **Run Sieve now** action applies the active script to exactly the newest Inbox
+  **Run Sieve now** action applies the active script to exactly the selected Inbox
   message without issuing `EXPUNGE`; when the rule editor is opened while the
   Sieve client is offline, it connects automatically before loading the target
   script selector
 - stable, locale-aware alphabetical ordering of account cards on the Home page
 - a save-or-discard warning when an editor with changes relative to the loaded
   server script is closed; cancelling or a failed save keeps the editor open
+- a green success confirmation after a manual syntax check, followed by a
+  gradual return to the normal button color
 - a visible add-on name beside **Create Server** and the fork/version footer
   used by the Windows application
 
@@ -81,21 +85,23 @@ The Windows application additionally provides a portable settings backup. It
 exports and restores server accounts, logins, editor and appearance settings,
 and optional error-tracking settings. Remembered passwords are included only
 after an explicit choice and a clear-text warning. The global **Settings** tab
+offers **Dark**, **Dark Light**, and black **AMOLED** variants with clearer card
+and button edges through a small appearance dialog. It
 also contains update management which displays the installed and latest GitHub
 release versions and can download, verify, and start the matching Windows
 installer while showing its current phase, downloaded bytes, and percentage.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.10-cram-md5.xpi`](releases/sieve-0.8.10-cram-md5.xpi)
+[`releases/sieve-0.8.11-cram-md5.xpi`](releases/sieve-0.8.11-cram-md5.xpi)
 
-SHA-256: `bd09c40c666fe58af9524d652d2bee26b8d91905b4aea39f43ea4383aef667f4`
+SHA-256: `90d3cd895849ecb5e4234d170d082dc6747e9829ea6d66225b3077fe115b5ce1`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.10.exe`](releases/install_sieve_0.8.10.exe)
+[`releases/install_sieve_0.8.11.exe`](releases/install_sieve_0.8.11.exe)
 
-SHA-256: `38d0196d28e9c662151be79af8470c3f11d37218ee5ed34434f5c235a25bacdb`
+SHA-256: `2b5d6e237848da6c298951dc767d9f9d6afd9d92d20fdd3d19869c33a3de9f46`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified
@@ -125,6 +131,12 @@ Create the Thunderbird package:
 
 ```sh
 npm exec -- gulp wx:package-xpi
+```
+
+Create the graphical Linux application as a Debian/Devuan package:
+
+```sh
+npm run package-linux-deb
 ```
 
 Create the Windows application directory:

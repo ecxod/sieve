@@ -336,7 +336,7 @@ class SieveMozImapFilterClient {
   }
 
   /**
-   * Resolves one displayed Inbox message to its newest matching IMAP UID.
+   * Resolves one selected Inbox message to its newest matching IMAP UID.
    *
    * Thunderbird's WebExtension message id is local, so the stable Message-ID
    * header is used at the raw IMAP boundary. Only one UID is selected even if
@@ -345,7 +345,7 @@ class SieveMozImapFilterClient {
    * @param {string} folder
    *   server-side Inbox path.
    * @param {string} messageId
-   *   RFC Message-ID of the displayed newest message.
+   *   RFC Message-ID of the selected message.
    * @returns {Promise<object>}
    *   exact one-message snapshot.
    */
@@ -355,7 +355,7 @@ class SieveMozImapFilterClient {
     if (!folder)
       throw new Error("Thunderbird did not report the server name of the Inbox");
     if (!messageId)
-      throw new Error("The newest Inbox message has no Message-ID header");
+      throw new Error("The selected Inbox message has no Message-ID header");
 
     return await this.withConnection(async (connection) => {
       const lines = await connection.command(`SELECT ${quoteImap(folder)}`);
@@ -368,7 +368,7 @@ class SieveMozImapFilterClient {
       const matches = parseSearchUids(await connection.command(
         `UID SEARCH UNDELETED HEADER Message-ID ${quoteImap(messageId)}`));
       if (!matches.length)
-        throw new Error("The newest Inbox message is no longer available");
+        throw new Error("The selected Inbox message is no longer available");
 
       return {
         folder,

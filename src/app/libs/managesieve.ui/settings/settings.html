@@ -4,12 +4,13 @@
       <h4 data-i18n="account.settings" class="card-title"></h4>
       <h5 data-i18n="settings.theme.title" class="mt-3"></h5>
       <p data-i18n="settings.theme.description" class="card-text"></p>
-      <label data-i18n="settings.theme.label" for="sieve-theme" class="form-label"></label>
-      <select id="sieve-theme" class="form-select form-select-sm">
-        <option data-i18n="settings.theme.system" value="system"></option>
-        <option data-i18n="settings.theme.light" value="light"></option>
-        <option data-i18n="settings.theme.dark" value="dark"></option>
-      </select>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span data-i18n="settings.theme.current" class="text-body-secondary"></span>
+        <strong id="sieve-theme-current"></strong>
+      </div>
+      <button data-i18n="settings.theme.customize" type="button"
+        class="btn btn-sm btn-link px-0 mt-1" data-bs-toggle="modal"
+        data-bs-target="#sieve-theme-dialog"></button>
     </div>
   </div>
 
@@ -80,6 +81,43 @@
         <button data-i18n="settings.sentry.save" id="sieve-sentry-save" type="button"
           class="btn btn-sm btn-primary"></button>
         <span id="sieve-sentry-status" class="small" role="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="sieve-theme-dialog" class="modal" tabindex="-1"
+    aria-labelledby="sieve-theme-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 data-i18n="settings.theme.dialog.title" class="modal-title"
+            id="sieve-theme-dialog-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"
+            aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p data-i18n="settings.theme.dialog.description"></p>
+          <label data-i18n="settings.theme.label" for="sieve-theme"
+            class="form-label"></label>
+          <select id="sieve-theme" class="form-select form-select-sm">
+            <option data-i18n="settings.theme.system" value="system"></option>
+            <option data-i18n="settings.theme.light" value="light"></option>
+            <option data-i18n="settings.theme.dark" value="dark"></option>
+            <option data-i18n="settings.theme.darkLight" value="dark-light"></option>
+            <option data-i18n="settings.theme.amoled" value="amoled"></option>
+          </select>
+          <div class="card mt-3">
+            <div class="card-body py-3">
+              <div data-i18n="settings.theme.preview" class="small mb-2"></div>
+              <button data-i18n="settings.theme.previewButton" type="button"
+                class="btn btn-sm btn-outline-secondary"></button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button data-i18n="settings.theme.close" type="button"
+            class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"></button>
+        </div>
       </div>
     </div>
   </div>

@@ -17,7 +17,7 @@ const CONFIG_KEY_DEVELOPER = "developer";
 
 const DEFAULT_LOG_LEVEL = 0;
 const DEFAULT_THEME = "system";
-const THEMES = ["system", "light", "dark"];
+const THEMES = ["system", "light", "dark", "dark-light", "amoled"];
 
 import { SieveUniqueId } from "./../../utils/SieveUniqueId.mjs";
 import { SievePrefManager } from "./SievePrefManager.mjs";
@@ -107,7 +107,7 @@ class SieveAbstractAccounts {
    * Sets the global application color theme.
    *
    * @param {string} theme
-   *   system, light or dark
+   *   system, light, dark, dark-light or amoled
    * @returns {SieveAccounts}
    *   a self reference
    */
@@ -123,7 +123,7 @@ class SieveAbstractAccounts {
    * Gets the global application color theme.
    *
    * @returns {string}
-   *   system, light or dark
+   *   system, light, dark, dark-light or amoled
    */
   async getTheme() {
     const theme = await (new SievePrefManager(CONFIG_ID_GLOBAL))

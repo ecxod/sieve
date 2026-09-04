@@ -15,6 +15,7 @@ import { SieveEditorController } from "./SieveEditorController.mjs";
 import { SieveTextEditorUI } from "./text/SieveTextEditor.mjs";
 import { SieveGraphicalEditorUI } from "./graphical/SieveGraphicalEditor.mjs";
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
 const EDITOR_OFFSET_PX = 40;
 /**
@@ -104,7 +105,8 @@ class SieveEditorUI extends SieveEditorController {
 
         try {
           this.hideErrorMessage();
-          await this.getTextEditor().checkScript();
+          if (await this.getTextEditor().checkScript())
+            showCheckSuccess(button);
         } catch (ex) {
           await this.showErrorMessage(ex.toString());
         } finally {

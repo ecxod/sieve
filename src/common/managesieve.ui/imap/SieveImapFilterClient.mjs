@@ -236,7 +236,7 @@ class SieveImapFilterClient {
           deleted: false
         }, { uid: true }) || [];
         if (!uids.some((uid) => { return Number(uid) === selection.uid; }))
-          throw new Error("The newest Inbox message is no longer available");
+          throw new Error("The selected Inbox message is no longer available");
 
         return {
           folder,

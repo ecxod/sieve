@@ -4,7 +4,7 @@
     <input type="search" class="form-control form-control-sm sieve-inbox-search"
       placeholder="Absender, Empfänger oder Betreff suchen" autocomplete="off">
     <button type="button" class="btn btn-sm btn-outline-secondary sieve-inbox-refresh">Aktualisieren</button>
-    <button type="button" class="btn btn-sm btn-outline-primary sieve-inbox-apply-latest" disabled>Sieve jetzt ausführen</button>
+    <button type="button" class="btn btn-sm btn-outline-primary sieve-inbox-apply-selected" disabled>Sieve jetzt ausführen</button>
     <button type="button" class="btn btn-sm btn-primary sieve-inbox-create-rule" disabled>Create Sieve Rule</button>
   </div>
 
@@ -52,6 +52,11 @@
               <datalist id="sieve-inbox-mailboxes" class="sieve-inbox-rule-mailboxes"></datalist>
             </div>
           </div>
+
+          <label class="form-label mt-3 sieve-inbox-rule-similar-label"></label>
+          <textarea class="form-control font-monospace sieve-inbox-rule-similar" rows="8"
+            readonly spellcheck="false" wrap="off"></textarea>
+          <div class="form-text sieve-inbox-rule-similar-status" role="status" aria-live="polite"></div>
 
           <label class="form-label mt-3 sieve-inbox-rule-source-label"></label>
           <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="16"

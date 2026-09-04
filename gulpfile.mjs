@@ -48,6 +48,12 @@ const appZipLinux = gulp.series(
 );
 appZipLinux.displayName = 'app:zip-linux';
 
+const appDebLinux = gulp.series(
+  appPackageLinux,
+  app.packageDebian
+);
+appDebLinux.displayName = 'app:deb-linux';
+
 const appAppImageLinux = gulp.series(
   appPackageLinux,
   app.appImageLinux
@@ -74,6 +80,7 @@ export {
   appZipWin32,
   appPackageLinux,
   appZipLinux,
+  appDebLinux,
   appAppImageLinux,
   appPackageMacOS,
   appZipMacOS
