@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.14 is the latest stable release for both distributed packages:**
+**Version 0.8.15 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.14.exe`
-- Thunderbird: `sieve-0.8.14-cram-md5.xpi`
+- Windows: `install_sieve_0.8.15.exe`
+- Thunderbird: `sieve-0.8.15-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -252,6 +252,11 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   and error feedback. It removes the graphical editor's generated `require`
   commands before validating or appending the rule snippet, so the resulting
   complete server script remains valid and can be saved.
+- Version `0.8.15` fixes in-place Windows upgrades while Sieve is running. The
+  installer asks the user to save open changes, closes the Electron process via
+  the Windows Restart Manager with a targeted `taskkill` fallback, verifies
+  that `sieve.exe` and `chrome_100_percent.pak` are replaceable, and reports a
+  retryable error instead of leaving a partial installation.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -277,13 +282,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.14-cram-md5.xpi`](releases/sieve-0.8.14-cram-md5.xpi).
+[`releases/sieve-0.8.15-cram-md5.xpi`](releases/sieve-0.8.15-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `f67c7b09424bd23ff8e507badd7e52a317dd228d9b80b633e61eedf6f4259e27`
+SHA-256: `31810e3d8515890473c18646ab210ed305da424a3dc6b00fb2ade10d3645a4e8`
 
 ### Thunderbird permission notice
 
@@ -301,9 +306,9 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.14.exe`](releases/install_sieve_0.8.14.exe).
+[`releases/install_sieve_0.8.15.exe`](releases/install_sieve_0.8.15.exe).
 
-SHA-256: `98ab8781578c3b15e94290dd2ae43a88498745ef5db732c55b830bd3ebf19343`
+SHA-256: `fb890a63d721d04e1aef71bb9c94220b0d9a66e8ced5a4e28b53933a73893f41`
 
 ## Linux package
 

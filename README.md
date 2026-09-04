@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.14
+## Stable release 0.8.15
 
-**Version 0.8.14 is the latest stable release for both the Windows EXE and the
+**Version 0.8.15 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.14` uses the same version for the Windows application and the
+Release `0.8.15` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -94,18 +94,21 @@ and button edges through a small appearance dialog. It
 also contains update management which displays the installed and latest GitHub
 release versions and can download, verify, and start the matching Windows
 installer while showing its current phase, downloaded bytes, and percentage.
+During an in-place upgrade, the Windows installer asks the user to save open
+editor changes, closes a running Sieve instance, verifies that locked Electron
+files can be replaced, and only then extracts the new application.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.14-cram-md5.xpi`](releases/sieve-0.8.14-cram-md5.xpi)
+[`releases/sieve-0.8.15-cram-md5.xpi`](releases/sieve-0.8.15-cram-md5.xpi)
 
-SHA-256: `f67c7b09424bd23ff8e507badd7e52a317dd228d9b80b633e61eedf6f4259e27`
+SHA-256: `31810e3d8515890473c18646ab210ed305da424a3dc6b00fb2ade10d3645a4e8`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.14.exe`](releases/install_sieve_0.8.14.exe)
+[`releases/install_sieve_0.8.15.exe`](releases/install_sieve_0.8.15.exe)
 
-SHA-256: `98ab8781578c3b15e94290dd2ae43a88498745ef5db732c55b830bd3ebf19343`
+SHA-256: `fb890a63d721d04e1aef71bb9c94220b0d9a66e8ced5a4e28b53933a73893f41`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified
