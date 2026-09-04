@@ -7,6 +7,7 @@
 import { formatSieveScript } from "./../editor/text/SieveFormatter.mjs";
 import {
   createInboxRuleTemplate,
+  getInboxRuleRequirements,
   inspectInboxRuleMailboxes,
   stripLeadingSieveRequirements
 } from "./../inbox/SieveInboxRule.mjs";
@@ -15,6 +16,8 @@ import { findSpamRuleMatches } from "./../spam/SieveSpamRule.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
 import { SieveTheme } from "./../utils/SieveTheme.mjs";
 import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
+
+let ruleEditorSequence = 0;
 
 /**
  * Formats an Inbox date in a locale-independent, sortable representation.
@@ -123,6 +126,8 @@ class SieveInboxUI {
     this.ruleGraphicalEditorFrame = null;
     this.ruleGraphicalEditorReady = null;
     this.ruleGraphicalEditorWindow = null;
+    this.ruleGraphicalSourceLoaded = false;
+    this.ruleEditorSequence = ++ruleEditorSequence;
     this.rendering = false;
     this.inboxConfigured = false;
 
@@ -532,6 +537,22 @@ ${result.reports.join("\n")}`);
       = this.string("account.inbox.rule.similar", "Possible existing rules (read only)");
     modal.querySelector(".sieve-inbox-rule-source-label").textContent
       = this.string("account.inbox.rule.source", "Sieve rule");
+    const graphicalTab = modal.querySelector(".sieve-inbox-rule-graphical-tab");
+    const sourceTab = modal.querySelector(".sieve-inbox-rule-source-tab");
+    const graphicalPane = modal.querySelector(".sieve-inbox-rule-graphical-pane");
+    const sourcePane = modal.querySelector(".sieve-inbox-rule-source-pane");
+    graphicalTab.textContent = this.string("editor.script", "Script");
+    sourceTab.textContent = this.string("editor.source", "Source");
+    graphicalTab.id = `sieve-inbox-rule-graphical-tab-${this.ruleEditorSequence}`;
+    sourceTab.id = `sieve-inbox-rule-source-tab-${this.ruleEditorSequence}`;
+    graphicalPane.id = `sieve-inbox-rule-graphical-${this.ruleEditorSequence}`;
+    sourcePane.id = `sieve-inbox-rule-source-${this.ruleEditorSequence}`;
+    graphicalTab.dataset.bsTarget = `#${graphicalPane.id}`;
+    sourceTab.dataset.bsTarget = `#${sourcePane.id}`;
+    graphicalTab.setAttribute("aria-controls", graphicalPane.id);
+    sourceTab.setAttribute("aria-controls", sourcePane.id);
+    graphicalPane.setAttribute("aria-labelledby", graphicalTab.id);
+    sourcePane.setAttribute("aria-labelledby", sourceTab.id);
     modal.querySelector(".sieve-inbox-rule-template").textContent
       = this.string("account.inbox.rule.template", "Create template");
     modal.querySelector(".sieve-inbox-rule-lint").textContent
@@ -542,6 +563,12 @@ ${result.reports.join("\n")}`);
       = this.string("account.inbox.rule.save", "Save");
 
     this.initializeRuleGraphicalEditor(modal);
+    modal.querySelector(".sieve-inbox-rule-source")
+      .addEventListener("input", () => { this.updateMailboxStatus(); });
+    graphicalTab.addEventListener("click", async () => {
+      await this.showRuleGraphicalTab();
+    });
+    sourceTab.addEventListener("click", () => { this.showRuleSourceTab(); });
     modal.querySelector(".sieve-inbox-rule-mailbox")
       .addEventListener("input", async () => { await this.updateTemplateMailbox(); });
     modal.querySelector(".sieve-inbox-rule-template")
@@ -635,6 +662,71 @@ ${result.reports.join("\n")}`);
     });
   }
 
+  /** Shows the source tab and copies any loaded graphical changes into it. */
+  showRuleSourceTab() {
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    if (this.ruleGraphicalSourceLoaded
+        && this.ruleGraphicalEditorWindow?.getSieveScript) {
+      try {
+        modal.querySelector(".sieve-inbox-rule-source").value
+          = stripLeadingSieveRequirements(
+            this.ruleGraphicalEditorWindow.getSieveScript());
+      } catch (ex) {
+        this.setEditorStatus(`${this.string(
+          "account.inbox.rule.graphical.read.error",
+          "The graphical rule could not be transferred to source code")}: ${ex.message || ex}`,
+        "warning");
+      }
+    }
+
+    bootstrap.Tab.getOrCreateInstance(
+      modal.querySelector(".sieve-inbox-rule-source-tab")).show();
+    this.updateMailboxStatus();
+  }
+
+  /**
+   * Copies source text to the graphical editor before showing its tab.
+   */
+  async showRuleGraphicalTab() {
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    try {
+      await this.setRuleGraphicalSource(
+        modal.querySelector(".sieve-inbox-rule-source").value);
+      bootstrap.Tab.getOrCreateInstance(
+        modal.querySelector(".sieve-inbox-rule-graphical-tab")).show();
+    } catch (ex) {
+      this.showRuleSourceTab();
+      this.setEditorStatus(`${this.string(
+        "account.inbox.rule.graphical.error",
+        "The graphical Sieve editor could not be loaded")}: ${ex.message || ex}`,
+      "warning");
+    }
+  }
+
+  /**
+   * Loads source into the iframe and enables all extensions needed by the
+   * generated snippet so the graphical parser can display it.
+   *
+   * @param {string} source
+   *   editable rule source.
+   */
+  async setRuleGraphicalSource(source) {
+    const editor = await this.getRuleGraphicalEditor();
+    if (!editor)
+      return;
+
+    const extensions = {
+      ...(this.ruleCapabilities?.extensions || {})
+    };
+    for (const requirement of getInboxRuleRequirements(source))
+      extensions[requirement] = true;
+
+    editor.setSieveScript(source, JSON.stringify(extensions));
+    this.ruleGraphicalEditorWindow = editor;
+    this.ruleGraphicalSourceLoaded = true;
+    this.syncRuleEditorTheme();
+  }
+
   /**
    * Returns the currently editable rule source.
    *
@@ -642,11 +734,16 @@ ${result.reports.join("\n")}`);
    *   rule snippet from the graphical editor or its textarea fallback.
    */
   getRuleSource() {
-    if (this.ruleGraphicalEditorWindow?.getSieveScript)
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    const graphicalActive = modal.querySelector(
+      ".sieve-inbox-rule-graphical-tab")?.classList.contains("active");
+    if (graphicalActive && this.ruleGraphicalSourceLoaded
+        && this.ruleGraphicalEditorWindow?.getSieveScript) {
       return stripLeadingSieveRequirements(
         this.ruleGraphicalEditorWindow.getSieveScript());
+    }
 
-    return this.root.querySelector(".sieve-inbox-rule-source").value;
+    return modal.querySelector(".sieve-inbox-rule-source").value;
   }
 
   /**
@@ -656,17 +753,9 @@ ${result.reports.join("\n")}`);
    *   new rule source.
    */
   async setRuleSource(source) {
-    this.root.querySelector(".sieve-inbox-rule-source").value = source;
-
-    const editor = await this.getRuleGraphicalEditor();
-    if (!editor)
-      return;
-
-    editor.setSieveScript(
-      source,
-      JSON.stringify(this.ruleCapabilities?.extensions || {}));
-    this.ruleGraphicalEditorWindow = editor;
-    this.syncRuleEditorTheme();
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    modal.querySelector(".sieve-inbox-rule-source").value = source;
+    await this.setRuleGraphicalSource(source);
   }
 
   /**
@@ -704,8 +793,26 @@ ${result.reports.join("\n")}`);
     if (!this.selectedId)
       return;
 
+    const messageId = this.selectedId;
     const modal = this.root.querySelector(".sieve-inbox-rule-modal");
     const dialog = bootstrap.Modal.getOrCreateInstance(modal);
+    const headers = modal.querySelector(".sieve-inbox-rule-headers");
+    const similar = modal.querySelector(".sieve-inbox-rule-similar");
+    const source = modal.querySelector(".sieve-inbox-rule-source");
+    const scriptSelect = modal.querySelector(".sieve-inbox-rule-script");
+
+    this.details = null;
+    this.scripts = [];
+    this.lastTemplate = "";
+    this.ruleCapabilities = { extensions: {} };
+    this.ruleGraphicalSourceLoaded = false;
+    headers.value = this.string(
+      "account.inbox.rule.headers.loading", "Loading message headers…");
+    similar.value = this.string(
+      "account.inbox.rule.similar.loading", "Checking existing rules…");
+    source.value = "";
+    scriptSelect.replaceChildren();
+    modal.querySelector(".sieve-inbox-rule-connection").textContent = "";
     this.setEditorStatus(this.string(
       "account.inbox.rule.loading", "Loading headers and Sieve scripts…"));
     modal.querySelector(".sieve-inbox-rule-lint").disabled = true;
@@ -713,19 +820,36 @@ ${result.reports.join("\n")}`);
     dialog.show();
 
     try {
+      // Message data does not depend on ManageSieve. Render it first so a
+      // connection or graphical-editor error cannot leave the whole modal
+      // looking empty.
+      const details = await this.account.send(
+        "account-inbox-details", { messageId });
+      this.details = details;
+      headers.value = details.headers || this.string(
+        "account.inbox.rule.headers.empty", "No raw message headers are available.");
+
+      const datalist = modal.querySelector(".sieve-inbox-rule-mailboxes");
+      datalist.replaceChildren();
+      for (const mailbox of this.mailboxes) {
+        const option = document.createElement("option");
+        option.value = mailbox;
+        datalist.append(option);
+      }
+
+      modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
+      this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
+      source.value = this.lastTemplate;
+      this.updateMailboxStatus();
+
       await this.ensureSieveConnected();
-      const [details, scripts, capabilities] = await Promise.all([
-        this.account.send("account-inbox-details", { messageId: this.selectedId }),
+      const [scripts, capabilities] = await Promise.all([
         this.account.send("account-inbox-rule-scripts"),
         this.account.send("account-capabilities")
       ]);
-      this.details = details;
       this.scripts = scripts.scripts || [];
       this.ruleCapabilities = capabilities || { extensions: {} };
-      modal.querySelector(".sieve-inbox-rule-headers").value = details.headers || "";
 
-      const scriptSelect = modal.querySelector(".sieve-inbox-rule-script");
-      scriptSelect.replaceChildren();
       for (const script of this.scripts) {
         const option = document.createElement("option");
         option.value = script.name;
@@ -738,17 +862,6 @@ ${result.reports.join("\n")}`);
       if (activeScript)
         scriptSelect.value = activeScript.name;
 
-      const datalist = modal.querySelector(".sieve-inbox-rule-mailboxes");
-      datalist.replaceChildren();
-      for (const mailbox of this.mailboxes) {
-        const option = document.createElement("option");
-        option.value = mailbox;
-        datalist.append(option);
-      }
-
-      modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
-      this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
-      await this.setRuleSource(this.lastTemplate);
       this.updateSimilarRuleMatches();
       modal.querySelector(".sieve-inbox-rule-connection").textContent
         = scripts.connected
@@ -761,9 +874,28 @@ ${result.reports.join("\n")}`);
       modal.querySelector(".sieve-inbox-rule-save").disabled
         = !scripts.connected || !this.scripts.length;
       this.renderRows();
-      this.hideEditorStatus();
-      this.updateMailboxStatus();
+
+      try {
+        await this.setRuleGraphicalSource(this.lastTemplate);
+        this.hideEditorStatus();
+      } catch (ex) {
+        this.showRuleSourceTab();
+        this.setEditorStatus(`${this.string(
+          "account.inbox.rule.graphical.error",
+          "The graphical Sieve editor could not be loaded")}: ${ex.message || ex}`,
+        "warning");
+      }
     } catch (ex) {
+      if (!this.details) {
+        headers.value = `${this.string(
+          "account.inbox.rule.headers.error",
+          "The message headers could not be loaded")}: ${ex.message || ex}`;
+      }
+      similar.value = `${this.string(
+        "account.inbox.rule.similar.error",
+        "The existing rules could not be checked")}: ${ex.message || ex}`;
+      if (source.value)
+        this.showRuleSourceTab();
       this.setEditorStatus(`${this.string(
         "account.inbox.rule.error", "Could not open the rule editor")}: ${ex.message || ex}`,
       "danger");
@@ -792,10 +924,11 @@ ${result.reports.join("\n")}`);
 
     source.value = formatInboxRuleMatches(matches, labels);
     if (!matches.length) {
-      status.className = "form-text text-success sieve-inbox-rule-similar-status";
-      status.textContent = this.string(
+      source.value = this.string(
         "account.inbox.rule.similar.none",
         "No existing rule with the same email address, domain, recipient or subject was found.");
+      status.className = "form-text text-success sieve-inbox-rule-similar-status";
+      status.textContent = "";
       return;
     }
 

@@ -798,12 +798,142 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
   suite.assertEquals(calls.join(","), "is-connected");
 });
 
+suite.add("Inbox rule editor fills headers, similar rules and both editor views", async function () {
+  const createControl = () => {
+    return {
+      children: [],
+      className: "",
+      disabled: false,
+      textContent: "",
+      value: "",
+      append(child) { this.children.push(child); },
+      replaceChildren() { this.children = []; }
+    };
+  };
+  const controls = {
+    ".sieve-inbox-rule-headers": createControl(),
+    ".sieve-inbox-rule-similar": createControl(),
+    ".sieve-inbox-rule-similar-status": createControl(),
+    ".sieve-inbox-rule-source": createControl(),
+    ".sieve-inbox-rule-script": createControl(),
+    ".sieve-inbox-rule-connection": createControl(),
+    ".sieve-inbox-rule-lint": createControl(),
+    ".sieve-inbox-rule-save": createControl(),
+    ".sieve-inbox-rule-mailboxes": createControl(),
+    ".sieve-inbox-rule-mailbox": createControl()
+  };
+  const modal = {
+    querySelector(selector) { return controls[selector]; }
+  };
+  const calls = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.selectedId = "9:12";
+  inbox.mailboxes = ["INBOX", "Customers"];
+  inbox.string = (_key, fallback) => { return fallback; };
+  inbox.root = {
+    querySelector(selector) {
+      return selector === ".sieve-inbox-rule-modal" ? modal : controls[selector];
+    }
+  };
+  inbox.account = {
+    async send(action, payload) {
+      calls.push(`${action}:${payload?.messageId || ""}`);
+      if (action === "account-inbox-details") {
+        return {
+          headers: "From: Person <person@example.test>\r\nSubject: Expected subject",
+          senderAddress: "person@example.test",
+          senderDomain: "example.test",
+          recipientAddresses: ["customer@example.test"],
+          subject: "Expected subject"
+        };
+      }
+      if (action === "account-inbox-rule-scripts") {
+        return {
+          connected: true,
+          scripts: [{
+            name: "active-filter",
+            active: true,
+            content: [
+              'if address :is "from" "person@example.test" {',
+              '  fileinto "Customers";',
+              "}"
+            ].join("\n")
+          }]
+        };
+      }
+      if (action === "account-capabilities")
+        return { extensions: { fileinto: true, mailbox: true } };
+      throw new Error(`Unexpected action ${action}`);
+    }
+  };
+  inbox.ensureSieveConnected = async () => { calls.push("ensure-connected:"); };
+  inbox.setEditorStatus = (text, style) => { calls.push(`status:${style || ""}:${text}`); };
+  inbox.hideEditorStatus = () => { calls.push("hide-status:"); };
+  inbox.updateMailboxStatus = () => { calls.push("mailbox-status:"); };
+  inbox.renderRows = () => { calls.push("render-rows:"); };
+  inbox.setRuleGraphicalSource = async (source) => {
+    calls.push(`graphical:${source}`);
+  };
+
+  const oldBootstrap = globalThis.bootstrap;
+  const oldDocument = globalThis.document;
+  let shown = false;
+  globalThis.bootstrap = {
+    Modal: {
+      getOrCreateInstance() {
+        return { show() { shown = true; } };
+      }
+    }
+  };
+  globalThis.document = { createElement: () => { return createControl(); } };
+
+  let sourceFallbackShown = false;
+  try {
+    await inbox.openRuleEditor();
+    inbox.setRuleGraphicalSource = async () => {
+      throw new Error("graphical probe failure");
+    };
+    inbox.showRuleSourceTab = () => { sourceFallbackShown = true; };
+    await inbox.openRuleEditor();
+  } finally {
+    globalThis.bootstrap = oldBootstrap;
+    globalThis.document = oldDocument;
+  }
+
+  suite.assertTrue(shown);
+  suite.assertTrue(controls[".sieve-inbox-rule-headers"].value.includes("Subject: Expected subject"));
+  suite.assertTrue(controls[".sieve-inbox-rule-source"].value.includes('fileinto :create "INBOX";'));
+  suite.assertTrue(controls[".sieve-inbox-rule-similar"].value.includes("# active-filter (active)"));
+  suite.assertEquals(controls[".sieve-inbox-rule-script"].value, "active-filter");
+  suite.assertFalse(controls[".sieve-inbox-rule-lint"].disabled);
+  suite.assertFalse(controls[".sieve-inbox-rule-save"].disabled);
+  suite.assertTrue(sourceFallbackShown);
+  suite.assertTrue(calls.some((item) => {
+    return item.includes("status:warning:The graphical Sieve editor could not be loaded");
+  }));
+  suite.assertTrue(calls.indexOf("account-inbox-details:9:12")
+    < calls.indexOf("ensure-connected:"));
+  suite.assertTrue(calls.some((item) => { return item.startsWith("graphical:# Created from Inbox:"); }));
+});
+
 suite.add("Inbox mailbox input preserves freely edited rules", async function () {
   const source = { value: "custom rule" };
+  const graphicalTab = {
+    classList: { contains() { return false; } }
+  };
+  const modal = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-rule-graphical-tab")
+        return graphicalTab;
+      return source;
+    }
+  };
   const inbox = Object.create(SieveInboxUI.prototype);
   inbox.lastTemplate = "generated rule";
   inbox.root = {
-    querySelector() { return source; }
+    querySelector(selector) {
+      return selector === ".sieve-inbox-rule-modal" ? modal : source;
+    }
   };
   let updates = 0;
   inbox.createTemplate = () => { updates++; };
@@ -823,6 +953,16 @@ suite.add("Inbox mailbox input preserves freely edited rules", async function ()
 
 suite.add("Inbox rule source helpers use the graphical editor", async function () {
   const textarea = { value: "textarea source" };
+  const graphicalTab = {
+    classList: { contains() { return true; } }
+  };
+  const modal = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-rule-graphical-tab")
+        return graphicalTab;
+      return textarea;
+    }
+  };
   const editor = {
     value: "editor source",
     getSieveScript() { return this.value; },
@@ -835,9 +975,12 @@ suite.add("Inbox rule source helpers use the graphical editor", async function (
   inbox.ruleCapabilities = { extensions: { fileinto: true } };
   inbox.ruleGraphicalEditorWindow = editor;
   inbox.ruleGraphicalEditorReady = Promise.resolve(editor);
+  inbox.ruleGraphicalSourceLoaded = true;
   inbox.syncRuleEditorTheme = () => {};
   inbox.root = {
-    querySelector() { return textarea; }
+    querySelector(selector) {
+      return selector === ".sieve-inbox-rule-modal" ? modal : textarea;
+    }
   };
 
   suite.assertEquals(inbox.getRuleSource(), "editor source");
@@ -846,8 +989,18 @@ suite.add("Inbox rule source helpers use the graphical editor", async function (
   suite.assertEquals(editor.capabilities, '{"fileinto":true}');
   suite.assertEquals(textarea.value, "updated editor source");
 
+  inbox.ruleCapabilities = { extensions: {} };
+  await inbox.setRuleSource([
+    "if true {",
+    '\tfileinto :create "Customers";',
+    "}"
+  ].join("\n"));
+  suite.assertTrue(JSON.parse(editor.capabilities).fileinto);
+  suite.assertTrue(JSON.parse(editor.capabilities).mailbox);
+
   inbox.ruleGraphicalEditorWindow = null;
   inbox.ruleGraphicalEditorReady = null;
+  inbox.ruleGraphicalSourceLoaded = false;
   await inbox.setRuleSource("updated fallback source");
   suite.assertEquals(inbox.getRuleSource(), "updated fallback source");
 });

@@ -169,9 +169,26 @@ body {
   display: block;
   width: 100%;
   height: 36rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
+  border: 0;
   background: var(--bs-body-bg);
+}
+
+.sieve-inbox-rule-editor-card {
+  overflow: hidden;
+}
+
+.sieve-inbox-rule-editor-content,
+.sieve-inbox-rule-graphical-pane,
+.sieve-inbox-rule-source-pane {
+  min-height: 36rem;
+}
+
+.sieve-inbox-rule-source {
+  min-height: 34rem;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
+  font-size: 0.82rem;
 }
 
 .sieve-spam-table > thead,

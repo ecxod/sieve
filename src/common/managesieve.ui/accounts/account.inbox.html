@@ -38,6 +38,9 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
+          <div class="alert alert-secondary py-2 mb-3 sieve-inbox-rule-lint-status d-none"
+            role="status" aria-live="polite"></div>
+
           <label class="form-label sieve-inbox-rule-headers-label"></label>
           <textarea class="form-control font-monospace sieve-inbox-rule-headers" rows="10"
             readonly spellcheck="false" wrap="off"></textarea>
@@ -65,13 +68,32 @@
           <div class="form-text sieve-inbox-rule-similar-status" role="status" aria-live="polite"></div>
 
           <label class="form-label mt-3 sieve-inbox-rule-source-label"></label>
-          <iframe class="sieve-inbox-rule-editor"
-            src="./../../libs/libSieve/SieveGui.html?embedded"></iframe>
-          <textarea class="sieve-inbox-rule-source d-none" aria-hidden="true"
-            tabindex="-1"></textarea>
+          <div class="card sieve-inbox-rule-editor-card">
+            <div class="card-header py-0">
+              <ul class="nav nav-tabs card-header-tabs pt-2" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button type="button" class="nav-link active sieve-inbox-rule-graphical-tab"
+                    role="tab" aria-selected="true"></button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button type="button" class="nav-link sieve-inbox-rule-source-tab"
+                    role="tab" aria-selected="false"></button>
+                </li>
+              </ul>
+            </div>
+            <div class="card-body p-0 tab-content sieve-inbox-rule-editor-content">
+              <div class="tab-pane fade show active sieve-inbox-rule-graphical-pane"
+                role="tabpanel">
+                <iframe class="sieve-inbox-rule-editor"
+                  src="./../../libs/libSieve/SieveGui.html?embedded"></iframe>
+              </div>
+              <div class="tab-pane fade sieve-inbox-rule-source-pane p-2" role="tabpanel">
+                <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="24"
+                  spellcheck="false" wrap="off"></textarea>
+              </div>
+            </div>
+          </div>
           <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status"
-            role="status" aria-live="polite"></div>
-          <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-lint-status d-none"
             role="status" aria-live="polite"></div>
         </div>
         <div class="modal-footer">
