@@ -207,9 +207,41 @@ function inspectInboxRuleMailboxes(snippet, mailboxes) {
   };
 }
 
+/**
+ * Returns the literal fileinto destinations used by a complete Sieve script.
+ *
+ * Dynamic destinations are deliberately omitted because creating a guessed
+ * mailbox would be a destructive and surprising side effect.
+ *
+ * @param {string} script
+ *   complete Sieve source.
+ * @returns {string[]}
+ *   unique, non-empty literal mailbox names in source order.
+ */
+function getLiteralFileintoMailboxes(script) {
+  const result = [];
+  const seen = new Set();
+
+  for (const action of inspectFileintoActions(script)) {
+    const mailbox = action.mailbox?.trim();
+    if (!mailbox)
+      continue;
+
+    const normalized = normalizeMailbox(mailbox);
+    if (seen.has(normalized))
+      continue;
+
+    seen.add(normalized);
+    result.push(mailbox);
+  }
+
+  return result;
+}
+
 export {
   appendInboxRuleToScript,
   createInboxRuleTemplate,
+  getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes
 };

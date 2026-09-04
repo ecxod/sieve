@@ -250,6 +250,32 @@ class SieveImapFilterClient {
   }
 
   /**
+   * Creates literal fileinto destinations which do not exist yet.
+   *
+   * @param {string[]} mailboxes
+   *   literal mailbox names from the active script.
+   * @returns {Promise<string[]>}
+   *   mailbox names created by this call.
+   */
+  async ensureMailboxes(mailboxes) {
+    const targets = [...new Set((mailboxes || [])
+      .map((mailbox) => { return `${mailbox || ""}`.trim(); })
+      .filter((mailbox) => { return mailbox && mailbox.toUpperCase() !== "INBOX"; }))];
+    if (!targets.length)
+      return [];
+
+    return await this.withClient(async (client) => {
+      const created = [];
+      for (const mailbox of targets) {
+        const result = await client.mailboxCreate(mailbox);
+        if (result?.created !== false)
+          created.push(result?.path || mailbox);
+      }
+      return created;
+    });
+  }
+
+  /**
    * Applies a personal Sieve script to an earlier UID snapshot.
    *
    * @param {string} script
@@ -275,7 +301,8 @@ class SieveImapFilterClient {
         selected: snapshot.uids.length,
         filtered: 0,
         warnings: 0,
-        errors: 0
+        errors: 0,
+        reports: []
       };
 
       try {
@@ -285,9 +312,10 @@ class SieveImapFilterClient {
         }
 
         const onFiltered = async (untagged) => {
-          const values = flattenResponseValues(untagged?.attributes)
-            .map((value) => { return value.toUpperCase(); });
+          const report = flattenResponseValues(untagged?.attributes);
+          const values = report.map((value) => { return value.toUpperCase(); });
           result.filtered++;
+          result.reports.push(report.join(" "));
           if (values.includes("WARNINGS"))
             result.warnings++;
           if (values.includes("ERRORS"))
@@ -295,8 +323,9 @@ class SieveImapFilterClient {
           untagged.next();
         };
         const onFilterProblem = async (untagged) => {
-          const values = flattenResponseValues(untagged?.attributes)
-            .map((value) => { return value.toUpperCase(); });
+          const report = flattenResponseValues(untagged?.attributes);
+          const values = report.map((value) => { return value.toUpperCase(); });
+          result.reports.push(report.join(" "));
           if (values.includes("WARNINGS"))
             result.warnings++;
           if (values.includes("ERRORS"))

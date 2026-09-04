@@ -166,6 +166,21 @@ body {
   font-size: 0.82rem;
 }
 
+.sieve-inbox-rule-editor .CodeMirror {
+  height: 26rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-family: var(--bs-font-monospace);
+  font-size: 0.82rem;
+}
+
+html[data-bs-theme="dark"] .sieve-inbox-rule-editor .CodeMirror,
+html[data-bs-theme="dark"] .sieve-inbox-rule-editor .CodeMirror-gutters {
+  color: var(--bs-body-color);
+  border-color: var(--bs-border-color);
+  background-color: var(--bs-body-bg) !important;
+}
+
 .sieve-spam-table > thead,
 .sieve-spam-table > tbody,
 .sieve-spam-table > thead > tr,

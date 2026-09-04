@@ -26,7 +26,8 @@ import {
   replaceDuplicateMessages
 } from "./libs/managesieve.ui/spam/SieveSpamMessage.mjs";
 import {
-  appendInboxRuleToScript
+  appendInboxRuleToScript,
+  getLiteralFileintoMailboxes
 } from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 import {
   SieveMozImapFilterClient
@@ -42,6 +43,7 @@ initSentry("background");
 
   const FIRST_ENTRY = 0;
   const HAM_TRAINING_TAG = "rspamdham";
+  const SPAM_TRAINING_TAG = "rspamdspam";
   const PERMANENT_ALLOW_TAG = "rspamdallow";
   const PERMANENT_ALLOW_FAILED_TAG = "rspamdallowfailed";
 
@@ -696,14 +698,42 @@ initSentry("background");
       settings.username = await browser.sieve.accounts.getUsername(id);
       settings.password = await browser.sieve.accounts.getPassword(id);
       const filter = new SieveMozImapFilterClient(settings);
+      const source = await sessions.get(id).getScript(active.script);
+      const createdMailboxes = await filter.ensureMailboxes(
+        getLiteralFileintoMailboxes(source));
       const snapshot = await filter.prepareInbox(
         inbox.path || inbox.name || "INBOX", message.headerMessageId);
       const result = await filter.apply(active.script, snapshot);
       return {
         ...result,
+        createdMailboxes,
         folder: snapshot.folder,
         script: active.script
       };
+    },
+
+    "account-inbox-mark-spam": async function (msg) {
+      const id = msg.payload.account;
+      logger.logAction(`Mark selected Inbox message as spam on ${id}`);
+
+      const account = await getMailAccount(id);
+      const inbox = findSpecialFolder(account, "inbox");
+      const junk = findSpecialFolder(account, "junk");
+      const message = await browser.messages.get(Number(msg.payload.messageId));
+      if (!inbox || !message.folder || !isSameFolder(message.folder, inbox))
+        throw new Error("The selected message is no longer in this account's Inbox");
+      if (!junk)
+        throw new Error("Thunderbird has no spam folder for this account");
+
+      await ensureInternalTag(
+        SPAM_TRAINING_TAG, "Rspamd: Spam-Training (intern)", "#cc0000");
+      const tags = [...new Set([
+        ...(message.tags || []).filter((tag) => { return tag !== HAM_TRAINING_TAG; }),
+        SPAM_TRAINING_TAG
+      ])];
+      await browser.messages.update(message.id, { junk: true, tags });
+      await browser.messages.move([message.id], junk);
+      return { processed: 1, folder: junk.name || "Spam", spamTrainingQueued: 1 };
     },
 
     "account-inbox-rule-scripts": async function (msg) {

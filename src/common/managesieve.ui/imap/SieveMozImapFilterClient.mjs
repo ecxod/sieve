@@ -379,6 +379,40 @@ class SieveMozImapFilterClient {
   }
 
   /**
+   * Creates literal fileinto destinations which do not exist yet.
+   *
+   * Existing mailboxes are tolerated because IMAP servers differ between an
+   * OK [ALREADYEXISTS] response and a NO response for that condition.
+   *
+   * @param {string[]} mailboxes
+   *   literal mailbox names from the active script.
+   * @returns {Promise<string[]>}
+   *   mailbox names created by this call.
+   */
+  async ensureMailboxes(mailboxes) {
+    const targets = [...new Set((mailboxes || [])
+      .map((mailbox) => { return `${mailbox || ""}`.trim(); })
+      .filter((mailbox) => { return mailbox && mailbox.toUpperCase() !== "INBOX"; }))];
+    if (!targets.length)
+      return [];
+
+    return await this.withConnection(async (connection) => {
+      const created = [];
+      for (const mailbox of targets) {
+        try {
+          await connection.command(`CREATE ${quoteImap(mailbox)}`);
+          created.push(mailbox);
+        } catch (ex) {
+          if (!/\bALREADYEXISTS\b|already exists|mailbox exists/iu.test(
+            ex?.message || `${ex}`))
+            throw ex;
+        }
+      }
+      return created;
+    });
+  }
+
+  /**
    * Applies a personal script to an earlier UID snapshot.
    *
    * @param {string} script
@@ -393,7 +427,8 @@ class SieveMozImapFilterClient {
       selected: snapshot.uids.length,
       filtered: 0,
       warnings: 0,
-      errors: 0
+      errors: 0,
+      reports: []
     };
     if (!snapshot.uids.length)
       return result;
@@ -414,11 +449,13 @@ class SieveMozImapFilterClient {
         for (const line of lines) {
           if (/^\* \d+ FILTERED\b/i.test(line)) {
             result.filtered++;
+            result.reports.push(line);
             if (/\bWARNINGS\b/i.test(line))
               result.warnings++;
             if (/\bERRORS\b/i.test(line))
               result.errors++;
           } else if (/^\* FILTER\b/i.test(line)) {
+            result.reports.push(line);
             if (/\bWARNINGS\b/i.test(line))
               result.warnings++;
             if (/\bERRORS\b/i.test(line))

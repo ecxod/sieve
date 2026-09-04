@@ -5,16 +5,22 @@
       placeholder="Absender, Empfänger oder Betreff suchen" autocomplete="off">
     <button type="button" class="btn btn-sm btn-outline-secondary sieve-inbox-refresh">Aktualisieren</button>
     <button type="button" class="btn btn-sm btn-outline-primary sieve-inbox-apply-selected" disabled>Sieve jetzt ausführen</button>
+    <button type="button" class="btn btn-sm btn-outline-danger sieve-inbox-mark-spam" disabled>Spam</button>
     <button type="button" class="btn btn-sm btn-primary sieve-inbox-create-rule" disabled>Create Sieve Rule</button>
   </div>
 
   <div class="alert alert-secondary py-2 sieve-inbox-status" role="status" aria-live="polite"></div>
 
+  <div class="dropdown-menu position-fixed sieve-inbox-context-menu">
+    <button type="button" class="dropdown-item sieve-inbox-context-apply">Sieve jetzt ausführen</button>
+    <button type="button" class="dropdown-item sieve-inbox-context-rule">Sieve-Regel erstellen</button>
+  </div>
+
   <div class="table-responsive sieve-inbox-table-wrap">
     <table class="table table-hover align-middle sieve-inbox-table">
       <thead>
         <tr>
-          <th scope="col" class="sieve-inbox-select-column"></th>
+          <th scope="col" class="sieve-inbox-select-column">#</th>
           <th scope="col">Datum</th>
           <th scope="col">Absender</th>
           <th scope="col">Betreff</th>
@@ -59,8 +65,10 @@
           <div class="form-text sieve-inbox-rule-similar-status" role="status" aria-live="polite"></div>
 
           <label class="form-label mt-3 sieve-inbox-rule-source-label"></label>
-          <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="16"
-            spellcheck="false" wrap="off"></textarea>
+          <div class="sieve-inbox-rule-editor">
+            <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="16"
+              spellcheck="false" wrap="off"></textarea>
+          </div>
           <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status"
             role="status" aria-live="polite"></div>
           <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-lint-status d-none"

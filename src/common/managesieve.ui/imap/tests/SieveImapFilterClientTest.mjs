@@ -92,6 +92,29 @@ suite.add("IMAP Sent filter uses PERSONAL script and exact UID criteria", async 
   suite.assertEquals(result.filtered, 1);
   suite.assertEquals(result.warnings, 1);
   suite.assertEquals(result.errors, 0);
+  suite.assertTrue(result.reports[0].includes("FILTERED WARNINGS"));
+});
+
+suite.add("Direct IMAP filter creates literal destination mailboxes", async function () {
+  const created = [];
+  const filter = new SieveImapFilterClient(() => {
+    return {
+      capabilities: new Map([["FILTER=SIEVE", true]]),
+      usable: true,
+      async connect() {},
+      async logout() {},
+      async mailboxCreate(mailbox) {
+        created.push(mailbox);
+        return { path: mailbox, created: mailbox !== "Existing" };
+      }
+    };
+  });
+
+  const result = await filter.ensureMailboxes([
+    "INBOX", "Existing", "New", "New"
+  ]);
+  suite.assertEquals(created.join(","), "Existing,New");
+  suite.assertEquals(result.join(","), "New");
 });
 
 suite.add("Direct IMAP Inbox filter verifies UIDVALIDITY and the selected UID", async function () {
@@ -147,4 +170,36 @@ suite.add("Thunderbird Inbox filter resolves one Message-ID to the newest UID", 
     'UID SEARCH UNDELETED HEADER Message-ID "<newest@example.test>"');
   suite.assertEquals(snapshot.uidValidity, "77");
   suite.assertEquals(snapshot.uids.join(","), "11");
+});
+
+suite.add("Thunderbird filter creates missing mailboxes and exposes server reports", async function () {
+  const commands = [];
+  const filter = new SieveMozImapFilterClient({});
+  filter.withConnection = async (callback) => {
+    return await callback({
+      async command(command) {
+        commands.push(command);
+        if (command === 'CREATE "Existing"')
+          throw new Error("S0001 NO [ALREADYEXISTS] mailbox exists");
+        if (command.startsWith("SELECT"))
+          return ["* OK [UIDVALIDITY 77] selected", "S0002 OK SELECT done"];
+        return [
+          "* 9 FILTERED (WARNINGS (fileinto completed))",
+          "S0003 OK FILTER done"
+        ];
+      }
+    });
+  };
+
+  const created = await filter.ensureMailboxes(["INBOX", "Existing", "New"]);
+  const result = await filter.apply("active", {
+    folder: "INBOX",
+    uidValidity: "77",
+    uids: [9]
+  });
+  suite.assertEquals(created.join(","), "New");
+  suite.assertTrue(commands.includes('CREATE "New"'));
+  suite.assertEquals(result.filtered, 1);
+  suite.assertEquals(result.warnings, 1);
+  suite.assertTrue(result.reports[0].includes("fileinto completed"));
 });

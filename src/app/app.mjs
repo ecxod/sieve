@@ -61,7 +61,8 @@ import {
   createSpamRule
 } from "./libs/managesieve.ui/spam/SieveSpamRule.mjs";
 import {
-  appendInboxRuleToScript
+  appendInboxRuleToScript,
+  getLiteralFileintoMailboxes
 } from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 
 const IMAP_DEFAULT_PORT = 993;
@@ -490,13 +491,29 @@ async function createImapFilterClient(account, settings) {
         throw new Error("Direct IMAP Inbox access is not enabled");
 
       const filter = await createImapFilterClient(account, settings);
+      const source = await sessions.get(id).getScript(active.script);
+      const createdMailboxes = await filter.ensureMailboxes(
+        getLiteralFileintoMailboxes(source));
       const snapshot = await filter.prepareInbox(msg.payload.messageId);
       const result = await filter.apply(active.script, snapshot);
       return {
         ...result,
+        createdMailboxes,
         folder: snapshot.folder,
         script: active.script
       };
+    },
+
+    "account-inbox-mark-spam": async function (msg) {
+      logger.logAction(`Mark selected Inbox message as spam on ${msg.payload.account}`);
+
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP Inbox access is not enabled");
+
+      const spam = await createImapSpamClient(account, settings);
+      return await spam.markInboxSpam(msg.payload.messageId);
     },
 
     "account-inbox-rule-scripts": async function (msg) {

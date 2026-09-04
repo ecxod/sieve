@@ -10,6 +10,7 @@ const FLAG_JUNK = "\\Junk";
 const FLAG_NOT_JUNK = "$NotJunk";
 const KEYWORD_JUNK = "$Junk";
 const KEYWORD_HAM = "rspamdham";
+const KEYWORD_SPAM = "rspamdspam";
 const KEYWORD_ALLOW = "rspamdallow";
 
 /**
@@ -530,6 +531,49 @@ class SieveImapSpamClient {
       }
 
       return { processed };
+    });
+  }
+
+  /**
+   * Moves one exact Inbox message to Junk with authenticated spam markers.
+   *
+   * @param {string} messageId
+   *   opaque Inbox UIDVALIDITY:UID selection.
+   * @returns {Promise<{processed: number, folder: string, spamTrainingQueued: number}>}
+   *   operation summary.
+   */
+  async markInboxSpam(messageId) {
+    const selection = parseMessageId(messageId);
+    return await this.withClient(async (client) => {
+      const folders = resolveSpamFolders(await client.list());
+      const lock = await client.getMailboxLock(folders.inbox);
+      try {
+        if (`${client.mailbox.uidValidity}` !== selection.uidValidity) {
+          throw new Error(
+            "The Inbox was recreated after it was loaded; the message was not changed");
+        }
+
+        const existing = await client.search({
+          uid: `${selection.uid}`,
+          deleted: false
+        }, { uid: true }) || [];
+        if (!existing.some((uid) => { return Number(uid) === selection.uid; }))
+          throw new Error("The selected Inbox message is no longer available");
+
+        await client.messageFlagsRemove(selection.uid,
+          [FLAG_NOT_JUNK, KEYWORD_HAM], { uid: true });
+        await client.messageFlagsAdd(selection.uid,
+          [FLAG_JUNK, KEYWORD_JUNK, KEYWORD_SPAM], { uid: true });
+        await client.messageMove(selection.uid, folders.junk, { uid: true });
+      } finally {
+        lock.release();
+      }
+
+      return {
+        processed: 1,
+        folder: folders.junk,
+        spamTrainingQueued: 1
+      };
     });
   }
 }

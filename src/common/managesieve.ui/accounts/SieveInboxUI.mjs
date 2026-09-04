@@ -2,7 +2,7 @@
  * Searchable Inbox view with an integrated Sieve rule editor.
  */
 
-/* global bootstrap */
+/* global bootstrap, CodeMirror */
 
 import { formatSieveScript } from "./../editor/text/SieveFormatter.mjs";
 import {
@@ -12,6 +12,7 @@ import {
 import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
 import { findSpamRuleMatches } from "./../spam/SieveSpamRule.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { SieveTheme } from "./../utils/SieveTheme.mjs";
 import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
 /**
@@ -117,6 +118,7 @@ class SieveInboxUI {
     this.details = null;
     this.scripts = [];
     this.lastTemplate = "";
+    this.ruleSourceEditor = null;
     this.rendering = false;
     this.inboxConfigured = false;
 
@@ -138,10 +140,16 @@ class SieveInboxUI {
       = this.string("account.inbox.refresh", "Refresh");
     root.querySelector(".sieve-inbox-apply-selected").textContent
       = this.string("account.inbox.apply", "Run Sieve now");
+    root.querySelector(".sieve-inbox-mark-spam").textContent
+      = this.string("account.inbox.spam", "Spam");
     root.querySelector(".sieve-inbox-create-rule").textContent
       = this.string("account.inbox.rule.create", "Create Sieve Rule");
+    root.querySelector(".sieve-inbox-context-apply").textContent
+      = this.string("account.inbox.apply", "Run Sieve now");
+    root.querySelector(".sieve-inbox-context-rule").textContent
+      = this.string("account.inbox.rule.create", "Create Sieve Rule");
     const headings = root.querySelectorAll("thead th");
-    headings[0].textContent = this.string("account.inbox.select.column", "Select");
+    headings[0].textContent = this.string("account.inbox.select.column", "#");
     headings[1].textContent = this.string("account.inbox.date", "Date");
     headings[2].textContent = this.string("account.inbox.sender", "Sender");
     headings[3].textContent = this.string("account.inbox.subject", "Subject");
@@ -151,8 +159,25 @@ class SieveInboxUI {
       .addEventListener("click", () => { this.render(); });
     root.querySelector(".sieve-inbox-apply-selected")
       .addEventListener("click", () => { this.applySelected(); });
+    root.querySelector(".sieve-inbox-mark-spam")
+      .addEventListener("click", () => { this.markSelectedAsSpam(); });
     root.querySelector(".sieve-inbox-create-rule")
       .addEventListener("click", () => { this.openRuleEditor(); });
+    root.querySelector(".sieve-inbox-context-apply")
+      .addEventListener("click", () => {
+        this.hideContextMenu();
+        this.applySelected();
+      });
+    root.querySelector(".sieve-inbox-context-rule")
+      .addEventListener("click", () => {
+        this.hideContextMenu();
+        this.openRuleEditor();
+      });
+    root.addEventListener("click", () => { this.hideContextMenu(); });
+    root.ownerDocument.addEventListener("keydown", (event) => {
+      if (event.key === "Escape")
+        this.hideContextMenu();
+    });
 
     this.initializeRuleEditor();
   }
@@ -187,6 +212,7 @@ class SieveInboxUI {
     const status = this.root.querySelector(".sieve-inbox-status");
     status.className = `alert alert-${style} py-2 sieve-inbox-status`;
     status.textContent = text;
+    status.style.whiteSpace = "pre-wrap";
   }
 
   /**
@@ -212,9 +238,48 @@ class SieveInboxUI {
     this.root.querySelector(".sieve-inbox-create-rule").disabled = !id;
     this.root.querySelector(".sieve-inbox-apply-selected").disabled
       = !id || !this.inboxConfigured;
+    this.root.querySelector(".sieve-inbox-mark-spam").disabled
+      = !id || !this.inboxConfigured;
     this.root.querySelectorAll(".sieve-inbox-select").forEach((control) => {
       control.checked = control.value === id;
     });
+  }
+
+  /**
+   * Opens the row context menu and makes that row the exact action target.
+   *
+   * @param {MouseEvent} event
+   *   contextmenu event.
+   * @param {string} id
+   *   message identifier.
+   */
+  showContextMenu(event, id) {
+    event.preventDefault();
+    this.selectMessage(id);
+
+    const menu = this.root.querySelector(".sieve-inbox-context-menu");
+    const apply = menu.querySelector(".sieve-inbox-context-apply");
+    apply.disabled = !this.inboxConfigured;
+    menu.classList.add("show");
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+
+    const bounds = menu.getBoundingClientRect();
+    const view = this.root.ownerDocument.defaultView;
+    const left = Math.max(0, Math.min(
+      event.clientX, view.innerWidth - bounds.width));
+    const top = Math.max(0, Math.min(
+      event.clientY, view.innerHeight - bounds.height));
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  }
+
+  /**
+   * Closes the Inbox row context menu.
+   */
+  hideContextMenu() {
+    this.root.querySelector(".sieve-inbox-context-menu")
+      .classList.remove("show");
   }
 
   /**
@@ -265,6 +330,9 @@ class SieveInboxUI {
       row.addEventListener("click", (event) => {
         if (event.target !== selection)
           this.selectMessage(message.id);
+      });
+      row.addEventListener("contextmenu", (event) => {
+        this.showContextMenu(event, message.id);
       });
       rows.append(row);
     }
@@ -326,16 +394,73 @@ class SieveInboxUI {
       });
       await this.render();
       const style = result.errors ? "warning" : "success";
+      const details = [];
+      if (result.createdMailboxes?.length) {
+        details.push(`${this.string(
+          "account.inbox.apply.created", "Created mailboxes")}: ${result.createdMailboxes.join(", ")}`);
+      }
+      if (result.reports?.length) {
+        details.push(`${this.string(
+          "account.inbox.apply.reports", "Server report")}:
+${result.reports.join("\n")}`);
+      } else {
+        details.push(this.string(
+          "account.inbox.apply.no.reports",
+          "The server returned no detailed action report."));
+      }
       this.setStatus(`${this.string(
         "account.inbox.apply.done", "Sieve was run on the selected Inbox message")}: `
         + `${result.script} (${result.filtered} ${this.string(
           "account.inbox.apply.filtered", "visible actions or reports")}, `
         + `${result.warnings} ${this.string(
           "account.inbox.apply.warnings", "warnings")}, ${result.errors} ${this.string(
-          "account.inbox.apply.errors", "errors")}).`, style);
+          "account.inbox.apply.errors", "errors")}).\n${details.join("\n")}`, style);
     } catch (ex) {
       this.setStatus(`${this.string(
         "account.inbox.apply.error", "Could not run Sieve")}: ${ex.message || ex}`,
+      "danger");
+    } finally {
+      button.disabled = !this.selectedId || !this.inboxConfigured;
+    }
+  }
+
+  /**
+   * Marks the selected Inbox message as junk, moves it to Junk and queues it
+   * for the server's authenticated spam-training helper.
+   */
+  async markSelectedAsSpam() {
+    const button = this.root.querySelector(".sieve-inbox-mark-spam");
+    const selected = this.messages.find((message) => {
+      return message.id === this.selectedId;
+    });
+    if (!selected)
+      return;
+
+    const subject = selected.subject
+      || this.string("account.inbox.no.subject", "(No subject)");
+    const prompt = this.string(
+      "account.inbox.spam.confirm",
+      "Mark the selected message from {date} with subject “{subject}” as spam, move it to Junk and queue server-side spam training?")
+      .replace("{date}", formatInboxDate(selected.date))
+      .replace("{subject}", subject);
+    if (!this.confirmApply(prompt))
+      return;
+
+    button.disabled = true;
+    this.setStatus(this.string(
+      "account.inbox.spam.running", "Marking and queuing the message as spam…"));
+    try {
+      const result = await this.account.send("account-inbox-mark-spam", {
+        messageId: selected.id
+      });
+      await this.render();
+      this.setStatus(`${this.string(
+        "account.inbox.spam.done",
+        "The message was marked as spam, moved to Junk and queued for Rspamd analysis and training")}: ${result.folder}.`,
+      "success");
+    } catch (ex) {
+      this.setStatus(`${this.string(
+        "account.inbox.spam.error", "Could not mark the message as spam")}: ${ex.message || ex}`,
       "danger");
     } finally {
       button.disabled = !this.selectedId || !this.inboxConfigured;
@@ -354,7 +479,9 @@ class SieveInboxUI {
     this.inboxConfigured = false;
     this.root.querySelector(".sieve-inbox-create-rule").disabled = true;
     this.root.querySelector(".sieve-inbox-apply-selected").disabled = true;
+    this.root.querySelector(".sieve-inbox-mark-spam").disabled = true;
     this.root.querySelector(".sieve-inbox-table-wrap").classList.add("d-none");
+    this.hideContextMenu();
     this.setStatus(this.string("account.inbox.loading", "Loading Inbox…"));
 
     try {
@@ -410,8 +537,7 @@ class SieveInboxUI {
     modal.querySelector(".sieve-inbox-rule-save").textContent
       = this.string("account.inbox.rule.save", "Save");
 
-    modal.querySelector(".sieve-inbox-rule-source")
-      .addEventListener("input", () => { this.updateMailboxStatus(); });
+    this.initializeRuleSourceEditor(modal);
     modal.querySelector(".sieve-inbox-rule-mailbox")
       .addEventListener("input", () => { this.updateTemplateMailbox(); });
     modal.querySelector(".sieve-inbox-rule-template")
@@ -422,6 +548,84 @@ class SieveInboxUI {
       .addEventListener("click", () => { this.prettyPrintRule(); });
     modal.querySelector(".sieve-inbox-rule-save")
       .addEventListener("click", () => { this.saveRule(); });
+  }
+
+  /**
+   * Replaces the rule textarea with the same CodeMirror engine used by the
+   * full Sieve source editor. Tests and environments without CodeMirror keep
+   * the plain textarea as a functional fallback.
+   *
+   * @param {HTMLElement} modal
+   *   rule editor modal.
+   */
+  initializeRuleSourceEditor(modal) {
+    const source = modal.querySelector(".sieve-inbox-rule-source");
+
+    if (typeof CodeMirror === "undefined") {
+      source.addEventListener("input", () => { this.updateMailboxStatus(); });
+      return;
+    }
+
+    this.ruleSourceEditor = CodeMirror.fromTextArea(source, {
+      lineNumbers: true,
+      lineWrapping: true,
+      matchBrackets: true,
+      mode: "application/sieve",
+      theme: SieveTheme.getCodeMirrorTheme(),
+      inputStyle: "contenteditable",
+      extraKeys: {
+        "Tab": (editor) => {
+          if (editor.somethingSelected()) {
+            editor.indentSelection("add");
+            return;
+          }
+
+          editor.execCommand(editor.getOption("indentWithTabs")
+            ? "insertTab" : "insertSoftTab");
+        },
+        "Shift-Tab": (editor) => { editor.indentSelection("subtract"); }
+      }
+    });
+    this.ruleSourceEditor.getInputField().setAttribute(
+      "aria-label",
+      modal.querySelector(".sieve-inbox-rule-source-label").textContent);
+    this.ruleSourceEditor.on("change", () => { this.updateMailboxStatus(); });
+
+    modal.addEventListener("shown.bs.modal", () => {
+      this.ruleSourceEditor.refresh();
+      this.ruleSourceEditor.focus();
+    });
+    window.addEventListener("sieve-theme-changed", () => {
+      this.ruleSourceEditor.setOption("theme", SieveTheme.getCodeMirrorTheme());
+    });
+  }
+
+  /**
+   * Returns the currently editable rule source.
+   *
+   * @returns {string}
+   *   rule source from CodeMirror or its textarea fallback.
+   */
+  getRuleSource() {
+    if (this.ruleSourceEditor)
+      return this.ruleSourceEditor.getValue();
+
+    return this.root.querySelector(".sieve-inbox-rule-source").value;
+  }
+
+  /**
+   * Replaces the currently editable rule source.
+   *
+   * @param {string} source
+   *   new rule source.
+   */
+  setRuleSource(source) {
+    if (this.ruleSourceEditor) {
+      this.ruleSourceEditor.setValue(source);
+      return;
+    }
+
+    this.root.querySelector(".sieve-inbox-rule-source").value = source;
   }
 
   /**
@@ -497,7 +701,7 @@ class SieveInboxUI {
 
       modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
       this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
-      modal.querySelector(".sieve-inbox-rule-source").value = this.lastTemplate;
+      this.setRuleSource(this.lastTemplate);
       this.updateSimilarRuleMatches();
       modal.querySelector(".sieve-inbox-rule-connection").textContent
         = scripts.connected
@@ -566,7 +770,7 @@ class SieveInboxUI {
     try {
       this.lastTemplate = createInboxRuleTemplate(
         this.details, modal.querySelector(".sieve-inbox-rule-mailbox").value);
-      modal.querySelector(".sieve-inbox-rule-source").value = this.lastTemplate;
+      this.setRuleSource(this.lastTemplate);
       this.hideEditorStatus();
       this.updateMailboxStatus();
     } catch (ex) {
@@ -579,8 +783,7 @@ class SieveInboxUI {
    * Freely edited rule source is never overwritten implicitly.
    */
   updateTemplateMailbox() {
-    const source = this.root.querySelector(".sieve-inbox-rule-source");
-    if (source.value !== this.lastTemplate)
+    if (this.getRuleSource() !== this.lastTemplate)
       return;
     this.createTemplate();
   }
@@ -591,7 +794,7 @@ class SieveInboxUI {
   updateMailboxStatus() {
     const modal = this.root.querySelector(".sieve-inbox-rule-modal");
     const status = inspectInboxRuleMailboxes(
-      modal.querySelector(".sieve-inbox-rule-source").value, this.mailboxes);
+      this.getRuleSource(), this.mailboxes);
     const box = modal.querySelector(".sieve-inbox-rule-mailbox-status");
     box.className = `alert alert-${status.state === "ok" ? "success" : "warning"} py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status`;
 
@@ -621,8 +824,7 @@ class SieveInboxUI {
    * Formats the editable rule locally.
    */
   prettyPrintRule() {
-    const source = this.root.querySelector(".sieve-inbox-rule-source");
-    source.value = formatSieveScript(source.value);
+    this.setRuleSource(formatSieveScript(this.getRuleSource()));
     this.hideEditorStatus();
     this.updateMailboxStatus();
   }
@@ -643,7 +845,7 @@ class SieveInboxUI {
     return {
       name,
       expected: script.content,
-      snippet: modal.querySelector(".sieve-inbox-rule-source").value
+      snippet: this.getRuleSource()
     };
   }
 

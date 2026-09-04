@@ -30,6 +30,7 @@ import {
 import {
   appendInboxRuleToScript,
   createInboxRuleTemplate,
+  getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes
 } from "./../../inbox/SieveInboxRule.mjs";
@@ -401,6 +402,12 @@ suite.add("Inbox mailbox check ignores opaque fileinto text", function () {
     'fileinto :create "Missing";', ["INBOX"]);
   suite.assertEquals(missing.state, "warning");
   suite.assertEquals(missing.missing[0], "Missing");
+  suite.assertEquals(getLiteralFileintoMailboxes([
+    '# fileinto "Ignored";',
+    'fileinto "INBOX/Customers";',
+    'fileinto :copy "INBOX/Customers";',
+    'fileinto mailboxVariable;'
+  ].join("\n")).join(","), "INBOX/Customers");
 });
 
 suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async function () {
@@ -459,6 +466,7 @@ suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async func
 suite.add("Inbox selection state enables only one rule action", function () {
   const createButton = { disabled: true };
   const applyButton = { disabled: true };
+  const spamButton = { disabled: true };
   const controls = [
     { value: "message-1", checked: false },
     { value: "message-2", checked: false }
@@ -471,6 +479,8 @@ suite.add("Inbox selection state enables only one rule action", function () {
         return createButton;
       if (selector === ".sieve-inbox-apply-selected")
         return applyButton;
+      if (selector === ".sieve-inbox-mark-spam")
+        return spamButton;
       return null;
     },
     querySelectorAll(selector) {
@@ -482,6 +492,7 @@ suite.add("Inbox selection state enables only one rule action", function () {
   suite.assertEquals(inbox.selectedId, "message-2");
   suite.assertFalse(createButton.disabled);
   suite.assertFalse(applyButton.disabled);
+  suite.assertFalse(spamButton.disabled);
   suite.assertFalse(controls[0].checked);
   suite.assertTrue(controls[1].checked);
 });
@@ -504,6 +515,57 @@ suite.add("Inbox dates are formatted and sorted chronologically", function () {
     sorted.map((message) => { return message.id; }).join(","),
     "newer-a,newer-b,older,invalid,missing");
   suite.assertEquals(messages[0].id, "older");
+});
+
+suite.add("Inbox row context menu selects the right-clicked message", function () {
+  const createButton = { disabled: true };
+  const applyButton = { disabled: true };
+  const spamButton = { disabled: true };
+  const contextApply = { disabled: true };
+  const classes = new Set();
+  const menu = {
+    style: {},
+    classList: {
+      add(value) { classes.add(value); },
+      remove(value) { classes.delete(value); }
+    },
+    querySelector(selector) {
+      return selector === ".sieve-inbox-context-apply" ? contextApply : null;
+    },
+    getBoundingClientRect() { return { width: 180, height: 80 }; }
+  };
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.inboxConfigured = true;
+  inbox.root = {
+    ownerDocument: {
+      defaultView: { innerWidth: 1024, innerHeight: 768 }
+    },
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-create-rule")
+        return createButton;
+      if (selector === ".sieve-inbox-apply-selected")
+        return applyButton;
+      if (selector === ".sieve-inbox-mark-spam")
+        return spamButton;
+      if (selector === ".sieve-inbox-context-menu")
+        return menu;
+      return null;
+    },
+    querySelectorAll() { return []; }
+  };
+  let prevented = false;
+  inbox.showContextMenu({
+    clientX: 10,
+    clientY: 20,
+    preventDefault() { prevented = true; }
+  }, "right-clicked");
+
+  suite.assertTrue(prevented);
+  suite.assertEquals(inbox.selectedId, "right-clicked");
+  suite.assertTrue(classes.has("show"));
+  suite.assertFalse(contextApply.disabled);
+  suite.assertEquals(menu.style.left, "10px");
+  suite.assertEquals(menu.style.top, "20px");
 });
 
 suite.add("Home accounts are sorted by their visible names", function () {
@@ -551,6 +613,82 @@ suite.add("Run Sieve applies the marked Inbox message", async function () {
   suite.assertEquals(calls[0].action, "account-inbox-apply-selected");
   suite.assertEquals(calls[0].payload.messageId, "older");
   suite.assertFalse(button.disabled);
+});
+
+suite.add("Inbox Spam marks and moves the selected message", async function () {
+  const button = { disabled: false };
+  const calls = [];
+  const statuses = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.inboxConfigured = true;
+  inbox.selectedId = "selected";
+  inbox.messages = [{
+    id: "selected",
+    date: "2026-09-04T12:00:00Z",
+    subject: "Spam offer"
+  }];
+  inbox.root = {
+    querySelector(selector) {
+      return selector === ".sieve-inbox-mark-spam" ? button : null;
+    }
+  };
+  inbox.account = {
+    async send(action, payload) {
+      calls.push({ action, payload });
+      return { processed: 1, folder: "Junk", spamTrainingQueued: 1 };
+    }
+  };
+  inbox.string = (key, fallback) => { return fallback; };
+  inbox.confirmApply = () => { return true; };
+  inbox.setStatus = (text) => { statuses.push(text); };
+  inbox.render = async () => {};
+
+  await inbox.markSelectedAsSpam();
+  suite.assertEquals(calls[0].action, "account-inbox-mark-spam");
+  suite.assertEquals(calls[0].payload.messageId, "selected");
+  suite.assertTrue(statuses.at(-1).includes("moved to Junk"));
+  suite.assertFalse(button.disabled);
+});
+
+suite.add("Direct IMAP Spam action marks, trains and moves one Inbox UID", async function () {
+  const operations = [];
+  const client = {
+    usable: true,
+    mailbox: null,
+    async connect() {},
+    async logout() {},
+    async list() {
+      return [
+        { path: "INBOX", specialUse: "\\Inbox" },
+        { path: "Junk", specialUse: "\\Junk" }
+      ];
+    },
+    async getMailboxLock(folder) {
+      operations.push(["lock", folder]);
+      this.mailbox = { uidValidity: 42n };
+      return { release() { operations.push(["release"]); } };
+    },
+    async search() { return [123]; },
+    async messageFlagsRemove(uid, flags, options) {
+      operations.push(["remove", uid, flags.join(","), options.uid]);
+    },
+    async messageFlagsAdd(uid, flags, options) {
+      operations.push(["add", uid, flags.join(","), options.uid]);
+    },
+    async messageMove(uid, folder, options) {
+      operations.push(["move", uid, folder, options.uid]);
+    }
+  };
+  const spam = new SieveImapSpamClient(() => { return client; });
+  const result = await spam.markInboxSpam("42:123");
+
+  suite.assertEquals(result.folder, "Junk");
+  suite.assertTrue(operations.some((item) => {
+    return item[0] === "add" && item[2].includes("rspamdspam");
+  }));
+  suite.assertTrue(operations.some((item) => {
+    return item[0] === "move" && item[1] === 123 && item[2] === "Junk";
+  }));
 });
 
 suite.add("Inbox rule editor formats similar matches from multiple scripts", function () {
@@ -636,6 +774,29 @@ suite.add("Inbox mailbox input preserves freely edited rules", function () {
   source.value = "generated rule";
   inbox.updateTemplateMailbox();
   suite.assertEquals(updates, 1);
+});
+
+suite.add("Inbox rule source helpers use the embedded editor", function () {
+  const textarea = { value: "textarea source" };
+  const editor = {
+    value: "editor source",
+    getValue() { return this.value; },
+    setValue(value) { this.value = value; }
+  };
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.ruleSourceEditor = editor;
+  inbox.root = {
+    querySelector() { return textarea; }
+  };
+
+  suite.assertEquals(inbox.getRuleSource(), "editor source");
+  inbox.setRuleSource("updated editor source");
+  suite.assertEquals(editor.value, "updated editor source");
+  suite.assertEquals(textarea.value, "textarea source");
+
+  inbox.ruleSourceEditor = null;
+  inbox.setRuleSource("updated fallback source");
+  suite.assertEquals(inbox.getRuleSource(), "updated fallback source");
 });
 
 suite.add("Direct IMAP details returns raw headers and rule parameters", async function () {
