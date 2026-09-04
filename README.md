@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.16
+## Stable release 0.8.17
 
-**Version 0.8.16 is the latest stable release for both the Windows EXE and the
+**Version 0.8.17 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.16` uses the same version for the Windows application and the
+Release `0.8.17` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -101,15 +101,15 @@ files can be replaced, and only then extracts the new application.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.16-cram-md5.xpi`](releases/sieve-0.8.16-cram-md5.xpi)
+[`releases/sieve-0.8.17-cram-md5.xpi`](releases/sieve-0.8.17-cram-md5.xpi)
 
-SHA-256: `8de377ba5083f08f602554ca6f8814030dd475d8201c0e646699fe1347f85464`
+SHA-256: `5a047905d5c30d4ca8cbad104239675f61901c6c12c7dec0354706cb6c47cc93`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.16.exe`](releases/install_sieve_0.8.16.exe)
+[`releases/install_sieve_0.8.17.exe`](releases/install_sieve_0.8.17.exe)
 
-SHA-256: `831aff422c61b8f855614eab2099b03c393401860fc4206a54b5b0af808a302d`
+SHA-256: `7c8a2eed1fbcdbca7685c23fd2ef428bb27bb59d506e62bce5eb113d731c1ee2`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified

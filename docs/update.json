@@ -3,9 +3,9 @@
     "sieve-cram-md5@ecxod.github.io": {
       "updates": [
         {
-          "version": "0.8.16",
-          "update_link": "https://github.com/ecxod/sieve/releases/download/v0.8.16/sieve-0.8.16-cram-md5.xpi",
-          "update_info_url": "https://github.com/ecxod/sieve/releases/tag/v0.8.16",
+          "version": "0.8.17",
+          "update_link": "https://github.com/ecxod/sieve/releases/download/v0.8.17/sieve-0.8.17-cram-md5.xpi",
+          "update_info_url": "https://github.com/ecxod/sieve/releases/tag/v0.8.17",
           "browser_specific_settings": {
             "gecko": {
               "strict_min_version": "121.0",

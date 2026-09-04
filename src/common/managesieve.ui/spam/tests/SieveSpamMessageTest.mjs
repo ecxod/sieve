@@ -782,8 +782,8 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
       if (action === "account-connect")
         connected = true;
     },
-    async render() {
-      calls.push("render-account");
+    setConnectionActions(connectedState, connectingState) {
+      calls.push(`connection-actions:${connectedState}:${connectingState}`);
     }
   };
   inbox.string = (key, fallback) => { return fallback; };
@@ -791,11 +791,25 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
 
   suite.assertTrue(await inbox.ensureSieveConnected());
   suite.assertEquals(calls.join(","),
-    "is-connected,Connecting the Sieve client…,account-connect,is-connected,render-account");
+    "is-connected,Connecting the Sieve client…,account-connect,is-connected,connection-actions:true:false");
 
   calls.length = 0;
   suite.assertFalse(await inbox.ensureSieveConnected());
   suite.assertEquals(calls.join(","), "is-connected");
+});
+
+suite.add("Inbox rule editor bounds stalled server operations", async function () {
+  const inbox = Object.create(SieveInboxUI.prototype);
+  let error = "";
+
+  try {
+    await inbox.waitForRuleEditorOperation(
+      new Promise(() => {}), "Expected timeout", 1);
+  } catch (ex) {
+    error = ex.message;
+  }
+
+  suite.assertEquals(error, "Expected timeout");
 });
 
 suite.add("Inbox rule editor fills headers, similar rules and both editor views", async function () {
@@ -872,8 +886,10 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
   inbox.updateMailboxStatus = () => { calls.push("mailbox-status:"); };
   inbox.renderRows = () => { calls.push("render-rows:"); };
   inbox.setRuleGraphicalSource = async (source) => {
+    inbox.ruleGraphicalSourceLoaded = true;
     calls.push(`graphical:${source}`);
   };
+  inbox.waitForRuleEditorOperation = async (operation) => { return await operation; };
 
   const oldBootstrap = globalThis.bootstrap;
   const oldDocument = globalThis.document;
@@ -912,6 +928,8 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
     return item.includes("status:warning:The graphical Sieve editor could not be loaded");
   }));
   suite.assertTrue(calls.indexOf("account-inbox-details:9:12")
+    < calls.indexOf("ensure-connected:"));
+  suite.assertTrue(calls.findIndex((item) => { return item.startsWith("graphical:"); })
     < calls.indexOf("ensure-connected:"));
   suite.assertTrue(calls.some((item) => { return item.startsWith("graphical:# Created from Inbox:"); }));
 });

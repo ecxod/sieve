@@ -18,6 +18,7 @@ import { SieveTheme } from "./../utils/SieveTheme.mjs";
 import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
 let ruleEditorSequence = 0;
+const RULE_EDITOR_SERVER_TIMEOUT_MS = 20000;
 
 /**
  * Formats an Inbox date in a locale-independent, sortable representation.
@@ -780,10 +781,43 @@ ${result.reports.join("\n")}`);
         "account.inbox.rule.connect.failed", "The Sieve client could not connect"));
     }
 
-    // Keep the account card's connection indicator in sync without changing
-    // the currently selected Inbox tab.
-    await this.account.render();
+    // Updating the complete account view would list all scripts here and then
+    // list/fetch them again below. Besides being redundant, a stalled first
+    // LISTSCRIPTS request leaves the rule modal at its loading message.
+    this.account.setConnectionActions?.(true, false);
     return true;
+  }
+
+  /**
+   * Bounds a server operation so the rule modal cannot remain in a loading
+   * state forever when an IPC request or ManageSieve command stalls.
+   *
+   * @param {Promise<*>} operation
+   *   operation to await.
+   * @param {string} message
+   *   localized timeout message.
+   * @param {number} [timeoutMs]
+   *   timeout in milliseconds.
+   * @returns {Promise<*>}
+   *   the operation's result.
+   */
+  async waitForRuleEditorOperation(
+    operation, message, timeoutMs = RULE_EDITOR_SERVER_TIMEOUT_MS) {
+    let timeout = null;
+
+    try {
+      return await Promise.race([
+        operation,
+        new Promise((_resolve, reject) => {
+          timeout = globalThis.setTimeout(() => {
+            reject(new Error(message));
+          }, timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeout !== null)
+        globalThis.clearTimeout(timeout);
+    }
   }
 
   /**
@@ -819,6 +853,7 @@ ${result.reports.join("\n")}`);
     modal.querySelector(".sieve-inbox-rule-save").disabled = true;
     dialog.show();
 
+    let graphicalEditorLoaded = false;
     try {
       // Message data does not depend on ManageSieve. Render it first so a
       // connection or graphical-editor error cannot leave the whole modal
@@ -842,11 +877,37 @@ ${result.reports.join("\n")}`);
       source.value = this.lastTemplate;
       this.updateMailboxStatus();
 
-      await this.ensureSieveConnected();
-      const [scripts, capabilities] = await Promise.all([
-        this.account.send("account-inbox-rule-scripts"),
-        this.account.send("account-capabilities")
-      ]);
+      // The generated rule does not depend on the server script list. Render
+      // it now so a slow connection cannot leave the graphical canvas empty.
+      try {
+        await this.setRuleGraphicalSource(this.lastTemplate);
+        graphicalEditorLoaded = true;
+      } catch (ex) {
+        this.showRuleSourceTab();
+        this.setEditorStatus(`${this.string(
+          "account.inbox.rule.graphical.error",
+          "The graphical Sieve editor could not be loaded")}: ${ex.message || ex}`,
+        "warning");
+      }
+
+      similar.value = this.string(
+        "account.inbox.rule.connecting", "Connecting the Sieve client…");
+      await this.waitForRuleEditorOperation(
+        this.ensureSieveConnected(),
+        this.string(
+          "account.inbox.rule.connect.timeout",
+          "Timed out while connecting to the Sieve server"));
+
+      similar.value = this.string(
+        "account.inbox.rule.scripts.loading", "Loading Sieve scripts…");
+      const [scripts, capabilities] = await this.waitForRuleEditorOperation(
+        Promise.all([
+          this.account.send("account-inbox-rule-scripts"),
+          this.account.send("account-capabilities")
+        ]),
+        this.string(
+          "account.inbox.rule.scripts.timeout",
+          "Timed out while loading the Sieve scripts"));
       this.scripts = scripts.scripts || [];
       this.ruleCapabilities = capabilities || { extensions: {} };
 
@@ -875,16 +936,8 @@ ${result.reports.join("\n")}`);
         = !scripts.connected || !this.scripts.length;
       this.renderRows();
 
-      try {
-        await this.setRuleGraphicalSource(this.lastTemplate);
+      if (graphicalEditorLoaded)
         this.hideEditorStatus();
-      } catch (ex) {
-        this.showRuleSourceTab();
-        this.setEditorStatus(`${this.string(
-          "account.inbox.rule.graphical.error",
-          "The graphical Sieve editor could not be loaded")}: ${ex.message || ex}`,
-        "warning");
-      }
     } catch (ex) {
       if (!this.details) {
         headers.value = `${this.string(
@@ -894,7 +947,7 @@ ${result.reports.join("\n")}`);
       similar.value = `${this.string(
         "account.inbox.rule.similar.error",
         "The existing rules could not be checked")}: ${ex.message || ex}`;
-      if (source.value)
+      if (source.value && !graphicalEditorLoaded)
         this.showRuleSourceTab();
       this.setEditorStatus(`${this.string(
         "account.inbox.rule.error", "Could not open the rule editor")}: ${ex.message || ex}`,
