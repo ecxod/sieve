@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.12
+## Stable release 0.8.13
 
-**Version 0.8.12 is the latest stable release for both the Windows EXE and the
+**Version 0.8.13 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.12` uses the same version for the Windows application and the
+Release `0.8.13` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -60,7 +60,7 @@ Thunderbird extension. The extension includes:
   and matching allow/block rules can be inspected or appended to a chosen
   Sieve script without overwriting an independently changed script
 - an **Inbox** tab with searchable messages and copyable raw headers; its
-  integrated CodeMirror source editor can lint, format, and safely append a
+  integrated graphical **Script** editor can lint, format, and safely append a
   rule to a chosen server script while checking literal `fileinto` targets
   against IMAP folders
   and showing possible existing rules with the same sender, domain, recipient,
@@ -97,15 +97,15 @@ installer while showing its current phase, downloaded bytes, and percentage.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.12-cram-md5.xpi`](releases/sieve-0.8.12-cram-md5.xpi)
+[`releases/sieve-0.8.13-cram-md5.xpi`](releases/sieve-0.8.13-cram-md5.xpi)
 
-SHA-256: `a69d8795df588f7acdc28f1b2e77b2dd97b0daa3501c7c8036e48607e05bd64a`
+SHA-256: `9c06eef3d6938dd44838523dd514fd9a1b6c9ffb7387fa9149ffc3dc6c422c20`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.12.exe`](releases/install_sieve_0.8.12.exe)
+[`releases/install_sieve_0.8.13.exe`](releases/install_sieve_0.8.13.exe)
 
-SHA-256: `fd4eab1dda62daa642ff6d554e87d73fb6d05ebb56175806728c37935181618a`
+SHA-256: `b9e2a563f0b1fa5aebdfdcf9456e77c0c0bb491fddf4993967f3bcca29d304f3`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified

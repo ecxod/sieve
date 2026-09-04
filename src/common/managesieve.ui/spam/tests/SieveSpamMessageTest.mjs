@@ -758,7 +758,7 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
   suite.assertEquals(calls.join(","), "is-connected");
 });
 
-suite.add("Inbox mailbox input preserves freely edited rules", function () {
+suite.add("Inbox mailbox input preserves freely edited rules", async function () {
   const source = { value: "custom rule" };
   const inbox = Object.create(SieveInboxUI.prototype);
   inbox.lastTemplate = "generated rule";
@@ -768,34 +768,42 @@ suite.add("Inbox mailbox input preserves freely edited rules", function () {
   let updates = 0;
   inbox.createTemplate = () => { updates++; };
 
-  inbox.updateTemplateMailbox();
+  await inbox.updateTemplateMailbox();
   suite.assertEquals(updates, 0);
 
   source.value = "generated rule";
-  inbox.updateTemplateMailbox();
+  await inbox.updateTemplateMailbox();
   suite.assertEquals(updates, 1);
 });
 
-suite.add("Inbox rule source helpers use the embedded editor", function () {
+suite.add("Inbox rule source helpers use the graphical editor", async function () {
   const textarea = { value: "textarea source" };
   const editor = {
     value: "editor source",
-    getValue() { return this.value; },
-    setValue(value) { this.value = value; }
+    getSieveScript() { return this.value; },
+    setSieveScript(value, capabilities) {
+      this.value = value;
+      this.capabilities = capabilities;
+    }
   };
   const inbox = Object.create(SieveInboxUI.prototype);
-  inbox.ruleSourceEditor = editor;
+  inbox.ruleCapabilities = { extensions: { fileinto: true } };
+  inbox.ruleGraphicalEditorWindow = editor;
+  inbox.ruleGraphicalEditorReady = Promise.resolve(editor);
+  inbox.syncRuleEditorTheme = () => {};
   inbox.root = {
     querySelector() { return textarea; }
   };
 
   suite.assertEquals(inbox.getRuleSource(), "editor source");
-  inbox.setRuleSource("updated editor source");
+  await inbox.setRuleSource("updated editor source");
   suite.assertEquals(editor.value, "updated editor source");
-  suite.assertEquals(textarea.value, "textarea source");
+  suite.assertEquals(editor.capabilities, '{"fileinto":true}');
+  suite.assertEquals(textarea.value, "updated editor source");
 
-  inbox.ruleSourceEditor = null;
-  inbox.setRuleSource("updated fallback source");
+  inbox.ruleGraphicalEditorWindow = null;
+  inbox.ruleGraphicalEditorReady = null;
+  await inbox.setRuleSource("updated fallback source");
   suite.assertEquals(inbox.getRuleSource(), "updated fallback source");
 });
 

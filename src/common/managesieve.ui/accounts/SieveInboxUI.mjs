@@ -2,7 +2,7 @@
  * Searchable Inbox view with an integrated Sieve rule editor.
  */
 
-/* global bootstrap, CodeMirror */
+/* global bootstrap */
 
 import { formatSieveScript } from "./../editor/text/SieveFormatter.mjs";
 import {
@@ -118,7 +118,10 @@ class SieveInboxUI {
     this.details = null;
     this.scripts = [];
     this.lastTemplate = "";
-    this.ruleSourceEditor = null;
+    this.ruleCapabilities = { extensions: {} };
+    this.ruleGraphicalEditorFrame = null;
+    this.ruleGraphicalEditorReady = null;
+    this.ruleGraphicalEditorWindow = null;
     this.rendering = false;
     this.inboxConfigured = false;
 
@@ -537,66 +540,97 @@ ${result.reports.join("\n")}`);
     modal.querySelector(".sieve-inbox-rule-save").textContent
       = this.string("account.inbox.rule.save", "Save");
 
-    this.initializeRuleSourceEditor(modal);
+    this.initializeRuleGraphicalEditor(modal);
     modal.querySelector(".sieve-inbox-rule-mailbox")
-      .addEventListener("input", () => { this.updateTemplateMailbox(); });
+      .addEventListener("input", async () => { await this.updateTemplateMailbox(); });
     modal.querySelector(".sieve-inbox-rule-template")
-      .addEventListener("click", () => { this.createTemplate(); });
+      .addEventListener("click", async () => { await this.createTemplate(); });
     modal.querySelector(".sieve-inbox-rule-lint")
       .addEventListener("click", () => { this.lintRule(); });
     modal.querySelector(".sieve-inbox-rule-pretty")
-      .addEventListener("click", () => { this.prettyPrintRule(); });
+      .addEventListener("click", async () => { await this.prettyPrintRule(); });
     modal.querySelector(".sieve-inbox-rule-save")
       .addEventListener("click", () => { this.saveRule(); });
   }
 
   /**
-   * Replaces the rule textarea with the same CodeMirror engine used by the
-   * full Sieve source editor. Tests and environments without CodeMirror keep
-   * the plain textarea as a functional fallback.
+   * Connects the rule field to the graphical editor used by the full
+   * editor's "Script" tab. The hidden textarea remains a fallback for tests
+   * and for reporting a useful value while the iframe is still loading.
    *
    * @param {HTMLElement} modal
    *   rule editor modal.
    */
-  initializeRuleSourceEditor(modal) {
-    const source = modal.querySelector(".sieve-inbox-rule-source");
+  initializeRuleGraphicalEditor(modal) {
+    const frame = modal.querySelector(".sieve-inbox-rule-editor");
+    frame.title = this.string(
+      "account.inbox.rule.graphical", "Graphical Sieve rule editor");
+    this.ruleGraphicalEditorFrame = frame;
+    this.ruleGraphicalEditorReady = new Promise((resolve) => {
+      const connect = () => {
+        const editor = frame.contentWindow;
+        if (editor?.sieveGuiReady) {
+          resolve(editor);
+          return;
+        }
 
-    if (typeof CodeMirror === "undefined") {
-      source.addEventListener("input", () => { this.updateMailboxStatus(); });
-      return;
-    }
+        editor?.addEventListener("sieve-gui-ready", () => {
+          resolve(editor);
+        }, { once: true });
+      };
 
-    this.ruleSourceEditor = CodeMirror.fromTextArea(source, {
-      lineNumbers: true,
-      lineWrapping: true,
-      matchBrackets: true,
-      mode: "application/sieve",
-      theme: SieveTheme.getCodeMirrorTheme(),
-      inputStyle: "contenteditable",
-      extraKeys: {
-        "Tab": (editor) => {
-          if (editor.somethingSelected()) {
-            editor.indentSelection("add");
-            return;
-          }
-
-          editor.execCommand(editor.getOption("indentWithTabs")
-            ? "insertTab" : "insertSoftTab");
-        },
-        "Shift-Tab": (editor) => { editor.indentSelection("subtract"); }
-      }
+      frame.addEventListener("load", connect);
+      if (frame.contentDocument?.readyState === "complete")
+        connect();
     });
-    this.ruleSourceEditor.getInputField().setAttribute(
-      "aria-label",
-      modal.querySelector(".sieve-inbox-rule-source-label").textContent);
-    this.ruleSourceEditor.on("change", () => { this.updateMailboxStatus(); });
+    this.ruleGraphicalEditorReady.then((editor) => {
+      this.ruleGraphicalEditorWindow = editor;
+      this.syncRuleEditorTheme();
+    });
 
     modal.addEventListener("shown.bs.modal", () => {
-      this.ruleSourceEditor.refresh();
-      this.ruleSourceEditor.focus();
+      this.syncRuleEditorTheme();
+      frame.focus();
     });
     window.addEventListener("sieve-theme-changed", () => {
-      this.ruleSourceEditor.setOption("theme", SieveTheme.getCodeMirrorTheme());
+      this.syncRuleEditorTheme();
+    });
+  }
+
+  /** Synchronizes the embedded graphical editor with the application theme. */
+  syncRuleEditorTheme() {
+    const root = this.ruleGraphicalEditorFrame?.contentDocument?.documentElement;
+    if (!root)
+      return;
+
+    root.setAttribute("data-bs-theme", SieveTheme.effective);
+    root.setAttribute("data-sieve-theme", SieveTheme.preset);
+  }
+
+  /**
+   * Waits for the embedded graphical editor with a bounded loading time.
+   *
+   * @returns {Promise<Window>}
+   *   iframe window exposing setSieveScript() and getSieveScript().
+   */
+  async getRuleGraphicalEditor() {
+    if (this.ruleGraphicalEditorWindow)
+      return this.ruleGraphicalEditorWindow;
+
+    if (!this.ruleGraphicalEditorReady)
+      return null;
+
+    return await new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        reject(new Error(this.string(
+          "account.inbox.rule.graphical.error",
+          "The graphical Sieve editor could not be loaded")));
+      }, 15000);
+
+      this.ruleGraphicalEditorReady.then((editor) => {
+        window.clearTimeout(timeout);
+        resolve(editor);
+      });
     });
   }
 
@@ -607,8 +641,8 @@ ${result.reports.join("\n")}`);
    *   rule source from CodeMirror or its textarea fallback.
    */
   getRuleSource() {
-    if (this.ruleSourceEditor)
-      return this.ruleSourceEditor.getValue();
+    if (this.ruleGraphicalEditorWindow?.getSieveScript)
+      return this.ruleGraphicalEditorWindow.getSieveScript();
 
     return this.root.querySelector(".sieve-inbox-rule-source").value;
   }
@@ -619,13 +653,18 @@ ${result.reports.join("\n")}`);
    * @param {string} source
    *   new rule source.
    */
-  setRuleSource(source) {
-    if (this.ruleSourceEditor) {
-      this.ruleSourceEditor.setValue(source);
-      return;
-    }
-
+  async setRuleSource(source) {
     this.root.querySelector(".sieve-inbox-rule-source").value = source;
+
+    const editor = await this.getRuleGraphicalEditor();
+    if (!editor)
+      return;
+
+    editor.setSieveScript(
+      source,
+      JSON.stringify(this.ruleCapabilities?.extensions || {}));
+    this.ruleGraphicalEditorWindow = editor;
+    this.syncRuleEditorTheme();
   }
 
   /**
@@ -669,12 +708,14 @@ ${result.reports.join("\n")}`);
 
     try {
       await this.ensureSieveConnected();
-      const [details, scripts] = await Promise.all([
+      const [details, scripts, capabilities] = await Promise.all([
         this.account.send("account-inbox-details", { messageId: this.selectedId }),
-        this.account.send("account-inbox-rule-scripts")
+        this.account.send("account-inbox-rule-scripts"),
+        this.account.send("account-capabilities")
       ]);
       this.details = details;
       this.scripts = scripts.scripts || [];
+      this.ruleCapabilities = capabilities || { extensions: {} };
       modal.querySelector(".sieve-inbox-rule-headers").value = details.headers || "";
 
       const scriptSelect = modal.querySelector(".sieve-inbox-rule-script");
@@ -701,7 +742,7 @@ ${result.reports.join("\n")}`);
 
       modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
       this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
-      this.setRuleSource(this.lastTemplate);
+      await this.setRuleSource(this.lastTemplate);
       this.updateSimilarRuleMatches();
       modal.querySelector(".sieve-inbox-rule-connection").textContent
         = scripts.connected
@@ -763,14 +804,14 @@ ${result.reports.join("\n")}`);
   /**
    * Replaces the editor content with a safe sender template.
    */
-  createTemplate() {
+  async createTemplate() {
     if (!this.details)
       return;
     const modal = this.root.querySelector(".sieve-inbox-rule-modal");
     try {
       this.lastTemplate = createInboxRuleTemplate(
         this.details, modal.querySelector(".sieve-inbox-rule-mailbox").value);
-      this.setRuleSource(this.lastTemplate);
+      await this.setRuleSource(this.lastTemplate);
       this.hideEditorStatus();
       this.updateMailboxStatus();
     } catch (ex) {
@@ -782,10 +823,10 @@ ${result.reports.join("\n")}`);
    * Updates only an untouched generated template when its mailbox changes.
    * Freely edited rule source is never overwritten implicitly.
    */
-  updateTemplateMailbox() {
+  async updateTemplateMailbox() {
     if (this.getRuleSource() !== this.lastTemplate)
       return;
-    this.createTemplate();
+    await this.createTemplate();
   }
 
   /**
@@ -823,8 +864,8 @@ ${result.reports.join("\n")}`);
   /**
    * Formats the editable rule locally.
    */
-  prettyPrintRule() {
-    this.setRuleSource(formatSieveScript(this.getRuleSource()));
+  async prettyPrintRule() {
+    await this.setRuleSource(formatSieveScript(this.getRuleSource()));
     this.hideEditorStatus();
     this.updateMailboxStatus();
   }

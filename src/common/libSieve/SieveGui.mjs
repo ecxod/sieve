@@ -331,6 +331,9 @@ async function main() {
     setCapabilities();
   }
 
+  window.sieveGuiReady = true;
+  window.dispatchEvent(new CustomEvent("sieve-gui-ready"));
+
 }
 
 if (document.readyState !== 'loading')

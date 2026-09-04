@@ -510,6 +510,8 @@
   "account.inbox.rule.similar.none" : "No existing rule with the same email address, domain, recipient or subject was found.",
   "account.inbox.rule.similar.found" : "{count} Sieve script(s) contain possible similar rules. Check them before saving a new rule.",
   "account.inbox.rule.source" : "Sieve rule",
+  "account.inbox.rule.graphical" : "Graphical Sieve rule editor",
+  "account.inbox.rule.graphical.error" : "The graphical Sieve editor could not be loaded",
   "account.inbox.rule.template" : "Create template",
   "account.inbox.rule.lint" : "Lint",
   "account.inbox.rule.pretty" : "Pretty Print",

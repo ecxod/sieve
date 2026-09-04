@@ -65,10 +65,10 @@
           <div class="form-text sieve-inbox-rule-similar-status" role="status" aria-live="polite"></div>
 
           <label class="form-label mt-3 sieve-inbox-rule-source-label"></label>
-          <div class="sieve-inbox-rule-editor">
-            <textarea class="form-control font-monospace sieve-inbox-rule-source" rows="16"
-              spellcheck="false" wrap="off"></textarea>
-          </div>
+          <iframe class="sieve-inbox-rule-editor"
+            src="./../../libs/libSieve/SieveGui.html?embedded"></iframe>
+          <textarea class="sieve-inbox-rule-source d-none" aria-hidden="true"
+            tabindex="-1"></textarea>
           <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status"
             role="status" aria-live="polite"></div>
           <div class="alert alert-secondary py-2 mt-2 mb-0 sieve-inbox-rule-lint-status d-none"

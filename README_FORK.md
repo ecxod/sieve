@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.12 is the latest stable release for both distributed packages:**
+**Version 0.8.13 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.12.exe`
-- Thunderbird: `sieve-0.8.12-cram-md5.xpi`
+- Windows: `install_sieve_0.8.13.exe`
+- Thunderbird: `sieve-0.8.13-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -244,6 +244,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   modal now uses the same CodeMirror Sieve source editor as the full editor,
   including syntax highlighting, line numbers, bracket matching, and theme
   synchronization.
+- Version `0.8.13` corrects the Inbox rule modal to use the full editor's
+  graphical **Script** editor instead of its **Source** editor. Generated and
+  edited rules are parsed into the existing graphical Sieve blocks, with the
+  connected server's capabilities and the application theme passed through.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -269,13 +273,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.12-cram-md5.xpi`](releases/sieve-0.8.12-cram-md5.xpi).
+[`releases/sieve-0.8.13-cram-md5.xpi`](releases/sieve-0.8.13-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `a69d8795df588f7acdc28f1b2e77b2dd97b0daa3501c7c8036e48607e05bd64a`
+SHA-256: `9c06eef3d6938dd44838523dd514fd9a1b6c9ffb7387fa9149ffc3dc6c422c20`
 
 ### Thunderbird permission notice
 
@@ -293,9 +297,9 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.12.exe`](releases/install_sieve_0.8.12.exe).
+[`releases/install_sieve_0.8.13.exe`](releases/install_sieve_0.8.13.exe).
 
-SHA-256: `fd4eab1dda62daa642ff6d554e87d73fb6d05ebb56175806728c37935181618a`
+SHA-256: `b9e2a563f0b1fa5aebdfdcf9456e77c0c0bb491fddf4993967f3bcca29d304f3`
 
 ## Linux package
 

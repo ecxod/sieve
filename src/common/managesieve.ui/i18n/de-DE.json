@@ -467,6 +467,8 @@
   "account.inbox.rule.similar.none": "Es wurde keine vorhandene Regel mit derselben E-Mail-Adresse, Domain, demselben Empfänger oder Betreff gefunden.",
   "account.inbox.rule.similar.found": "{count} Sieve-Skript(e) enthalten möglicherweise ähnliche Regeln. Prüfen Sie diese, bevor Sie eine neue Regel speichern.",
   "account.inbox.rule.source": "Sieve-Regel",
+  "account.inbox.rule.graphical": "Grafischer Sieve-Regel-Editor",
+  "account.inbox.rule.graphical.error": "Der grafische Sieve-Editor konnte nicht geladen werden",
   "account.inbox.rule.template": "Vorlage erzeugen",
   "account.inbox.rule.lint": "Lint",
   "account.inbox.rule.pretty": "Schön formatieren",
