@@ -32,7 +32,8 @@ import {
   createInboxRuleTemplate,
   getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
-  inspectInboxRuleMailboxes
+  inspectInboxRuleMailboxes,
+  stripLeadingSieveRequirements
 } from "./../../inbox/SieveInboxRule.mjs";
 import {
   formatInboxDate,
@@ -381,6 +382,45 @@ suite.add("Inbox rule template and append manage safe requirements", function ()
   suite.assertThrows(() => {
     appendInboxRuleToScript(updated, template);
   }, "This Inbox rule already exists in the selected script");
+  suite.assertThrows(() => {
+    appendInboxRuleToScript("keep;\n", [
+      "# a leading comment must not hide a generated import",
+      'require "fileinto";',
+      'fileinto "INBOX";'
+    ].join("\n"));
+  }, "Do not add require commands here");
+});
+
+suite.add("Inbox graphical rule serialization removes generated requirements", function () {
+  const graphical = [
+    "# Created from Inbox: Expected subject",
+    'require "mailbox";',
+    'require ["fileinto"];',
+    'if address :is "from" "person@example.test" {',
+    '  fileinto :create "Archive/Customers";',
+    "  stop;",
+    "}"
+  ].join("\r\n");
+  const snippet = stripLeadingSieveRequirements(graphical);
+
+  suite.assertFalse(snippet.includes("require"));
+  suite.assertTrue(snippet.startsWith("# Created from Inbox:"));
+  suite.assertTrue(snippet.includes('fileinto :create "Archive/Customers";'));
+
+  const updated = appendInboxRuleToScript("keep;\n", snippet);
+  suite.assertTrue(updated.startsWith('require ["fileinto", "mailbox"];'));
+  suite.parseScript(updated, ["fileinto", "mailbox"]);
+
+  const opaque = [
+    "# No generated requirement section",
+    "if true {",
+    "  vacation text:",
+    'require "this is message text";',
+    ".",
+    ";",
+    "}"
+  ].join("\n");
+  suite.assertEquals(stripLeadingSieveRequirements(opaque), opaque);
 });
 
 suite.add("Inbox mailbox check ignores opaque fileinto text", function () {
@@ -772,6 +812,11 @@ suite.add("Inbox mailbox input preserves freely edited rules", async function ()
   suite.assertEquals(updates, 0);
 
   source.value = "generated rule";
+  await inbox.updateTemplateMailbox();
+  suite.assertEquals(updates, 1);
+
+  updates = 0;
+  source.value = "generated rule\r\n";
   await inbox.updateTemplateMailbox();
   suite.assertEquals(updates, 1);
 });

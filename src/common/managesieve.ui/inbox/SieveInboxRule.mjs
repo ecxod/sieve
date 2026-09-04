@@ -44,6 +44,138 @@ function commentText(value) {
 }
 
 /**
+ * Skips whitespace and comments without interpreting quoted or multiline
+ * string contents.
+ *
+ * @param {string} source
+ *   Sieve source.
+ * @param {number} offset
+ *   current source offset.
+ * @returns {number}
+ *   offset of the next structural token.
+ */
+function skipSieveTrivia(source, offset) {
+  while (offset < source.length) {
+    if (/\s/u.test(source[offset])) {
+      offset++;
+      continue;
+    }
+
+    if (source[offset] === "#") {
+      const end = source.indexOf("\n", offset);
+      offset = end === -1 ? source.length : end + 1;
+      continue;
+    }
+
+    if (source.startsWith("/*", offset)) {
+      const end = source.indexOf("*/", offset + 2);
+      offset = end === -1 ? source.length : end + 2;
+      continue;
+    }
+
+    break;
+  }
+
+  return offset;
+}
+
+/**
+ * Skips one quoted Sieve string, including escaped quote characters.
+ *
+ * @param {string} source
+ *   Sieve source.
+ * @param {number} offset
+ *   offset directly after the opening quote.
+ * @returns {number}
+ *   offset directly after the closing quote or at the end of the source.
+ */
+function skipQuotedSieveString(source, offset) {
+  let escaped = false;
+
+  while (offset < source.length) {
+    const character = source[offset++];
+    if (character === "\"" && !escaped)
+      break;
+    escaped = character === "\\" && !escaped;
+    if (character !== "\\")
+      escaped = false;
+  }
+
+  return offset;
+}
+
+/**
+ * Removes the leading require commands which the graphical editor generates
+ * automatically. Inbox rules are snippets; their requirements are inserted
+ * into the selected complete server script by appendInboxRuleToScript().
+ *
+ * Leading comments and all rule contents remain byte-for-byte unchanged.
+ * A malformed require command is left untouched so it can be reported by the
+ * server-side syntax check.
+ *
+ * @param {string} source
+ *   source serialized by the graphical editor.
+ * @returns {string}
+ *   rule snippet without its generated leading require commands.
+ */
+function stripLeadingSieveRequirements(source) {
+  source = `${source || ""}`;
+  const ranges = [];
+  let offset = 0;
+
+  while (offset < source.length) {
+    offset = skipSieveTrivia(source, offset);
+    const start = offset;
+    const keyword = source.slice(offset).match(/^require\b/iu);
+    if (!keyword)
+      break;
+
+    offset += keyword[0].length;
+    let complete = false;
+
+    while (offset < source.length) {
+      if (source[offset] === "\"") {
+        offset = skipQuotedSieveString(source, offset + 1);
+        continue;
+      }
+
+      if (source[offset] === "#") {
+        const end = source.indexOf("\n", offset);
+        offset = end === -1 ? source.length : end + 1;
+        continue;
+      }
+
+      if (source.startsWith("/*", offset)) {
+        const end = source.indexOf("*/", offset + 2);
+        offset = end === -1 ? source.length : end + 2;
+        continue;
+      }
+
+      if (source[offset++] !== ";")
+        continue;
+
+      while (offset < source.length && /[\t ]/u.test(source[offset]))
+        offset++;
+      if (source[offset] === "\r")
+        offset++;
+      if (source[offset] === "\n")
+        offset++;
+      ranges.push({ start, end: offset });
+      complete = true;
+      break;
+    }
+
+    if (!complete)
+      return source;
+  }
+
+  for (let index = ranges.length - 1; index >= 0; index--)
+    source = source.slice(0, ranges[index].start) + source.slice(ranges[index].end);
+
+  return source;
+}
+
+/**
  * Builds a conservative sender rule template for an Inbox message.
  *
  * @param {object} details
@@ -112,7 +244,7 @@ function appendInboxRuleToScript(script, snippet) {
   snippet = `${snippet || ""}`.trim();
   if (!snippet)
     throw new Error("The Sieve rule is empty");
-  if (/^\s*require\b/iu.test(snippet)) {
+  if (stripLeadingSieveRequirements(snippet) !== snippet) {
     throw new Error(
       "Do not add require commands here; required capabilities are managed automatically");
   }
@@ -243,5 +375,6 @@ export {
   createInboxRuleTemplate,
   getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
-  inspectInboxRuleMailboxes
+  inspectInboxRuleMailboxes,
+  stripLeadingSieveRequirements
 };

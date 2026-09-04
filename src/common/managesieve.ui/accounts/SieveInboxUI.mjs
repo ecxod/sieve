@@ -7,7 +7,8 @@
 import { formatSieveScript } from "./../editor/text/SieveFormatter.mjs";
 import {
   createInboxRuleTemplate,
-  inspectInboxRuleMailboxes
+  inspectInboxRuleMailboxes,
+  stripLeadingSieveRequirements
 } from "./../inbox/SieveInboxRule.mjs";
 import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
 import { findSpamRuleMatches } from "./../spam/SieveSpamRule.mjs";
@@ -638,11 +639,12 @@ ${result.reports.join("\n")}`);
    * Returns the currently editable rule source.
    *
    * @returns {string}
-   *   rule source from CodeMirror or its textarea fallback.
+   *   rule snippet from the graphical editor or its textarea fallback.
    */
   getRuleSource() {
     if (this.ruleGraphicalEditorWindow?.getSieveScript)
-      return this.ruleGraphicalEditorWindow.getSieveScript();
+      return stripLeadingSieveRequirements(
+        this.ruleGraphicalEditorWindow.getSieveScript());
 
     return this.root.querySelector(".sieve-inbox-rule-source").value;
   }
@@ -703,8 +705,12 @@ ${result.reports.join("\n")}`);
       return;
 
     const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    const dialog = bootstrap.Modal.getOrCreateInstance(modal);
     this.setEditorStatus(this.string(
       "account.inbox.rule.loading", "Loading headers and Sieve scripts…"));
+    modal.querySelector(".sieve-inbox-rule-lint").disabled = true;
+    modal.querySelector(".sieve-inbox-rule-save").disabled = true;
+    dialog.show();
 
     try {
       await this.ensureSieveConnected();
@@ -757,9 +763,8 @@ ${result.reports.join("\n")}`);
       this.renderRows();
       this.hideEditorStatus();
       this.updateMailboxStatus();
-      bootstrap.Modal.getOrCreateInstance(modal).show();
     } catch (ex) {
-      this.setStatus(`${this.string(
+      this.setEditorStatus(`${this.string(
         "account.inbox.rule.error", "Could not open the rule editor")}: ${ex.message || ex}`,
       "danger");
     }
@@ -824,7 +829,10 @@ ${result.reports.join("\n")}`);
    * Freely edited rule source is never overwritten implicitly.
    */
   async updateTemplateMailbox() {
-    if (this.getRuleSource() !== this.lastTemplate)
+    const normalize = (source) => {
+      return `${source || ""}`.replace(/\r\n?/gu, "\n").trim();
+    };
+    if (normalize(this.getRuleSource()) !== normalize(this.lastTemplate))
       return;
     await this.createTemplate();
   }
