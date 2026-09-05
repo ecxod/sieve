@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.20 is the latest stable release for both distributed packages:**
+**Version 0.8.21 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.20.exe`
-- Thunderbird: `sieve-0.8.20-cram-md5.xpi`
+- Windows: `install_sieve_0.8.21.exe`
+- Thunderbird: `sieve-0.8.21-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -283,6 +283,17 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   replaces only the exact unchanged source rule in its original Sieve script.
   The loaded rule's first literal `fileinto` destination and originating script
   are reflected in the modal controls.
+- Version `0.8.21` gives the Electron Inbox refresh action an explicit IMAP
+  synchronization and performs the same UIDPLUS-targeted EXPUNGE as the
+  Thunderbird add-on after a successful selected-message Sieve run. The
+  Thunderbird Add-ons Manager's release information now opens the release's
+  README, which includes a dedicated Thunderbird add-on section. Thunderbird's
+  unified mail toolbar also receives a **Sieve** button which opens or focuses
+  the account and script overview. Inbox and Spam tables now paginate 10, 20,
+  50, or 100 messages after searching the complete loaded folder. The Inbox
+  context menu uses Thunderbird's native display, reply, and forward actions;
+  Electron uses dedicated display and compose dialogs and opens completed
+  drafts in the default email program.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -308,13 +319,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.20-cram-md5.xpi`](releases/sieve-0.8.20-cram-md5.xpi).
+[`releases/sieve-0.8.21-cram-md5.xpi`](releases/sieve-0.8.21-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `1693ebe3cfd0c36d3e2fcb9b909a46c69ae83b80b0f3cf8ba8723181bc63cf88`
+SHA-256: `97980fd2df4f731379fc7beb045bd33e42178f0ed534e5f6243c6d424467e33e`
 
 ### Thunderbird permission notice
 
@@ -332,9 +343,9 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.20.exe`](releases/install_sieve_0.8.20.exe).
+[`releases/install_sieve_0.8.21.exe`](releases/install_sieve_0.8.21.exe).
 
-SHA-256: `6886b089609eaf4744165cb932900a6e31a796fb87b09217870bfaa550496ecc`
+SHA-256: `4d0691872e4a0836abb8f0168e906a4ac9a77cdf66c1483045732413d361c956`
 
 ## Linux package
 

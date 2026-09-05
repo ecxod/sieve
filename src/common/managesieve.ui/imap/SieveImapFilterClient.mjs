@@ -282,28 +282,32 @@ class SieveImapFilterClient {
    *   stored personal script name.
    * @param {object} snapshot
    *   result of prepare().
+   * @param {object} [options]
+   *   optional Inbox-only post-processing.
+   * @param {boolean} [options.expunge]
+   *   permanently remove only filtered UIDs which FILTER marked as deleted.
    * @returns {Promise<object>}
    *   operation summary.
    */
-  async apply(script, snapshot) {
-    if (!snapshot.uids.length) {
-      return {
-        selected: 0,
-        filtered: 0,
-        warnings: 0,
-        errors: 0
-      };
-    }
+  async apply(script, snapshot, options = {}) {
+    const result = {
+      selected: snapshot.uids.length,
+      filtered: 0,
+      warnings: 0,
+      errors: 0,
+      expunged: false,
+      reports: []
+    };
+    if (!snapshot.uids.length)
+      return result;
 
     return await this.withClient(async (client) => {
+      if (options.expunge && !client.capabilities.has("UIDPLUS")) {
+        throw new Error(
+          "The IMAP server does not offer UIDPLUS for targeted EXPUNGE");
+      }
+
       const lock = await client.getMailboxLock(snapshot.folder);
-      const result = {
-        selected: snapshot.uids.length,
-        filtered: 0,
-        warnings: 0,
-        errors: 0,
-        reports: []
-      };
 
       try {
         if (`${client.mailbox.uidValidity}` !== snapshot.uidValidity) {
@@ -347,6 +351,15 @@ class SieveImapFilterClient {
             }
           });
           response.next();
+        }
+
+        if (options.expunge && !result.errors) {
+          const response = await client.exec("UID EXPUNGE", [{
+            type: "SEQUENCE",
+            value: compactUidSet(snapshot.uids)
+          }]);
+          response.next();
+          result.expunged = true;
         }
 
         return result;

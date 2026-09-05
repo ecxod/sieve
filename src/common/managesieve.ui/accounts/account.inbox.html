@@ -12,6 +12,10 @@
   <div class="alert alert-secondary py-2 sieve-inbox-status" role="status" aria-live="polite"></div>
 
   <div class="dropdown-menu position-fixed sieve-inbox-context-menu">
+    <button type="button" class="dropdown-item sieve-inbox-context-show d-none">Anzeigen</button>
+    <button type="button" class="dropdown-item sieve-inbox-context-reply d-none">Antworten</button>
+    <button type="button" class="dropdown-item sieve-inbox-context-forward d-none">Weiterleiten</button>
+    <div class="dropdown-divider sieve-inbox-context-message-separator d-none"></div>
     <button type="button" class="dropdown-item sieve-inbox-context-apply">Sieve jetzt ausführen</button>
     <button type="button" class="dropdown-item sieve-inbox-context-rule">Sieve-Regel erstellen</button>
   </div>
@@ -28,6 +32,68 @@
       </thead>
       <tbody class="sieve-inbox-rows"></tbody>
     </table>
+  </div>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 sieve-inbox-pagination d-none">
+    <label class="d-flex align-items-center gap-2 small mb-0">
+      <span class="sieve-inbox-page-size-label">Nachrichten pro Seite</span>
+      <select class="form-select form-select-sm sieve-inbox-page-size">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </label>
+    <div class="btn-group flex-wrap sieve-inbox-page-buttons" role="group"
+      aria-label="Seitennavigation"></div>
+  </div>
+
+  <div class="modal fade sieve-inbox-message-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title sieve-inbox-message-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="small text-body-secondary mb-2 sieve-inbox-message-summary"></div>
+          <label class="form-label sieve-inbox-message-source-label"></label>
+          <textarea class="form-control font-monospace sieve-inbox-message-source" rows="25"
+            readonly spellcheck="false" wrap="off"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary sieve-inbox-message-close"
+            data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade sieve-inbox-compose-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title sieve-inbox-compose-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info py-2 sieve-inbox-compose-hint"></div>
+          <div class="alert alert-danger py-2 d-none sieve-inbox-compose-error"
+            role="alert"></div>
+          <label class="form-label sieve-inbox-compose-to-label"></label>
+          <input type="email" class="form-control sieve-inbox-compose-to" autocomplete="off">
+          <label class="form-label mt-3 sieve-inbox-compose-subject-label"></label>
+          <input type="text" class="form-control sieve-inbox-compose-subject" autocomplete="off">
+          <label class="form-label mt-3 sieve-inbox-compose-body-label"></label>
+          <textarea class="form-control sieve-inbox-compose-body" rows="16"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary sieve-inbox-compose-open"></button>
+          <button type="button" class="btn btn-secondary sieve-inbox-compose-cancel"
+            data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal fade sieve-inbox-rule-modal" tabindex="-1" aria-hidden="true">

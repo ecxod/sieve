@@ -517,8 +517,30 @@ async function createImapFilterClient(account, settings) {
       const inbox = await createImapSpamClient(account, settings);
       return {
         configured: true,
-        ...await inbox.listInbox()
+        messageActionMode: "electron",
+        ...await inbox.listInbox(msg.payload.refresh === true)
       };
+    },
+
+    "account-inbox-message-content": async function (msg) {
+      logger.logAction(`Load IMAP Inbox message for ${msg.payload.account}`);
+      const account = accounts.getAccountById(msg.payload.account);
+      const settings = await getImapSettings(account);
+      if (!settings.enabled)
+        throw new Error("Direct IMAP Inbox access is not enabled");
+
+      const inbox = await createImapSpamClient(account, settings);
+      return await inbox.getInboxMessage(msg.payload.messageId);
+    },
+
+    "account-inbox-compose-external": async function (msg) {
+      const to = `${msg.payload.to || ""}`.trim();
+      const subject = `${msg.payload.subject || ""}`;
+      const body = `${msg.payload.body || ""}`;
+      const query = new URLSearchParams({ subject, body });
+      const target = `mailto:${encodeURIComponent(to)}?${query.toString()}`;
+      await shell.openExternal(target);
+      return { opened: true };
     },
 
     "account-inbox-details": async function (msg) {
@@ -555,7 +577,9 @@ async function createImapFilterClient(account, settings) {
       const createdMailboxes = await filter.ensureMailboxes(
         getLiteralFileintoMailboxes(source));
       const snapshot = await filter.prepareInbox(msg.payload.messageId);
-      const result = await filter.apply(active.script, snapshot);
+      const result = await filter.apply(active.script, snapshot, {
+        expunge: true
+      });
       return {
         ...result,
         createdMailboxes,

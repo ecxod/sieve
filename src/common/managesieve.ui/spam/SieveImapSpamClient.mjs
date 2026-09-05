@@ -252,16 +252,21 @@ class SieveImapSpamClient {
   /**
    * Lists Inbox envelopes and selectable mailboxes for the rule helper.
    *
+   * @param {boolean} [refresh]
+   *   request an explicit selected-mailbox synchronization before fetching.
    * @returns {Promise<object>}
    *   serialized Inbox view.
    */
-  async listInbox() {
+  async listInbox(refresh = false) {
     return await this.withClient(async (client) => {
       const mailboxes = await client.list();
       const inbox = resolveInboxFolder(mailboxes);
       const lock = await client.getMailboxLock(inbox, { readOnly: true });
 
       try {
+        if (refresh)
+          await client.noop();
+
         const uidValidity = `${client.mailbox.uidValidity}`;
         const messages = client.mailbox.exists
           ? await client.fetchAll("1:*", {
@@ -393,6 +398,59 @@ class SieveImapSpamClient {
             .filter(Boolean))],
           subject: envelope.subject || "",
           messageId: envelope.messageId || ""
+        };
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /**
+   * Loads one complete Inbox message for the desktop display and compose
+   * dialogs.
+   *
+   * @param {string} id
+   *   opaque message selection identifier.
+   * @returns {Promise<object>}
+   *   complete RFC 822 source plus normalized envelope fields.
+   */
+  async getInboxMessage(id) {
+    return await this.withClient(async (client) => {
+      const inbox = resolveInboxFolder(await client.list());
+      const selection = parseMessageId(id);
+      const lock = await client.getMailboxLock(inbox, { readOnly: true });
+
+      try {
+        if (`${client.mailbox.uidValidity}` !== selection.uidValidity)
+          throw new Error("The Inbox changed; refresh the message list and try again");
+
+        const message = await client.fetchOne(selection.uid, {
+          uid: true,
+          source: true,
+          envelope: true,
+          internalDate: true
+        }, { uid: true });
+        if (!message || !message.source)
+          throw new Error("The selected Inbox message no longer exists");
+
+        const envelope = message.envelope || {};
+        const senders = envelope.from || envelope.sender || [];
+        const recipients = [
+          ...(envelope.to || []),
+          ...(envelope.cc || [])
+        ];
+
+        return {
+          id,
+          sender: senders.map(formatAddress).join(", "),
+          senderAddress: `${senders[0]?.address || ""}`.trim(),
+          recipients: recipients.map(formatAddress),
+          recipientAddresses: [...new Set(recipients
+            .map((address) => { return `${address.address || ""}`.trim(); })
+            .filter(Boolean))],
+          subject: envelope.subject || "",
+          date: message.internalDate || envelope.date || null,
+          source: message.source.toString("utf8")
         };
       } finally {
         lock.release();

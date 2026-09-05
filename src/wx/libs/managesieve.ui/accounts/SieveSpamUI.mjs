@@ -4,6 +4,7 @@
 
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
 import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
+import { SieveMessagePagination } from "./SieveMessagePagination.mjs";
 import { SieveSpamContextUI } from "./SieveSpamContextUI.mjs";
 
 /**
@@ -49,7 +50,16 @@ class SieveSpamUI {
     headings[2].textContent = this.getString("account.spam.sender", "Sender");
     headings[3].textContent = this.getString("account.spam.subject", "Subject");
 
-    search.addEventListener("input", () => { this.renderRows(); });
+    this.pagination = new SieveMessagePagination(
+      root,
+      "sieve-spam",
+      (key, fallback) => { return this.getString(key, fallback); },
+      () => { this.renderRows(); });
+
+    search.addEventListener("input", () => {
+      this.pagination.reset();
+      this.renderRows();
+    });
     root.querySelector(".sieve-spam-refresh")
       .addEventListener("click", () => { this.render(); });
     root.querySelector(".sieve-spam-select-visible")
@@ -106,9 +116,19 @@ class SieveSpamUI {
    * @returns {object[]}
    *   visible messages.
    */
-  getVisibleMessages() {
+  getMatchingMessages() {
     const query = this.root.querySelector(".sieve-spam-search").value;
     return this.messages.filter((message) => {return matchesSpamSearch(message, query);});
+  }
+
+  /**
+   * Gets the current page after searching the complete loaded folder.
+   *
+   * @returns {object[]}
+   *   messages visible on the active page.
+   */
+  getVisibleMessages() {
+    return this.pagination.paginate(this.getMatchingMessages()).items;
   }
 
   /**
@@ -148,7 +168,8 @@ class SieveSpamUI {
    */
   renderRows() {
     const rows = this.root.querySelector(".sieve-spam-rows");
-    const visible = this.getVisibleMessages();
+    const matching = this.getMatchingMessages();
+    const visible = this.pagination.paginate(matching).items;
     rows.replaceChildren();
 
     for (const message of visible) {
@@ -203,11 +224,11 @@ class SieveSpamUI {
       .classList.toggle("d-none", visible.length === 0);
     this.updateSelectionControls();
 
-    if (this.messages.length && !visible.length) {
+    if (this.messages.length && !matching.length) {
       this.setStatus(this.getString(
         "account.spam.search.empty", "No spam messages match this search."));
     } else if (this.messages.length) {
-      this.setStatus(`${visible.length} ${this.getString(
+      this.setStatus(`${matching.length} ${this.getString(
         "account.spam.visible", "of")} ${this.messages.length} ${this.getString(
         "account.spam.messages", "messages")}.`);
     }
@@ -221,6 +242,7 @@ class SieveSpamUI {
       return;
 
     this.rendering = true;
+    this.pagination.reset();
     this.selected.clear();
     this.context.reset();
     this.root.querySelector(".sieve-spam-table-wrap").classList.add("d-none");

@@ -46,6 +46,10 @@ import {
 import {
   sortAccountsByDisplayName
 } from "./../../accounts/SieveAccountSort.mjs";
+import {
+  createMessagePage,
+  createPageTokens
+} from "./../../accounts/SieveMessagePagination.mjs";
 
 /**
  *
@@ -535,6 +539,7 @@ suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async func
       client.mailbox = { uidValidity: 9n, exists: 1 };
       return { release: () => { calls.push("release"); } };
     },
+    noop: async () => { calls.push("noop"); },
     fetchAll: async () => {
       return [{
         uid: 12,
@@ -549,6 +554,8 @@ suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async func
     fetchOne: async () => {
       return {
         headers: Buffer.from("From: Person <person@example.test>\r\nSubject: Hello\r\n\r\n"),
+        source: Buffer.from("From: Person <person@example.test>\r\nSubject: Hello\r\n\r\nBody"),
+        internalDate: new Date("2026-09-03T10:00:00Z"),
         envelope: {
           from: [{ name: "Person", address: "person@example.test" }],
           to: [{ address: "customer@example.test" }],
@@ -559,15 +566,40 @@ suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async func
     }
   };
   const service = new SieveImapSpamClient(() => { return client; });
-  const inbox = await service.listInbox();
+  const inbox = await service.listInbox(true);
   const details = await service.getInboxDetails("9:12");
+  const message = await service.getInboxMessage("9:12");
 
   suite.assertEquals(inbox.folderName, "INBOX");
   suite.assertEquals(inbox.mailboxes.join(","), "INBOX,Archive");
   suite.assertEquals(inbox.messages[0].id, "9:12");
   suite.assertEquals(details.senderAddress, "person@example.test");
   suite.assertTrue(details.headers.includes("Subject: Hello"));
-  suite.assertEquals(calls.filter((item) => { return item === "logout"; }).length, 2);
+  suite.assertTrue(message.source.endsWith("Body"));
+  suite.assertEquals(message.senderAddress, "person@example.test");
+  suite.assertEquals(calls.filter((item) => { return item === "noop"; }).length, 1);
+  suite.assertEquals(calls.filter((item) => { return item === "logout"; }).length, 3);
+});
+
+suite.add("Message pagination slices search results after filtering", function () {
+  const messages = Array.from({ length: 105 }, (_item, index) => {
+    return { id: index + 1 };
+  });
+  const page = createMessagePage(messages, 3, 20);
+
+  suite.assertEquals(page.items.length, 20);
+  suite.assertEquals(page.items[0].id, 41);
+  suite.assertEquals(page.items.at(-1).id, 60);
+  suite.assertEquals(page.totalPages, 6);
+  suite.assertEquals(createMessagePage(messages, 99, 100).page, 2);
+  suite.assertEquals(createMessagePage([], 4, 10).items.length, 0);
+});
+
+suite.add("Message pagination renders compact numbered page tokens", function () {
+  suite.assertEquals(createPageTokens(1, 5).join(","), "1,2,3,4,5");
+  suite.assertEquals(
+    createPageTokens(50, 100).map((token) => { return token ?? "…"; }).join(","),
+    "1,…,48,49,50,51,52,…,100");
 });
 
 suite.add("Inbox selection state enables only one rule action", function () {
@@ -657,6 +689,7 @@ suite.add("Inbox refresh requests a Thunderbird folder synchronization", async f
   inbox.setStatus = () => {};
   inbox.string = (_key, fallback) => { return fallback; };
   inbox.renderRows = () => {};
+  inbox.pagination = { reset() {} };
 
   await inbox.render(true);
 
@@ -673,6 +706,9 @@ suite.add("Inbox row context menu selects the right-clicked message", function (
   const applyButton = { disabled: true };
   const spamButton = { disabled: true };
   const contextApply = { disabled: true };
+  const contextActions = {
+    classList: { toggle() {} }
+  };
   const classes = new Set();
   const menu = {
     style: {},
@@ -681,12 +717,13 @@ suite.add("Inbox row context menu selects the right-clicked message", function (
       remove(value) { classes.delete(value); }
     },
     querySelector(selector) {
-      return selector === ".sieve-inbox-context-apply" ? contextApply : null;
+      return selector === ".sieve-inbox-context-apply" ? contextApply : contextActions;
     },
     getBoundingClientRect() { return { width: 180, height: 80 }; }
   };
   const inbox = Object.create(SieveInboxUI.prototype);
   inbox.inboxConfigured = true;
+  inbox.messageActionMode = "thunderbird";
   inbox.root = {
     ownerDocument: {
       defaultView: { innerWidth: 1024, innerHeight: 768 }
@@ -717,6 +754,25 @@ suite.add("Inbox row context menu selects the right-clicked message", function (
   suite.assertFalse(contextApply.disabled);
   suite.assertEquals(menu.style.left, "10px");
   suite.assertEquals(menu.style.top, "20px");
+});
+
+suite.add("Inbox Thunderbird action targets exactly the selected message", async function () {
+  const calls = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.messageActionMode = "thunderbird";
+  inbox.selectedId = "selected";
+  inbox.messages = [{ id: "other" }, { id: "selected" }];
+  inbox.account = {
+    async send(action, payload) { calls.push({ action, payload }); }
+  };
+  inbox.setStatus = () => {};
+  inbox.string = (_key, fallback) => { return fallback; };
+
+  await inbox.runNativeMessageAction("reply");
+
+  suite.assertEquals(calls.length, 1);
+  suite.assertEquals(calls[0].action, "account-inbox-reply-selected");
+  suite.assertEquals(calls[0].payload.messageId, "selected");
 });
 
 suite.add("Home accounts are sorted by their visible names", function () {

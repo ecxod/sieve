@@ -27,6 +27,20 @@
     </table>
   </div>
 
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 sieve-spam-pagination d-none">
+    <label class="d-flex align-items-center gap-2 small mb-0">
+      <span class="sieve-spam-page-size-label">Nachrichten pro Seite</span>
+      <select class="form-select form-select-sm sieve-spam-page-size">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </label>
+    <div class="btn-group flex-wrap sieve-spam-page-buttons" role="group"
+      aria-label="Seitennavigation"></div>
+  </div>
+
   <div class="dropdown-menu sieve-spam-context-menu">
     <button type="button" class="dropdown-item sieve-spam-context-show"></button>
     <button type="button" class="dropdown-item sieve-spam-context-rule"></button>

@@ -178,6 +178,74 @@ suite.add("Direct IMAP Inbox filter verifies UIDVALIDITY and the selected UID", 
   suite.assertEquals(snapshot.uids.join(","), "123");
 });
 
+suite.add("Electron Inbox filter safely expunges only the selected UID", async function () {
+  const commands = [];
+  const createClient = () => {
+    return {
+      capabilities: new Map([
+        ["FILTER=SIEVE", true],
+        ["UIDPLUS", true]
+      ]),
+      usable: true,
+      mailbox: null,
+      async connect() {},
+      async logout() {},
+      async getMailboxLock(folder) {
+        suite.assertEquals(folder, "INBOX");
+        this.mailbox = { uidValidity: 77n };
+        return { release() {} };
+      },
+      async exec(command, attributes, options) {
+        commands.push({ command, attributes });
+        if (command === "UID FILTER") {
+          await options.untagged.FILTERED({
+            attributes: [{ value: "FILTERED" }],
+            next() {}
+          });
+        }
+        return { next() {} };
+      }
+    };
+  };
+  const filter = new SieveImapFilterClient(createClient);
+  const result = await filter.apply("active", {
+    folder: "INBOX",
+    uidValidity: "77",
+    uids: [9]
+  }, { expunge: true });
+
+  suite.assertEquals(commands[0].command, "UID FILTER");
+  suite.assertEquals(commands[1].command, "UID EXPUNGE");
+  suite.assertEquals(commands[1].attributes[0].value, "9");
+  suite.assertTrue(result.expunged);
+});
+
+suite.add("Electron Inbox filter requires UIDPLUS before filtering", async function () {
+  let filtered = false;
+  const filter = new SieveImapFilterClient(() => {
+    return {
+      capabilities: new Map([["FILTER=SIEVE", true]]),
+      usable: true,
+      async connect() {},
+      async logout() {},
+      async exec() { filtered = true; }
+    };
+  });
+
+  let error = null;
+  try {
+    await filter.apply("active", {
+      folder: "INBOX",
+      uidValidity: "77",
+      uids: [9]
+    }, { expunge: true });
+  } catch (ex) {
+    error = ex;
+  }
+  suite.assertTrue(error?.message.includes("UIDPLUS"));
+  suite.assertFalse(filtered);
+});
+
 suite.add("Thunderbird Inbox filter resolves one Message-ID to the newest UID", async function () {
   const commands = [];
   const filter = new SieveMozImapFilterClient({});

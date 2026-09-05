@@ -15,6 +15,7 @@ import {
 import { matchesSpamSearch } from "./../spam/SieveSpamMessage.mjs";
 import { findSpamRuleMatches } from "./../spam/SieveSpamRule.mjs";
 import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { SieveMessagePagination } from "./SieveMessagePagination.mjs";
 import { SieveTheme } from "./../utils/SieveTheme.mjs";
 import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
@@ -134,6 +135,7 @@ class SieveInboxUI {
     this.editingRule = null;
     this.rendering = false;
     this.inboxConfigured = false;
+    this.messageActionMode = null;
 
     const search = root.querySelector(".sieve-inbox-search");
     const searchLabel = root.querySelector(".sieve-inbox-search-label");
@@ -161,13 +163,34 @@ class SieveInboxUI {
       = this.string("account.inbox.apply", "Run Sieve now");
     root.querySelector(".sieve-inbox-context-rule").textContent
       = this.string("account.inbox.rule.create", "Create Sieve Rule");
+    root.querySelector(".sieve-inbox-context-show").textContent
+      = this.string("account.inbox.context.show", "Open");
+    root.querySelector(".sieve-inbox-context-reply").textContent
+      = this.string("account.inbox.context.reply", "Reply");
+    root.querySelector(".sieve-inbox-context-forward").textContent
+      = this.string("account.inbox.context.forward", "Forward");
+    this.initializeMessageDialogs();
     const headings = root.querySelectorAll("thead th");
     headings[0].textContent = this.string("account.inbox.select.column", "#");
     headings[1].textContent = this.string("account.inbox.date", "Date");
     headings[2].textContent = this.string("account.inbox.sender", "Sender");
     headings[3].textContent = this.string("account.inbox.subject", "Subject");
 
-    search.addEventListener("input", () => { this.renderRows(); });
+    this.pagination = new SieveMessagePagination(
+      root,
+      "sieve-inbox",
+      (key, fallback) => { return this.string(key, fallback); },
+      () => {
+        this.selectMessage(null);
+        this.hideContextMenu();
+        this.renderRows();
+      });
+
+    search.addEventListener("input", () => {
+      this.pagination.reset();
+      this.selectMessage(null);
+      this.renderRows();
+    });
     root.querySelector(".sieve-inbox-refresh")
       .addEventListener("click", () => { this.render(true); });
     root.querySelector(".sieve-inbox-apply-selected")
@@ -186,6 +209,13 @@ class SieveInboxUI {
         this.hideContextMenu();
         this.openRuleEditor();
       });
+    for (const action of ["show", "reply", "forward"]) {
+      root.querySelector(`.sieve-inbox-context-${action}`)
+        .addEventListener("click", () => {
+          this.hideContextMenu();
+          this.runNativeMessageAction(action);
+        });
+    }
     root.addEventListener("click", () => { this.hideContextMenu(); });
     root.ownerDocument.addEventListener("keydown", (event) => {
       if (event.key === "Escape")
@@ -234,7 +264,7 @@ class SieveInboxUI {
    * @returns {object[]}
    *   visible messages.
    */
-  getVisibleMessages() {
+  getMatchingMessages() {
     const query = this.root.querySelector(".sieve-inbox-search").value;
     return sortInboxMessagesByDate(
       this.messages.filter((message) => { return matchesSpamSearch(message, query); }));
@@ -273,6 +303,15 @@ class SieveInboxUI {
     const menu = this.root.querySelector(".sieve-inbox-context-menu");
     const apply = menu.querySelector(".sieve-inbox-context-apply");
     apply.disabled = !this.inboxConfigured;
+    for (const selector of [
+      ".sieve-inbox-context-show",
+      ".sieve-inbox-context-reply",
+      ".sieve-inbox-context-forward",
+      ".sieve-inbox-context-message-separator"
+    ]) {
+      menu.querySelector(selector).classList.toggle(
+        "d-none", !this.messageActionMode);
+    }
     menu.classList.add("show");
     menu.style.left = "0px";
     menu.style.top = "0px";
@@ -296,11 +335,144 @@ class SieveInboxUI {
   }
 
   /**
+   * Runs one Thunderbird action or opens the matching desktop dialog for the
+   * explicitly selected message.
+   *
+   * @param {string} action
+   *   show, reply or forward.
+   */
+  async runNativeMessageAction(action) {
+    const selected = this.messages.find((message) => {
+      return message.id === this.selectedId;
+    });
+    if (!selected || !this.messageActionMode)
+      return;
+
+    try {
+      if (this.messageActionMode === "thunderbird") {
+        await this.account.send(`account-inbox-${action}-selected`, {
+          messageId: selected.id
+        });
+        return;
+      }
+
+      const message = await this.account.send("account-inbox-message-content", {
+        messageId: selected.id
+      });
+      if (action === "show") {
+        this.showMessageDialog(message);
+        return;
+      }
+      this.showComposeDialog(action, message);
+    } catch (ex) {
+      this.setStatus(`${this.string(
+        "account.inbox.context.error", "Could not run the message action")}: `
+        + `${ex.message || ex}`, "danger");
+    }
+  }
+
+  /** Initializes the desktop-only message display and compose dialogs. */
+  initializeMessageDialogs() {
+    const messageModal = this.root.querySelector(".sieve-inbox-message-modal");
+    messageModal.querySelector(".sieve-inbox-message-source-label").textContent
+      = this.string("account.inbox.message.source", "Complete message source");
+    messageModal.querySelector(".sieve-inbox-message-close").textContent
+      = this.string("account.inbox.message.close", "Close");
+
+    const composeModal = this.root.querySelector(".sieve-inbox-compose-modal");
+    composeModal.querySelector(".sieve-inbox-compose-hint").textContent
+      = this.string("account.inbox.compose.hint",
+        "The desktop app does not send mail itself. The completed draft is opened in your default email program.");
+    composeModal.querySelector(".sieve-inbox-compose-to-label").textContent
+      = this.string("account.inbox.compose.to", "To");
+    composeModal.querySelector(".sieve-inbox-compose-subject-label").textContent
+      = this.string("account.inbox.compose.subject", "Subject");
+    composeModal.querySelector(".sieve-inbox-compose-body-label").textContent
+      = this.string("account.inbox.compose.body", "Message");
+    composeModal.querySelector(".sieve-inbox-compose-open").textContent
+      = this.string("account.inbox.compose.open", "Open in email program");
+    composeModal.querySelector(".sieve-inbox-compose-cancel").textContent
+      = this.string("account.inbox.compose.cancel", "Cancel");
+    composeModal.querySelector(".sieve-inbox-compose-open")
+      .addEventListener("click", () => { this.openExternalDraft(); });
+  }
+
+  /**
+   * Displays the complete RFC 822 source loaded by the desktop IMAP client.
+   *
+   * @param {object} message
+   *   complete message model.
+   */
+  showMessageDialog(message) {
+    const modal = this.root.querySelector(".sieve-inbox-message-modal");
+    modal.querySelector(".sieve-inbox-message-title").textContent
+      = message.subject || this.string("account.inbox.no.subject", "(No subject)");
+    modal.querySelector(".sieve-inbox-message-summary").textContent
+      = `${message.sender || ""} — ${formatInboxDate(message.date)}`;
+    modal.querySelector(".sieve-inbox-message-source").value = message.source || "";
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
+
+  /**
+   * Opens a prefilled desktop reply or forward editor.
+   *
+   * @param {string} action
+   *   reply or forward.
+   * @param {object} message
+   *   complete message model.
+   */
+  showComposeDialog(action, message) {
+    const modal = this.root.querySelector(".sieve-inbox-compose-modal");
+    const reply = action === "reply";
+    const subject = message.subject || "";
+    const prefix = reply ? "Re: " : "Fwd: ";
+    const alreadyPrefixed = reply ? /^re:/iu.test(subject) : /^(fwd?|wg):/iu.test(subject);
+    const quoted = `${message.source || ""}`.split(/\r?\n/u)
+      .map((line) => { return `> ${line}`; }).join("\n");
+
+    modal.querySelector(".sieve-inbox-compose-title").textContent = this.string(
+      reply ? "account.inbox.compose.reply.title" : "account.inbox.compose.forward.title",
+      reply ? "Reply" : "Forward");
+    modal.querySelector(".sieve-inbox-compose-to").value
+      = reply ? (message.senderAddress || "") : "";
+    modal.querySelector(".sieve-inbox-compose-subject").value
+      = alreadyPrefixed ? subject : `${prefix}${subject}`;
+    modal.querySelector(".sieve-inbox-compose-body").value = `\n\n${quoted}`;
+    modal.querySelector(".sieve-inbox-compose-error").classList.add("d-none");
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
+
+  /** Opens the edited desktop draft in the operating system's mail client. */
+  async openExternalDraft() {
+    const modal = this.root.querySelector(".sieve-inbox-compose-modal");
+    const button = modal.querySelector(".sieve-inbox-compose-open");
+    const error = modal.querySelector(".sieve-inbox-compose-error");
+    button.disabled = true;
+    error.classList.add("d-none");
+    try {
+      await this.account.send("account-inbox-compose-external", {
+        to: modal.querySelector(".sieve-inbox-compose-to").value,
+        subject: modal.querySelector(".sieve-inbox-compose-subject").value,
+        body: modal.querySelector(".sieve-inbox-compose-body").value
+      });
+      bootstrap.Modal.getOrCreateInstance(modal).hide();
+    } catch (ex) {
+      error.textContent = `${this.string(
+        "account.inbox.compose.error", "The email program could not be opened")}: `
+        + `${ex.message || ex}`;
+      error.classList.remove("d-none");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /**
    * Draws the current Inbox rows using text nodes only.
    */
   renderRows() {
     const rows = this.root.querySelector(".sieve-inbox-rows");
-    const visible = this.getVisibleMessages();
+    const matching = this.getMatchingMessages();
+    const visible = this.pagination.paginate(matching).items;
     rows.replaceChildren();
 
     for (const message of visible) {
@@ -352,11 +524,11 @@ class SieveInboxUI {
 
     this.root.querySelector(".sieve-inbox-table-wrap")
       .classList.toggle("d-none", visible.length === 0);
-    if (this.messages.length && !visible.length) {
+    if (this.messages.length && !matching.length) {
       this.setStatus(this.string(
         "account.inbox.search.empty", "No Inbox messages match this search."));
     } else if (this.messages.length) {
-      this.setStatus(`${visible.length} ${this.string(
+      this.setStatus(`${matching.length} ${this.string(
         "account.inbox.visible", "of")} ${this.messages.length} ${this.string(
         "account.inbox.messages", "messages")}.`);
     }
@@ -487,6 +659,7 @@ ${result.reports.join("\n")}`);
       return;
 
     this.rendering = true;
+    this.pagination.reset();
     const refreshButton = this.root.querySelector(".sieve-inbox-refresh");
     refreshButton.disabled = true;
     this.selectedId = null;
@@ -505,6 +678,7 @@ ${result.reports.join("\n")}`);
       this.messages = data.messages || [];
       this.mailboxes = data.mailboxes || [];
       this.inboxConfigured = data.configured !== false;
+      this.messageActionMode = data.messageActionMode || null;
       this.renderRows();
 
       if (data.configured === false) {

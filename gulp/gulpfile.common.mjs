@@ -357,7 +357,7 @@ async function updateVersion() {
   data["addons"]["sieve-cram-md5@ecxod.github.io"]["updates"].unshift({
     "version" : version,
     "update_link": `https://github.com/ecxod/sieve/releases/download/v${version}/sieve-${version}-cram-md5.xpi`,
-    "update_info_url": `https://github.com/ecxod/sieve/releases/tag/v${version}`,
+    "update_info_url": `https://github.com/ecxod/sieve/blob/v${version}/README.md#thunderbird-add-on`,
     "browser_specific_settings": {
       "gecko": {
         "strict_min_version": "121.0",

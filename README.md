@@ -9,18 +9,20 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.20
+## Stable release 0.8.21
 
-**Version 0.8.20 is the latest stable release for both the Windows EXE and the
+**Version 0.8.21 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.20` uses the same version for the Windows application and the
+Release `0.8.21` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
   implementation using the current asynchronous STARTTLS API
 - automatic discovery of Thunderbird IMAP and POP accounts whenever the Sieve
   server list is rendered
+- a **Sieve** button for Thunderbird's unified mail toolbar which opens the
+  account and script overview or focuses its existing tab
 - an optional **Create Server** flow for standalone ManageSieve servers that do
   not correspond to a Thunderbird mail account
 - safe removal of manually created server configurations without deleting mail
@@ -58,7 +60,10 @@ Thunderbird extension. The extension includes:
 - a **Spam** tab for browsing, searching, and selecting messages in the
   account's spam folder; selected messages can be restored safely to `INBOX`,
   and matching allow/block rules can be inspected or appended to a chosen
-  Sieve script without overwriting an independently changed script
+  Sieve script without overwriting an independently changed script; both Spam
+  and Inbox tables offer 10, 20, 50, or 100 messages per page with first,
+  previous, numbered, next, and last-page controls, while their searches still
+  examine every loaded message before pagination
 - an **Inbox** tab with searchable messages and copyable raw headers; its
   integrated editor has synchronized graphical **Script** and **Source** tabs,
   loads message headers and generated source before connecting ManageSieve,
@@ -75,7 +80,11 @@ Thunderbird extension. The extension includes:
   rebuilding the list, and the server's action report remains visible; a **Spam** action
   marks and moves the selected message to Junk and queues authenticated Rspamd
   training; both rule creation and Sieve execution are also available from the
-  message context menu; when the rule editor is opened while the Sieve client
+  message context menu; Thunderbird's Inbox context menu additionally opens,
+  replies to, or forwards the exact selected message using native Thunderbird
+  actions; the Windows application supplies its own full-source display and
+  reply/forward editor dialogs and then hands the completed draft to the
+  operating system's default email program; when the rule editor is opened while the Sieve client
   is offline, it connects automatically before loading the target script selector;
   the selector is filled before individual script bodies are inspected, and
   closing the modal prevents further inspection requests from being queued
@@ -109,15 +118,15 @@ files can be replaced, and only then extracts the new application.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.20-cram-md5.xpi`](releases/sieve-0.8.20-cram-md5.xpi)
+[`releases/sieve-0.8.21-cram-md5.xpi`](releases/sieve-0.8.21-cram-md5.xpi)
 
-SHA-256: `1693ebe3cfd0c36d3e2fcb9b909a46c69ae83b80b0f3cf8ba8723181bc63cf88`
+SHA-256: `97980fd2df4f731379fc7beb045bd33e42178f0ed534e5f6243c6d424467e33e`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.20.exe`](releases/install_sieve_0.8.20.exe)
+[`releases/install_sieve_0.8.21.exe`](releases/install_sieve_0.8.21.exe)
 
-SHA-256: `6886b089609eaf4744165cb932900a6e31a796fb87b09217870bfaa550496ecc`
+SHA-256: `4d0691872e4a0836abb8f0168e906a4ac9a77cdf66c1483045732413d361c956`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified
@@ -126,6 +135,28 @@ before the maximum compatibility version is raised.
 Versions through `0.6.1.8` used the upstream extension ID. When migrating from
 one of those versions, remove the old **Sieve** extension before installing
 this fork. Updates from `0.6.1.9` and newer retain the fork's extension ID.
+
+## Thunderbird add-on
+
+The Thunderbird package is the file
+[`sieve-0.8.21-cram-md5.xpi`](releases/sieve-0.8.21-cram-md5.xpi). It appears in
+Thunderbird's Add-ons Manager as **Sieve CRAM-MD5** and supports Thunderbird
+121 through 154. Install it through **Add-ons and Themes > Extensions > Install
+Add-on From File**, then open its **Options** page or the Sieve entry in the
+account interface to configure and connect a ManageSieve server.
+
+The add-on discovers Thunderbird mail accounts, manages their server-side
+Sieve scripts, imports Thunderbird message filters conservatively, and offers
+the Inbox, Spam, graphical editor, and source editor tools described above.
+Inbox actions always target the explicitly selected message. The extension ID
+is `sieve-cram-md5@ecxod.github.io`; automatic updates and their information are
+served from this repository. Because the add-on uses privileged Thunderbird
+Experiment APIs for ManageSieve sockets and account integration, Thunderbird
+shows its unrestricted-access permission notice.
+
+The Add-ons Manager's **Release Notes** tab intentionally opens this README so
+Thunderbird users can see the add-on together with the standalone Electron
+application and the other available builds.
 
 ## Downloads
 

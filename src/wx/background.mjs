@@ -212,6 +212,25 @@ initSentry("background");
   }
 
   /**
+   * Revalidates one Thunderbird message as belonging to the requested Inbox.
+   *
+   * @param {string} accountId
+   *   Thunderbird account id.
+   * @param {number|string} messageId
+   *   Thunderbird message id.
+   * @returns {Promise<object>}
+   *   current message header.
+   */
+  async function getSelectedInboxMessage(accountId, messageId) {
+    const account = await getMailAccount(accountId);
+    const inbox = findSpecialFolder(account, "inbox");
+    const message = await browser.messages.get(Number(messageId));
+    if (!inbox || !message.folder || !isSameFolder(message.folder, inbox))
+      throw new Error("The selected message is no longer in this account's Inbox");
+    return message;
+  }
+
+  /**
    * Runs a replacement operation after removing Inbox copies with the same Message-ID.
    * Existing content is kept in memory and restored if the replacement fails.
    *
@@ -459,22 +478,27 @@ initSentry("background");
     }
   }
 
-  await browser.sieve.menu.onCommand.addListener(
-    async () => {
-      const url = new URL("./libs/managesieve.ui/accounts.html", window.location);
+  /**
+   * Opens the account overview or focuses its existing Thunderbird tab.
+   */
+  async function openAccountsTab() {
+    const url = new URL("./libs/managesieve.ui/accounts.html", window.location);
 
-      const tabs = await browser.tabs.query({ url: url.toString() });
+    const tabs = await browser.tabs.query({ url: url.toString() });
 
-      if (tabs.length) {
-        await showTab(tabs[FIRST_ENTRY]);
-        return;
-      }
+    if (tabs.length) {
+      await showTab(tabs[FIRST_ENTRY]);
+      return;
+    }
 
-      await browser.tabs.create({
-        active: true,
-        url: "./libs/managesieve.ui/accounts.html"
-      });
+    await browser.tabs.create({
+      active: true,
+      url: "./libs/managesieve.ui/accounts.html"
     });
+  }
+
+  await browser.sieve.menu.onCommand.addListener(openAccountsTab);
+  browser.browserAction.onClicked.addListener(openAccountsTab);
 
 
   for (const window of await browser.windows.getAll()) {
@@ -620,6 +644,7 @@ initSentry("background");
 
       return {
         configured: true,
+        messageActionMode: "thunderbird",
         folderName: inbox.name || "Inbox",
         mailboxes: listAccountMailboxPaths(account),
         messages: messages.map((message) => {
@@ -632,6 +657,31 @@ initSentry("background");
           };
         })
       };
+    },
+
+    "account-inbox-show-selected": async function (msg) {
+      const message = await getSelectedInboxMessage(
+        msg.payload.account, msg.payload.messageId);
+      await browser.messageDisplay.open({
+        active: true,
+        location: "tab",
+        messageId: message.id
+      });
+      return { opened: true };
+    },
+
+    "account-inbox-reply-selected": async function (msg) {
+      const message = await getSelectedInboxMessage(
+        msg.payload.account, msg.payload.messageId);
+      await browser.compose.beginReply(message.id);
+      return { opened: true };
+    },
+
+    "account-inbox-forward-selected": async function (msg) {
+      const message = await getSelectedInboxMessage(
+        msg.payload.account, msg.payload.messageId);
+      await browser.compose.beginForward(message.id);
+      return { opened: true };
     },
 
     "account-inbox-details": async function (msg) {

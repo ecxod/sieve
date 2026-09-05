@@ -1,7 +1,7 @@
 {
   "name": "Sieve CRAM-MD5",
   "description": "__MSG_extensionDescription__",
-  "version": "0.8.20",
+  "version": "0.8.21",
   "author": "ecxod",
   "developer": {
     "name": "ecxod",
@@ -10,6 +10,13 @@
   "homepage_url": "https://github.com/ecxod/sieve",
   "icons": {
     "64": "libs/icons/linux.png"
+  },
+  "browser_action": {
+    "default_title": "Sieve",
+    "default_icon": "libs/icons/linux.png",
+    "allowed_spaces": [
+      "mail"
+    ]
   },
   "background": {
     "page": "background.html"
@@ -31,6 +38,7 @@
   },
   "permissions": [
     "accountsRead",
+    "compose",
     "messagesDelete",
     "messagesImport",
     "messagesMove",
