@@ -24,7 +24,10 @@ SetCompressor /SOLID lzma
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "StrFunc.nsh"
 !include "Win\RestartManager.nsh"
+
+${StrStr}
 
 Name "${APP_NAME}"
 OutFile "${OUTPUT_FILE}"
@@ -49,13 +52,17 @@ RequestExecutionLevel user
 
 /**
  * Electron keeps its executable and Chromium resource packs open while it is
- * running. An in-place upgrade cannot overwrite those files. Give the user a
- * chance to save editor changes, then use the Windows Restart Manager to close
- * the process which owns the installed executable and resource pack.
+ * running. Check the process list first so an ordinary upgrade of an already
+ * closed application stays silent. Only a running Sieve process triggers the
+ * save warning and Restart Manager shutdown.
  */
 Function CloseSieveForUpgrade
-  IfFileExists "$INSTDIR\${APP_EXE}" prompt 0
-  IfFileExists "$INSTDIR\chrome_100_percent.pak" prompt done
+  nsExec::ExecToStack '"$SYSDIR\tasklist.exe" /FI "IMAGENAME eq ${APP_EXE}" /FO CSV /NH'
+  Pop $0
+  Pop $2
+  StrCmp $0 "error" done
+  ${StrStr} $3 $2 "${APP_EXE}"
+  StrCmp $3 "" done prompt
 
 prompt:
   MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
