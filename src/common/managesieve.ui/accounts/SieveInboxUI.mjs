@@ -6,7 +6,7 @@
 
 import { formatSieveScript } from "./../editor/text/SieveFormatter.mjs";
 import {
-  createInboxRule,
+  createInboxRuleTemplate,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes,
   stripLeadingSieveRequirements
@@ -122,8 +122,7 @@ class SieveInboxUI {
     this.details = null;
     this.scripts = [];
     this.ruleScriptsConnected = false;
-    this.ruleDestinationChosen = false;
-    this.lastGeneratedRule = "";
+    this.lastTemplate = "";
     this.ruleCapabilities = { extensions: {} };
     this.ruleGraphicalEditorFrame = null;
     this.ruleGraphicalEditorReady = null;
@@ -535,16 +534,7 @@ ${result.reports.join("\n")}`);
     modal.querySelector(".sieve-inbox-rule-script-label").textContent
       = this.string("account.inbox.rule.script", "Add to Sieve script");
     modal.querySelector(".sieve-inbox-rule-mailbox-label").textContent
-      = this.string("account.inbox.rule.mailbox", "Destination mailbox for the new rule");
-    modal.querySelector(".sieve-inbox-rule-mailbox").placeholder
-      = this.string("account.inbox.rule.mailbox.placeholder",
-        "Select an existing mailbox or enter a new name");
-    modal.querySelector(".sieve-inbox-rule-mailbox-help").textContent
-      = this.string("account.inbox.rule.mailbox.help",
-        "Choose a mailbox from the list or type a new name. A new mailbox is created on the first match when the server supports :create.");
-    modal.querySelector(".sieve-inbox-rule-safety").textContent
-      = this.string("account.inbox.rule.safety",
-        "Saving only adds the new rule to the selected Sieve script. It does not overwrite the Inbox or another mailbox.");
+      = this.string("account.inbox.rule.mailbox", "Destination mailbox for template");
     modal.querySelector(".sieve-inbox-rule-similar-label").textContent
       = this.string("account.inbox.rule.similar", "Possible existing rules (read only)");
     modal.querySelector(".sieve-inbox-rule-source-label").textContent
@@ -565,8 +555,8 @@ ${result.reports.join("\n")}`);
     sourceTab.setAttribute("aria-controls", sourcePane.id);
     graphicalPane.setAttribute("aria-labelledby", graphicalTab.id);
     sourcePane.setAttribute("aria-labelledby", sourceTab.id);
-    modal.querySelector(".sieve-inbox-rule-apply-mailbox").textContent
-      = this.string("account.inbox.rule.mailbox.apply", "Use destination mailbox");
+    modal.querySelector(".sieve-inbox-rule-template").textContent
+      = this.string("account.inbox.rule.template", "Create template");
     modal.querySelector(".sieve-inbox-rule-lint").textContent
       = this.string("account.inbox.rule.lint", "Lint");
     modal.querySelector(".sieve-inbox-rule-pretty").textContent
@@ -584,13 +574,9 @@ ${result.reports.join("\n")}`);
     });
     sourceTab.addEventListener("click", () => { this.showRuleSourceTab(); });
     modal.querySelector(".sieve-inbox-rule-mailbox")
-      .addEventListener("input", async () => {
-        this.ruleDestinationChosen = false;
-        this.updateRuleActionState();
-        await this.updateDestinationMailbox();
-      });
-    modal.querySelector(".sieve-inbox-rule-apply-mailbox")
-      .addEventListener("click", async () => { await this.applyDestinationMailbox(); });
+      .addEventListener("input", async () => { await this.updateTemplateMailbox(); });
+    modal.querySelector(".sieve-inbox-rule-template")
+      .addEventListener("click", async () => { await this.createTemplate(); });
     modal.querySelector(".sieve-inbox-rule-lint")
       .addEventListener("click", () => { this.lintRule(); });
     modal.querySelector(".sieve-inbox-rule-pretty")
@@ -816,7 +802,6 @@ ${result.reports.join("\n")}`);
     const name = modal.querySelector(".sieve-inbox-rule-script").value;
     const script = this.scripts.find((item) => { return item.name === name; });
     const ready = this.ruleScriptsConnected
-      && this.ruleDestinationChosen
       && typeof script?.content === "string";
 
     modal.querySelector(".sieve-inbox-rule-lint").disabled = !ready;
@@ -842,17 +827,14 @@ ${result.reports.join("\n")}`);
     this.details = null;
     this.scripts = [];
     this.ruleScriptsConnected = false;
-    this.ruleDestinationChosen = false;
+    this.lastTemplate = "";
     this.ruleCapabilities = { extensions: {} };
     this.ruleGraphicalSourceLoaded = false;
     headers.value = this.string(
       "account.inbox.rule.headers.loading", "Loading message headers…");
     similar.value = this.string(
       "account.inbox.rule.similar.loading", "Checking existing rules…");
-    this.lastGeneratedRule = `# ${this.string(
-      "account.inbox.rule.target.required",
-      "Select or enter a destination mailbox above before creating the rule.")}`;
-    source.value = this.lastGeneratedRule;
+    source.value = "";
     scriptSelect.replaceChildren();
     modal.querySelector(".sieve-inbox-rule-connection").textContent = "";
     this.setEditorStatus(this.string(
@@ -880,13 +862,15 @@ ${result.reports.join("\n")}`);
         datalist.append(option);
       }
 
-      modal.querySelector(".sieve-inbox-rule-mailbox").value = "";
+      modal.querySelector(".sieve-inbox-rule-mailbox").value = "INBOX";
+      this.lastTemplate = createInboxRuleTemplate(details, "INBOX");
+      source.value = this.lastTemplate;
       this.updateMailboxStatus();
 
       // The generated rule does not depend on the server script list. Render
       // it now so a slow connection cannot leave the graphical canvas empty.
       try {
-        await this.setRuleGraphicalSource(this.lastGeneratedRule);
+        await this.setRuleGraphicalSource(this.lastTemplate);
         graphicalEditorLoaded = true;
       } catch (ex) {
         this.showRuleSourceTab();
@@ -1035,58 +1019,34 @@ ${result.reports.join("\n")}`);
   }
 
   /**
-   * Replaces the editor content with a sender rule for the explicitly chosen
-   * destination mailbox.
+   * Replaces the editor content with a safe sender template.
    */
-  async applyDestinationMailbox() {
+  async createTemplate() {
     if (!this.details)
       return;
     const modal = this.root.querySelector(".sieve-inbox-rule-modal");
     try {
-      const mailbox = modal.querySelector(".sieve-inbox-rule-mailbox").value.trim();
-      if (!mailbox) {
-        throw new Error(this.string(
-          "account.inbox.rule.target.required",
-          "Select or enter a destination mailbox above before creating the rule."));
-      }
-
-      this.lastGeneratedRule = createInboxRule(this.details, mailbox);
-      await this.setRuleSource(this.lastGeneratedRule);
-      this.ruleDestinationChosen = true;
+      this.lastTemplate = createInboxRuleTemplate(
+        this.details, modal.querySelector(".sieve-inbox-rule-mailbox").value);
+      await this.setRuleSource(this.lastTemplate);
       this.hideEditorStatus();
       this.updateMailboxStatus();
-      this.updateRuleActionState();
     } catch (ex) {
-      this.ruleDestinationChosen = false;
-      this.updateRuleActionState();
       this.setEditorStatus(ex.message || `${ex}`, "danger");
     }
   }
 
   /**
-   * Updates only an untouched generated rule when its mailbox changes.
+   * Updates only an untouched generated template when its mailbox changes.
    * Freely edited rule source is never overwritten implicitly.
    */
-  async updateDestinationMailbox() {
+  async updateTemplateMailbox() {
     const normalize = (source) => {
       return `${source || ""}`.replace(/\r\n?/gu, "\n").trim();
     };
-    if (normalize(this.getRuleSource()) !== normalize(this.lastGeneratedRule)) {
-      this.updateMailboxStatus();
+    if (normalize(this.getRuleSource()) !== normalize(this.lastTemplate))
       return;
-    }
-
-    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
-    if (!modal.querySelector(".sieve-inbox-rule-mailbox").value.trim()) {
-      this.lastGeneratedRule = `# ${this.string(
-        "account.inbox.rule.target.required",
-        "Select or enter a destination mailbox above before creating the rule.")}`;
-      await this.setRuleSource(this.lastGeneratedRule);
-      this.updateMailboxStatus();
-      return;
-    }
-
-    await this.applyDestinationMailbox();
+    await this.createTemplate();
   }
 
   /**
@@ -1098,13 +1058,6 @@ ${result.reports.join("\n")}`);
       this.getRuleSource(), this.mailboxes);
     const box = modal.querySelector(".sieve-inbox-rule-mailbox-status");
     box.className = `alert alert-${status.state === "ok" ? "success" : "warning"} py-2 mt-2 mb-0 sieve-inbox-rule-mailbox-status`;
-
-    if (!this.ruleDestinationChosen) {
-      box.textContent = this.string(
-        "account.inbox.rule.target.required",
-        "Select or enter a destination mailbox above before creating the rule.");
-      return;
-    }
 
     if (status.state === "none") {
       box.textContent = this.string(
@@ -1149,11 +1102,6 @@ ${result.reports.join("\n")}`);
     const script = this.scripts.find((item) => { return item.name === name; });
     if (!script)
       throw new Error("Select a Sieve script");
-    if (!this.ruleDestinationChosen) {
-      throw new Error(this.string(
-        "account.inbox.rule.target.required",
-        "Select or enter a destination mailbox above before creating the rule."));
-    }
 
     return {
       name,

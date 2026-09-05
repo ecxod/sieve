@@ -176,7 +176,7 @@ function stripLeadingSieveRequirements(source) {
 }
 
 /**
- * Builds a conservative sender rule for an Inbox message.
+ * Builds a conservative sender rule template for an Inbox message.
  *
  * @param {object} details
  *   selected message details.
@@ -185,7 +185,7 @@ function stripLeadingSieveRequirements(source) {
  * @returns {string}
  *   editable Sieve rule body without a require command.
  */
-function createInboxRule(details, mailbox) {
+function createInboxRuleTemplate(details, mailbox) {
   const sender = normalizeAddress(details?.senderAddress);
   const subject = `${details?.subject || ""}`.trim();
   let test;
@@ -197,9 +197,7 @@ function createInboxRule(details, mailbox) {
   else
     throw new Error("The message has neither a usable sender nor a subject");
 
-  mailbox = `${mailbox || ""}`.trim();
-  if (!mailbox)
-    throw new Error("A destination mailbox is required");
+  mailbox = `${mailbox || ""}`.trim() || "INBOX";
 
   return [
     `# Created from Inbox: ${commentText(subject || sender)}`,
@@ -374,7 +372,7 @@ function getLiteralFileintoMailboxes(script) {
 
 export {
   appendInboxRuleToScript,
-  createInboxRule,
+  createInboxRuleTemplate,
   getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes,

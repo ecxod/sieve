@@ -5,10 +5,10 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
 
 ## Current stable release
 
-**Version 0.8.19 is the latest stable release for both distributed packages:**
+**Version 0.8.18 is the latest stable release for both distributed packages:**
 
-- Windows: `install_sieve_0.8.19.exe`
-- Thunderbird: `sieve-0.8.19-cram-md5.xpi`
+- Windows: `install_sieve_0.8.18.exe`
+- Thunderbird: `sieve-0.8.18-cram-md5.xpi`
 
 ## Differences from upstream
 
@@ -275,14 +275,6 @@ Thunderbird and Windows distribution from `ecxod/sieve`.
   The Windows application also adds a visible **Close** action beside
   **Settings**; it and the native window close control both check open editors,
   disconnect ManageSieve sessions, and terminate the Electron process.
-- Version `0.8.19` removes the implicit `INBOX` destination from the Inbox rule
-  editor. Opening **Create Sieve Rule** produces no `fileinto` rule until the
-  user explicitly selects an existing mailbox or enters a new mailbox name.
-  Lint and Save remain disabled until that choice is applied. The dialog no
-  longer calls the generated rule a template and explains that saving appends
-  to the selected Sieve script without overwriting `INBOX` or another mailbox.
-  A newly entered mailbox continues to use `fileinto :create` so it can be
-  created on the first matching delivery when the server supports `mailbox`.
 
 These differences are maintained alongside the fork packaging and distribution
 metadata, updater links, and the Thunderbird settings display fix.
@@ -308,13 +300,13 @@ time. Extension preferences are stored per ID, so custom Sieve connection
 settings may need to be entered again after this one-time migration.
 
 The installable package is
-[`releases/sieve-0.8.19-cram-md5.xpi`](releases/sieve-0.8.19-cram-md5.xpi).
+[`releases/sieve-0.8.18-cram-md5.xpi`](releases/sieve-0.8.18-cram-md5.xpi).
 
 It supports Thunderbird 121 through 154. The upper compatibility limit is
 required because the extension uses MailExtension Experiments and must be
 verified again for each new Thunderbird major version.
 
-SHA-256: `2c63582536c632fe6493bad1f76e90bd87ae3f8857cdb73e8c3840247804b092`
+SHA-256: `1be7d036f29bb7b10b06c3e1ee95d1549f26e3a0efcfbc21bebe65987e4cfa81`
 
 ### Thunderbird permission notice
 
@@ -332,9 +324,9 @@ explicitly configures a DSN.
 ## Windows installer
 
 The installable Windows package is
-[`releases/install_sieve_0.8.19.exe`](releases/install_sieve_0.8.19.exe).
+[`releases/install_sieve_0.8.18.exe`](releases/install_sieve_0.8.18.exe).
 
-SHA-256: `962d6ae0f403fe9d662dc437cfe4efd9dd9654bb3a4d15ab5cfd1a22eabc7442`
+SHA-256: `4da69bed899339af2c84d483cd1b87f358250b06c2d00524a5f20465575981ea`
 
 ## Linux package
 
