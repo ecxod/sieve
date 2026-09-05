@@ -133,6 +133,9 @@ async function downloadAndStartUpdate(data, onProgress) {
 // cleaned up and thus closed.
 
 let win = null;
+let applicationQuitting = false;
+let closeRequestInProgress = false;
+let closeHandlerReady = false;
 
 /**
  * Creates the main window
@@ -161,6 +164,30 @@ async function createWindow() {
   win.removeMenu();
 
   await win.loadFile('app.html');
+
+  win.webContents.on('did-start-loading', () => {
+    closeHandlerReady = false;
+    closeRequestInProgress = false;
+  });
+
+  win.on('close', (event) => {
+    if (applicationQuitting)
+      return;
+
+    // Before the renderer owns any sessions there is nothing to clean up and
+    // no close listener available to answer the request.
+    if (!closeHandlerReady) {
+      applicationQuitting = true;
+      return;
+    }
+
+    event.preventDefault();
+    if (closeRequestInProgress || win.webContents.isDestroyed())
+      return;
+
+    closeRequestInProgress = true;
+    win.webContents.send("application-close-requested");
+  });
 
   // Open the DevTools.
   // win.webContents.openDevTools();
@@ -234,6 +261,24 @@ async function main() {
     return await app.getVersion();
   });
 
+  ipcMain.handle("application-close-handler-ready", () => {
+    closeHandlerReady = true;
+    return true;
+  });
+
+  ipcMain.handle("application-close-response", async(event, accepted) => {
+    if (!win || event.sender !== win.webContents)
+      return false;
+
+    closeRequestInProgress = false;
+    if (accepted !== true)
+      return false;
+
+    applicationQuitting = true;
+    app.quit();
+    return true;
+  });
+
   ipcMain.handle("install-update", async(event, installer) => {
     const onProgress = (progress) => {
       try {
@@ -283,6 +328,10 @@ async function main() {
 
   // Wait until electron is completely up, otherwise some API might not be ready.
   await app.whenReady();
+
+  app.on('before-quit', () => {
+    applicationQuitting = true;
+  });
 
   await createWindow();
 

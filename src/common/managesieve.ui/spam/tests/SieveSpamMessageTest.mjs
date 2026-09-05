@@ -798,20 +798,6 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
   suite.assertEquals(calls.join(","), "is-connected");
 });
 
-suite.add("Inbox rule editor bounds stalled server operations", async function () {
-  const inbox = Object.create(SieveInboxUI.prototype);
-  let error = "";
-
-  try {
-    await inbox.waitForRuleEditorOperation(
-      new Promise(() => {}), "Expected timeout", 1);
-  } catch (ex) {
-    error = ex.message;
-  }
-
-  suite.assertEquals(error, "Expected timeout");
-});
-
 suite.add("Inbox rule editor fills headers, similar rules and both editor views", async function () {
   const createControl = () => {
     return {
@@ -842,6 +828,7 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
   const calls = [];
   const inbox = Object.create(SieveInboxUI.prototype);
   inbox.selectedId = "9:12";
+  inbox.ruleLoadSequence = 0;
   inbox.mailboxes = ["INBOX", "Customers"];
   inbox.string = (_key, fallback) => { return fallback; };
   inbox.root = {
@@ -866,13 +853,17 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
           connected: true,
           scripts: [{
             name: "active-filter",
-            active: true,
-            content: [
-              'if address :is "from" "person@example.test" {',
-              '  fileinto "Customers";',
-              "}"
-            ].join("\n")
+            active: true
           }]
+        };
+      }
+      if (action === "account-inbox-rule-script") {
+        return {
+          content: [
+            'if address :is "from" "person@example.test" {',
+            '  fileinto "Customers";',
+            "}"
+          ].join("\n")
         };
       }
       if (action === "account-capabilities")
@@ -889,7 +880,6 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
     inbox.ruleGraphicalSourceLoaded = true;
     calls.push(`graphical:${source}`);
   };
-  inbox.waitForRuleEditorOperation = async (operation) => { return await operation; };
 
   const oldBootstrap = globalThis.bootstrap;
   const oldDocument = globalThis.document;
@@ -916,19 +906,26 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
     globalThis.document = oldDocument;
   }
 
-  suite.assertTrue(shown);
-  suite.assertTrue(controls[".sieve-inbox-rule-headers"].value.includes("Subject: Expected subject"));
-  suite.assertTrue(controls[".sieve-inbox-rule-source"].value.includes('fileinto :create "INBOX";'));
-  suite.assertTrue(controls[".sieve-inbox-rule-similar"].value.includes("# active-filter (active)"));
+  suite.assertTrue(shown, "Rule modal was not shown");
+  suite.assertTrue(controls[".sieve-inbox-rule-headers"].value.includes("Subject: Expected subject"),
+    "Inbox headers were not rendered");
+  suite.assertTrue(controls[".sieve-inbox-rule-source"].value.includes('fileinto :create "INBOX";'),
+    "Generated source was not rendered");
+  suite.assertTrue(controls[".sieve-inbox-rule-similar"].value.includes("# active-filter (active)"),
+    "Similar rule source was not rendered");
   suite.assertEquals(controls[".sieve-inbox-rule-script"].value, "active-filter");
-  suite.assertFalse(controls[".sieve-inbox-rule-lint"].disabled);
-  suite.assertFalse(controls[".sieve-inbox-rule-save"].disabled);
-  suite.assertTrue(sourceFallbackShown);
+  suite.assertFalse(controls[".sieve-inbox-rule-lint"].disabled,
+    "Lint was not enabled after loading the selected script");
+  suite.assertFalse(controls[".sieve-inbox-rule-save"].disabled,
+    "Save was not enabled after loading the selected script");
+  suite.assertTrue(sourceFallbackShown, "Graphical failure did not select the source fallback");
   suite.assertTrue(calls.some((item) => {
     return item.includes("status:warning:The graphical Sieve editor could not be loaded");
   }));
   suite.assertTrue(calls.indexOf("account-inbox-details:9:12")
     < calls.indexOf("ensure-connected:"));
+  suite.assertTrue(calls.indexOf("account-inbox-rule-scripts:")
+    < calls.indexOf("account-inbox-rule-script:"));
   suite.assertTrue(calls.findIndex((item) => { return item.startsWith("graphical:"); })
     < calls.indexOf("ensure-connected:"));
   suite.assertTrue(calls.some((item) => { return item.startsWith("graphical:# Created from Inbox:"); }));

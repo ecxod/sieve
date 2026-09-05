@@ -18,7 +18,6 @@ import { SieveTheme } from "./../utils/SieveTheme.mjs";
 import { showCheckSuccess } from "./../utils/SieveUiFeedback.mjs";
 
 let ruleEditorSequence = 0;
-const RULE_EDITOR_SERVER_TIMEOUT_MS = 20000;
 
 /**
  * Formats an Inbox date in a locale-independent, sortable representation.
@@ -122,6 +121,7 @@ class SieveInboxUI {
     this.selectedId = null;
     this.details = null;
     this.scripts = [];
+    this.ruleScriptsConnected = false;
     this.lastTemplate = "";
     this.ruleCapabilities = { extensions: {} };
     this.ruleGraphicalEditorFrame = null;
@@ -129,6 +129,7 @@ class SieveInboxUI {
     this.ruleGraphicalEditorWindow = null;
     this.ruleGraphicalSourceLoaded = false;
     this.ruleEditorSequence = ++ruleEditorSequence;
+    this.ruleLoadSequence = 0;
     this.rendering = false;
     this.inboxConfigured = false;
 
@@ -566,6 +567,8 @@ ${result.reports.join("\n")}`);
     this.initializeRuleGraphicalEditor(modal);
     modal.querySelector(".sieve-inbox-rule-source")
       .addEventListener("input", () => { this.updateMailboxStatus(); });
+    modal.querySelector(".sieve-inbox-rule-script")
+      .addEventListener("change", () => { this.updateRuleActionState(); });
     graphicalTab.addEventListener("click", async () => {
       await this.showRuleGraphicalTab();
     });
@@ -580,6 +583,11 @@ ${result.reports.join("\n")}`);
       .addEventListener("click", async () => { await this.prettyPrintRule(); });
     modal.querySelector(".sieve-inbox-rule-save")
       .addEventListener("click", () => { this.saveRule(); });
+    modal.addEventListener("hidden.bs.modal", () => {
+      // Stop an older modal invocation from starting further GETSCRIPT
+      // requests after the user has already closed it.
+      this.ruleLoadSequence++;
+    });
   }
 
   /**
@@ -788,36 +796,16 @@ ${result.reports.join("\n")}`);
     return true;
   }
 
-  /**
-   * Bounds a server operation so the rule modal cannot remain in a loading
-   * state forever when an IPC request or ManageSieve command stalls.
-   *
-   * @param {Promise<*>} operation
-   *   operation to await.
-   * @param {string} message
-   *   localized timeout message.
-   * @param {number} [timeoutMs]
-   *   timeout in milliseconds.
-   * @returns {Promise<*>}
-   *   the operation's result.
-   */
-  async waitForRuleEditorOperation(
-    operation, message, timeoutMs = RULE_EDITOR_SERVER_TIMEOUT_MS) {
-    let timeout = null;
+  /** Enables server actions only after the selected script body is loaded. */
+  updateRuleActionState() {
+    const modal = this.root.querySelector(".sieve-inbox-rule-modal");
+    const name = modal.querySelector(".sieve-inbox-rule-script").value;
+    const script = this.scripts.find((item) => { return item.name === name; });
+    const ready = this.ruleScriptsConnected
+      && typeof script?.content === "string";
 
-    try {
-      return await Promise.race([
-        operation,
-        new Promise((_resolve, reject) => {
-          timeout = globalThis.setTimeout(() => {
-            reject(new Error(message));
-          }, timeoutMs);
-        })
-      ]);
-    } finally {
-      if (timeout !== null)
-        globalThis.clearTimeout(timeout);
-    }
+    modal.querySelector(".sieve-inbox-rule-lint").disabled = !ready;
+    modal.querySelector(".sieve-inbox-rule-save").disabled = !ready;
   }
 
   /**
@@ -834,9 +822,11 @@ ${result.reports.join("\n")}`);
     const similar = modal.querySelector(".sieve-inbox-rule-similar");
     const source = modal.querySelector(".sieve-inbox-rule-source");
     const scriptSelect = modal.querySelector(".sieve-inbox-rule-script");
+    const loadSequence = ++this.ruleLoadSequence;
 
     this.details = null;
     this.scripts = [];
+    this.ruleScriptsConnected = false;
     this.lastTemplate = "";
     this.ruleCapabilities = { extensions: {} };
     this.ruleGraphicalSourceLoaded = false;
@@ -892,24 +882,18 @@ ${result.reports.join("\n")}`);
 
       similar.value = this.string(
         "account.inbox.rule.connecting", "Connecting the Sieve client…");
-      await this.waitForRuleEditorOperation(
-        this.ensureSieveConnected(),
-        this.string(
-          "account.inbox.rule.connect.timeout",
-          "Timed out while connecting to the Sieve server"));
+      await this.ensureSieveConnected();
+      if (loadSequence !== this.ruleLoadSequence)
+        return;
 
       similar.value = this.string(
         "account.inbox.rule.scripts.loading", "Loading Sieve scripts…");
-      const [scripts, capabilities] = await this.waitForRuleEditorOperation(
-        Promise.all([
-          this.account.send("account-inbox-rule-scripts"),
-          this.account.send("account-capabilities")
-        ]),
-        this.string(
-          "account.inbox.rule.scripts.timeout",
-          "Timed out while loading the Sieve scripts"));
+      const scripts = await this.account.send("account-inbox-rule-scripts");
+      if (loadSequence !== this.ruleLoadSequence)
+        return;
+
       this.scripts = scripts.scripts || [];
-      this.ruleCapabilities = capabilities || { extensions: {} };
+      this.ruleScriptsConnected = !!scripts.connected;
 
       for (const script of this.scripts) {
         const option = document.createElement("option");
@@ -923,21 +907,63 @@ ${result.reports.join("\n")}`);
       if (activeScript)
         scriptSelect.value = activeScript.name;
 
-      this.updateSimilarRuleMatches();
       modal.querySelector(".sieve-inbox-rule-connection").textContent
         = scripts.connected
           ? this.string("account.inbox.rule.connected",
             "Lint and Save validate the complete selected script on the server.")
           : this.string("account.inbox.rule.offline",
             "Connect the Sieve server before checking or saving the rule.");
-      modal.querySelector(".sieve-inbox-rule-lint").disabled
-        = !scripts.connected || !this.scripts.length;
-      modal.querySelector(".sieve-inbox-rule-save").disabled
-        = !scripts.connected || !this.scripts.length;
+      this.updateRuleActionState();
       this.renderRows();
 
       if (graphicalEditorLoaded)
         this.hideEditorStatus();
+
+      // CAPABILITY and the script bodies are deliberately loaded only after
+      // the selector is visible. GETSCRIPT has its own protocol timeout; an
+      // additional total timeout would abandon the UI while leaving these
+      // requests queued on the shared connection.
+      try {
+        this.ruleCapabilities
+          = await this.account.send("account-capabilities") || { extensions: {} };
+      } catch {
+        // The generated graphical rule already enables its own requirements.
+        // Capability refresh is helpful, but not required for source editing.
+      }
+      if (loadSequence !== this.ruleLoadSequence)
+        return;
+
+      const failures = [];
+      const loadOrder = [...this.scripts].sort((left, right) => {
+        return Number(!!right.active) - Number(!!left.active);
+      });
+      for (let index = 0; index < loadOrder.length; index++) {
+        const script = loadOrder[index];
+        similar.value = `${this.string(
+          "account.inbox.rule.scripts.loading", "Loading Sieve scripts…")} `
+          + `(${index + 1}/${loadOrder.length})`;
+        try {
+          const result = await this.account.send(
+            "account-inbox-rule-script", { name: script.name });
+          script.content = `${result?.content ?? ""}`;
+        } catch (error) {
+          failures.push({ name: script.name, error });
+        }
+
+        if (loadSequence !== this.ruleLoadSequence)
+          return;
+        this.updateRuleActionState();
+      }
+
+      this.updateSimilarRuleMatches();
+      if (failures.length) {
+        const status = modal.querySelector(".sieve-inbox-rule-similar-status");
+        status.className = "form-text text-warning sieve-inbox-rule-similar-status";
+        status.textContent = this.string(
+          "account.inbox.rule.similar.partial",
+          "Some Sieve scripts could not be inspected")
+          + `: ${failures.map((failure) => { return failure.name; }).join(", ")}`;
+      }
     } catch (ex) {
       if (!this.details) {
         headers.value = `${this.string(

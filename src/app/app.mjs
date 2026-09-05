@@ -201,6 +201,65 @@ async function createImapFilterClient(account, settings) {
   let updateStatusPromise = null;
   let updateInstallProgress = { phase: "canceled" };
   let pendingSettingsBackup = null;
+  let applicationClosePromise = null;
+
+  /**
+   * Checks open editors, logs out every ManageSieve session and then lets the
+   * Electron main process terminate. The same path is used by the visible
+   * button and by the native window close control.
+   *
+   * @returns {Promise<boolean>}
+   *   true when shutdown was accepted, false when an editor vetoed it.
+   */
+  async function closeApplication() {
+    if (applicationClosePromise)
+      return await applicationClosePromise;
+
+    applicationClosePromise = (async () => {
+      const button = document.querySelector("#quit-button");
+      const label = document.querySelector("#quit-button-label");
+      const normalLabel = SieveI18n.getInstance().getString("application.quit");
+
+      button.disabled = true;
+      label.textContent
+        = SieveI18n.getInstance().getString("application.quitting");
+
+      try {
+        if (!await (new SieveTabUI()).closeAll()) {
+          await ipcRenderer.invoke("application-close-response", false);
+          return false;
+        }
+
+        try {
+          await sessions.destroyAll();
+        } catch (error) {
+          // The process exit still closes every socket. A failed server-side
+          // LOGOUT must not trap the user in an application that cannot close.
+          logger.logAction(`Graceful session shutdown failed ${error}`);
+        }
+        await ipcRenderer.invoke("application-close-response", true);
+        return true;
+      } catch (error) {
+        logger.logAction(`Application shutdown failed ${error}`);
+        await ipcRenderer.invoke("application-close-response", false);
+        return false;
+      } finally {
+        button.disabled = false;
+        label.textContent = normalLabel;
+      }
+    })();
+
+    try {
+      return await applicationClosePromise;
+    } finally {
+      applicationClosePromise = null;
+    }
+  }
+
+  ipcRenderer.on("application-close-requested", () => {
+    closeApplication();
+  });
+  await ipcRenderer.invoke("application-close-handler-ready");
 
   ipcRenderer.on("update-install-progress", (event, progress) => {
     const normalized = normalizeUpdateProgress(progress);
@@ -528,11 +587,23 @@ async function createImapFilterClient(account, settings) {
       for (const item of await session.listScripts()) {
         scripts.push({
           name: item.script,
-          active: !!item.active,
-          content: await session.getScript(item.script)
+          active: !!item.active
         });
       }
       return { connected: true, scripts };
+    },
+
+    "account-inbox-rule-script": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      logger.logAction(`Load ${name} for Inbox rule inspection on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+      if (!name)
+        throw new Error("A Sieve script name is required");
+
+      return { content: await sessions.get(id).getScript(name) };
     },
 
     "account-inbox-rule-check": async function (msg) {
@@ -1280,6 +1351,10 @@ async function createImapFilterClient(account, settings) {
 
     document.querySelector("#settings-tab-label").textContent
       = SieveI18n.getInstance().getString("account.settings");
+    document.querySelector("#quit-button-label").textContent
+      = SieveI18n.getInstance().getString("application.quit");
+    document.querySelector("#quit-button")
+      .addEventListener("click", () => { closeApplication(); });
 
     document.querySelector("#sieve-fork-version").textContent
       = await ipcRenderer.invoke("get-version");

@@ -748,11 +748,23 @@ initSentry("background");
       for (const item of await session.listScripts()) {
         scripts.push({
           name: item.script,
-          active: !!item.active,
-          content: await session.getScript(item.script)
+          active: !!item.active
         });
       }
       return { connected: true, scripts };
+    },
+
+    "account-inbox-rule-script": async function (msg) {
+      const id = msg.payload.account;
+      const name = `${msg.payload.name || ""}`;
+      logger.logAction(`Load ${name} for Inbox rule inspection on ${id}`);
+
+      if (!sessions.has(id) || !sessions.get(id).isConnected())
+        throw new Error("The Sieve server is not connected");
+      if (!name)
+        throw new Error("A Sieve script name is required");
+
+      return { content: await sessions.get(id).getScript(name) };
     },
 
     "account-inbox-rule-check": async function (msg) {

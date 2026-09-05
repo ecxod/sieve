@@ -135,10 +135,18 @@ class SieveNodeSessions {
    *   the unique session id
    */
   async destroy(id) {
-    if (this.has(id))
-      await (this.get(id).disconnect());
+    try {
+      if (this.has(id))
+        await (this.get(id).disconnect());
+    } finally {
+      this.sessions.delete(id);
+    }
+  }
 
-    this.sessions.delete(id);
+  /** Gracefully disconnects and removes every known session. */
+  async destroyAll() {
+    await Promise.all(
+      [...this.sessions.keys()].map(async (id) => { await this.destroy(id); }));
   }
 
 }

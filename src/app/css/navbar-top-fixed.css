@@ -57,7 +57,7 @@ html[data-bs-theme=dark] #tabs-container {
 #tabs-scroll-right {
   position: absolute;
   bottom: 0;
-  right: 125px;
+  right: 235px;
   width: 20px;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
@@ -72,7 +72,7 @@ html[data-bs-theme=dark] #tabs-container {
   position: absolute;
   bottom: 0;
   left: 20px;
-  right: 145px;
+  right: 255px;
 
   overflow: hidden;
   white-space: nowrap;
@@ -92,13 +92,30 @@ html[data-bs-theme=dark] #tabs-container {
 
 #settings-tab {
   position: absolute;
-  right: 0;
+  right: 110px;
   bottom: 0;
   width: 125px;
   text-align: center;
 }
 
 #settings-tab .nav-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#quit-tab {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 110px;
+  text-align: center;
+}
+
+#quit-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

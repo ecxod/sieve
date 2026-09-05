@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.17
+## Stable release 0.8.18
 
-**Version 0.8.17 is the latest stable release for both the Windows EXE and the
+**Version 0.8.18 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.17` uses the same version for the Windows application and the
+Release `0.8.18` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -73,7 +73,9 @@ Thunderbird extension. The extension includes:
   marks and moves the selected message to Junk and queues authenticated Rspamd
   training; both rule creation and Sieve execution are also available from the
   message context menu; when the rule editor is opened while the Sieve client
-  is offline, it connects automatically before loading the target script selector
+  is offline, it connects automatically before loading the target script selector;
+  the selector is filled before individual script bodies are inspected, and
+  closing the modal prevents further inspection requests from being queued
 - stable, locale-aware alphabetical ordering of account cards on the Home page
 - a save-or-discard warning when an editor with changes relative to the loaded
   server script is closed; cancelling or a failed save keeps the editor open
@@ -86,7 +88,10 @@ Unsupported, disabled, or semantically different Thunderbird rules are emitted
 with a `false` guard and warnings for manual review rather than being silently
 enabled on the server.
 
-The Windows application additionally provides a portable settings backup. It
+The Windows application additionally provides a visible **Close** action beside
+**Settings**. It shares the native window-close path, checks open editors,
+disconnects ManageSieve sessions, and then terminates the Electron process.
+It also provides a portable settings backup. It
 exports and restores server accounts, logins, editor and appearance settings,
 and optional error-tracking settings. Remembered passwords are included only
 after an explicit choice and a clear-text warning. The global **Settings** tab
@@ -101,15 +106,15 @@ files can be replaced, and only then extracts the new application.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.17-cram-md5.xpi`](releases/sieve-0.8.17-cram-md5.xpi)
+[`releases/sieve-0.8.18-cram-md5.xpi`](releases/sieve-0.8.18-cram-md5.xpi)
 
-SHA-256: `5a047905d5c30d4ca8cbad104239675f61901c6c12c7dec0354706cb6c47cc93`
+SHA-256: `1be7d036f29bb7b10b06c3e1ee95d1549f26e3a0efcfbc21bebe65987e4cfa81`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.17.exe`](releases/install_sieve_0.8.17.exe)
+[`releases/install_sieve_0.8.18.exe`](releases/install_sieve_0.8.18.exe)
 
-SHA-256: `7c8a2eed1fbcdbca7685c23fd2ef428bb27bb59d506e62bce5eb113d731c1ee2`
+SHA-256: `4da69bed899339af2c84d483cd1b87f358250b06c2d00524a5f20465575981ea`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified

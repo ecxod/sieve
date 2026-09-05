@@ -60,6 +60,8 @@
   "account.details.delete" : "Delete Server",
 
   "account.settings" : "Settings",
+  "application.quit" : "Close",
+  "application.quitting" : "Closing…",
   "account.newscript" : "New script",
   "settings.theme.title": "Appearance",
   "settings.theme.description": "Choose the appearance used by the app and script editors.",
@@ -512,6 +514,7 @@
   "account.inbox.rule.similar" : "Possible existing similar rules (read only)",
   "account.inbox.rule.similar.loading" : "Checking existing rules…",
   "account.inbox.rule.similar.error" : "The existing rules could not be checked",
+  "account.inbox.rule.similar.partial" : "Some Sieve scripts could not be inspected",
   "account.inbox.rule.scripts.loading" : "Loading Sieve scripts…",
   "account.inbox.rule.connect.timeout" : "Timed out while connecting to the Sieve server",
   "account.inbox.rule.scripts.timeout" : "Timed out while loading the Sieve scripts",
