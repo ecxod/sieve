@@ -9,12 +9,12 @@ The fork adds CRAM-MD5 authentication and maintains a small set of documented
 usability changes. See [README_FORK.md](README_FORK.md) for the exact differences
 from the upstream project.
 
-## Stable release 0.8.18
+## Stable release 0.8.20
 
-**Version 0.8.18 is the latest stable release for both the Windows EXE and the
+**Version 0.8.20 is the latest stable release for both the Windows EXE and the
 Thunderbird XPI.**
 
-Release `0.8.18` uses the same version for the Windows application and the
+Release `0.8.20` uses the same version for the Windows application and the
 Thunderbird extension. The extension includes:
 
 - CRAM-MD5 authentication and a Thunderbird-compatible ManageSieve socket
@@ -64,12 +64,15 @@ Thunderbird extension. The extension includes:
   loads message headers and generated source before connecting ManageSieve,
   and can lint, format, and safely append a rule to a chosen server script
   while checking literal `fileinto` targets against IMAP folders
-  and showing possible existing rules with the same sender, domain, recipient,
-  or subject in a separate read-only field;
+  and showing each possible existing `if` rule with the same sender, domain,
+  recipient, or subject in a separate read-only field; an existing rule can be
+  loaded into the editor and replaced at its exact guarded source position;
   dates use `yyyy.mm.dd, hh:mm:ss` and are ordered newest first, and a guarded
   **Run Sieve now** action applies the active script to exactly the selected
-  Inbox message without issuing `EXPUNGE`, creates missing literal `fileinto`
-  destinations first, and displays the server's action report; a **Spam** action
+  Inbox message, creates missing literal `fileinto` destinations first, and
+  uses UIDPLUS to expunge only that selected original after filtering; the
+  Inbox refresh action synchronizes Thunderbird's folder database before
+  rebuilding the list, and the server's action report remains visible; a **Spam** action
   marks and moves the selected message to Junk and queues authenticated Rspamd
   training; both rule creation and Sieve execution are also available from the
   message context menu; when the rule editor is opened while the Sieve client
@@ -106,15 +109,15 @@ files can be replaced, and only then extracts the new application.
 
 Install the current package directly:
 
-[`releases/sieve-0.8.18-cram-md5.xpi`](releases/sieve-0.8.18-cram-md5.xpi)
+[`releases/sieve-0.8.20-cram-md5.xpi`](releases/sieve-0.8.20-cram-md5.xpi)
 
-SHA-256: `1be7d036f29bb7b10b06c3e1ee95d1549f26e3a0efcfbc21bebe65987e4cfa81`
+SHA-256: `1693ebe3cfd0c36d3e2fcb9b909a46c69ae83b80b0f3cf8ba8723181bc63cf88`
 
 The matching Windows installer is:
 
-[`releases/install_sieve_0.8.18.exe`](releases/install_sieve_0.8.18.exe)
+[`releases/install_sieve_0.8.20.exe`](releases/install_sieve_0.8.20.exe)
 
-SHA-256: `4da69bed899339af2c84d483cd1b87f358250b06c2d00524a5f20465575981ea`
+SHA-256: `6886b089609eaf4744165cb932900a6e31a796fb87b09217870bfaa550496ecc`
 
 The Thunderbird package supports Thunderbird 121 through 154. Because it uses
 MailExtension Experiments, each new Thunderbird major version must be verified

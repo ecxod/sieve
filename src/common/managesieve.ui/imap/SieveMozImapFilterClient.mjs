@@ -5,7 +5,7 @@
 
 /* global browser */
 
-import { chunkUidSet } from "./SieveImapFilterClient.mjs";
+import { chunkUidSet, compactUidSet } from "./SieveImapFilterClient.mjs";
 
 const COMMAND_TIMEOUT = 30000;
 const FILTER_CAPABILITY = "FILTER=SIEVE";
@@ -67,6 +67,7 @@ class SieveMozImapConnection {
     this.encoder = new TextEncoder();
     this.buffer = "";
     this.preauthenticated = false;
+    this.capabilitySet = new Set();
     this.onData = (bytes) => { this.receive(bytes); };
     this.onError = (error) => {
       this.fail(new Error(error?.message || "The IMAP socket failed"));
@@ -189,8 +190,8 @@ class SieveMozImapConnection {
         `LOGIN ${quoteImap(this.settings.username)} ${quoteImap(this.settings.password)}`);
     }
 
-    const capabilities = await this.capabilities();
-    if (!capabilities.has(FILTER_CAPABILITY))
+    this.capabilitySet = await this.capabilities();
+    if (!this.capabilitySet.has(FILTER_CAPABILITY))
       throw new Error("The IMAP server does not offer FILTER=SIEVE");
   }
 
@@ -350,7 +351,7 @@ class SieveMozImapFilterClient {
    *   exact one-message snapshot.
    */
   async prepareInbox(folder, messageId) {
-    folder = `${folder || ""}`.trim();
+    folder = `${folder || ""}`.trim().replace(/^\/+/, "");
     messageId = `${messageId || ""}`.trim();
     if (!folder)
       throw new Error("Thunderbird did not report the server name of the Inbox");
@@ -419,21 +420,31 @@ class SieveMozImapFilterClient {
    *   stored personal script name.
    * @param {object} snapshot
    *   result of prepare().
+   * @param {object} [options]
+   *   optional Inbox-only post-processing.
+   * @param {boolean} [options.expunge]
+   *   permanently remove only filtered UIDs which FILTER marked as deleted.
    * @returns {Promise<object>}
    *   operation counters.
    */
-  async apply(script, snapshot) {
+  async apply(script, snapshot, options = {}) {
     const result = {
       selected: snapshot.uids.length,
       filtered: 0,
       warnings: 0,
       errors: 0,
+      expunged: false,
       reports: []
     };
     if (!snapshot.uids.length)
       return result;
 
     return await this.withConnection(async (connection) => {
+      if (options.expunge && !connection.capabilitySet.has("UIDPLUS")) {
+        throw new Error(
+          "The IMAP server does not offer UIDPLUS for targeted EXPUNGE");
+      }
+
       const select = await connection.command(`SELECT ${quoteImap(snapshot.folder)}`);
       const validity = select
         .map((line) => { return /\[UIDVALIDITY (\d+)\]/i.exec(line); })
@@ -462,6 +473,11 @@ class SieveMozImapFilterClient {
               result.errors++;
           }
         }
+      }
+
+      if (options.expunge && !result.errors) {
+        await connection.command(`UID EXPUNGE ${compactUidSet(snapshot.uids)}`);
+        result.expunged = true;
       }
       return result;
     });

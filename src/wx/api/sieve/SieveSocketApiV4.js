@@ -119,10 +119,17 @@
     constructor(host, port, level, security = "starttls") {
       this.socket = null;
 
-      this.host = host;
+      this.host = `${host || ""}`.trim();
+      if (this.host.startsWith("[") && this.host.endsWith("]"))
+        this.host = this.host.slice(1, -1);
       this.port = Number.parseInt(port, 10);
       this.level = Number.parseInt(level, 10);
       this.security = security === "tls" ? "tls" : "starttls";
+
+      if (!this.host)
+        throw new Error("The socket hostname is empty");
+      if (!Number.isSafeInteger(this.port) || this.port < 1 || this.port > 65535)
+        throw new Error("The socket port is invalid");
 
       this.outstream = null;
       this.instream = null;
@@ -296,8 +303,12 @@
       const ios = Cc["@mozilla.org/network/io-service;1"]
         .getService(Ci.nsIIOService);
 
-      // const uri = ios.newURI("x-sieve://" + this.host + ":" + this.port, null, null);
-      const uri = ios.newURI(`http://${this.host}:${this.port}`, null, null);
+      // nsIIOService requires IPv6 literals to be bracketed in a URI. The
+      // transport itself continues to receive the unbracketed hostname.
+      const proxyHost = this.host.includes(":")
+        ? `[${this.host.replace(/%/g, "%25")}]`
+        : this.host;
+      const uri = ios.newURI(`http://${proxyHost}:${this.port}/`);
 
       const pps = Cc["@mozilla.org/network/protocol-proxy-service;1"]
         .getService(Ci.nsIProtocolProxyService);

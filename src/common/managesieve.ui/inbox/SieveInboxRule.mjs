@@ -176,6 +176,19 @@ function stripLeadingSieveRequirements(source) {
 }
 
 /**
+ * Normalizes only the RFC-defined case-insensitive INBOX path component.
+ *
+ * @param {string} mailbox
+ *   mailbox path.
+ * @returns {string}
+ *   comparison value.
+ */
+function normalizeMailbox(mailbox) {
+  const value = `${mailbox || ""}`.replace(/^\/+/, "");
+  return value.replace(/^inbox(?=\/|$)/iu, "INBOX");
+}
+
+/**
  * Builds a conservative sender rule template for an Inbox message.
  *
  * @param {object} details
@@ -197,7 +210,7 @@ function createInboxRuleTemplate(details, mailbox) {
   else
     throw new Error("The message has neither a usable sender nor a subject");
 
-  mailbox = `${mailbox || ""}`.trim() || "INBOX";
+  mailbox = normalizeMailbox(mailbox) || "INBOX";
 
   return [
     `# Created from Inbox: ${commentText(subject || sender)}`,
@@ -231,6 +244,49 @@ function getInboxRuleRequirements(snippet) {
 }
 
 /**
+ * Adds capabilities required by an Inbox rule to a complete Sieve script.
+ *
+ * @param {string} content
+ *   complete Sieve script.
+ * @param {string} snippet
+ *   added or replaced Inbox rule.
+ * @returns {string}
+ *   script with any missing require command.
+ */
+function addInboxRuleRequirements(content, snippet) {
+  const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
+  const existing = getRequirements(content);
+  const missing = getInboxRuleRequirements(snippet)
+    .filter((item) => { return !existing.has(item); });
+  if (!missing.length)
+    return content;
+
+  const requirement = `require [${missing.map(quoteSieve).join(", ")}];${lineEnding}`;
+  return content.charCodeAt(0) === 0xFEFF
+    ? content[0] + requirement + content.slice(1)
+    : requirement + content;
+}
+
+/**
+ * Validates and normalizes a rule snippet before it changes a server script.
+ *
+ * @param {string} snippet
+ *   editable rule body.
+ * @returns {string}
+ *   trimmed rule body.
+ */
+function normalizeInboxRuleSnippet(snippet) {
+  snippet = `${snippet || ""}`.trim();
+  if (!snippet)
+    throw new Error("The Sieve rule is empty");
+  if (stripLeadingSieveRequirements(snippet) !== snippet) {
+    throw new Error(
+      "Do not add require commands here; required capabilities are managed automatically");
+  }
+  return snippet;
+}
+
+/**
  * Appends an editable Inbox rule body and injects missing requirements.
  *
  * @param {string} script
@@ -241,13 +297,7 @@ function getInboxRuleRequirements(snippet) {
  *   complete updated server script.
  */
 function appendInboxRuleToScript(script, snippet) {
-  snippet = `${snippet || ""}`.trim();
-  if (!snippet)
-    throw new Error("The Sieve rule is empty");
-  if (stripLeadingSieveRequirements(snippet) !== snippet) {
-    throw new Error(
-      "Do not add require commands here; required capabilities are managed automatically");
-  }
+  snippet = normalizeInboxRuleSnippet(snippet);
 
   const id = `inbox-rule-${hashRule(snippet)}`;
   const marker = `# sieve-inbox-rule-id: ${id}`;
@@ -270,30 +320,37 @@ function appendInboxRuleToScript(script, snippet) {
   ].join("\n").replace(/\n/g, lineEnding);
   content += block;
 
-  const existing = getRequirements(content);
-  const missing = getInboxRuleRequirements(snippet)
-    .filter((item) => { return !existing.has(item); });
-  if (missing.length) {
-    const requirement = `require [${missing.map(quoteSieve).join(", ")}];${lineEnding}`;
-    content = content.charCodeAt(0) === 0xFEFF
-      ? content[0] + requirement + content.slice(1)
-      : requirement + content;
-  }
-
-  return content;
+  return addInboxRuleRequirements(content, snippet);
 }
 
 /**
- * Normalizes only the RFC-defined case-insensitive INBOX path component.
+ * Replaces one unchanged if block previously loaded from a server script.
+ * The exact source range prevents a similar-looking rule from being changed.
  *
- * @param {string} mailbox
- *   mailbox path.
+ * @param {string} script
+ *   current complete server script.
+ * @param {string} snippet
+ *   edited if block.
+ * @param {{ start: number, end: number, source: string }} edit
+ *   exact original source selection.
  * @returns {string}
- *   comparison value.
+ *   complete updated server script.
  */
-function normalizeMailbox(mailbox) {
-  const value = `${mailbox || ""}`.replace(/^\/+/, "");
-  return value.replace(/^inbox(?=\/|$)/iu, "INBOX");
+function replaceInboxRuleInScript(script, snippet, edit) {
+  const content = `${script || ""}`;
+  snippet = normalizeInboxRuleSnippet(snippet);
+  if (!Number.isInteger(edit?.start) || !Number.isInteger(edit?.end)
+      || edit.start < 0 || edit.end <= edit.start || edit.end > content.length
+      || content.slice(edit.start, edit.end) !== edit.source) {
+    throw new Error(
+      "The selected existing rule changed; reopen the Inbox rule editor");
+  }
+
+  const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
+  const replacement = snippet.replace(/\r?\n/gu, lineEnding);
+  const updated = content.slice(0, edit.start)
+    + replacement + content.slice(edit.end);
+  return addInboxRuleRequirements(updated, snippet);
 }
 
 /**
@@ -364,7 +421,7 @@ function getLiteralFileintoMailboxes(script) {
       continue;
 
     seen.add(normalized);
-    result.push(mailbox);
+    result.push(normalized);
   }
 
   return result;
@@ -376,5 +433,6 @@ export {
   getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes,
+  replaceInboxRuleInScript,
   stripLeadingSieveRequirements
 };

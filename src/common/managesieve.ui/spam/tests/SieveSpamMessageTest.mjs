@@ -25,6 +25,7 @@ import {
   appendSpamRuleToScript,
   createSpamRule,
   findSpamRuleMatches,
+  findSieveIfBlocks,
   quoteSieve
 } from "./../SieveSpamRule.mjs";
 import {
@@ -33,6 +34,7 @@ import {
   getLiteralFileintoMailboxes,
   getInboxRuleRequirements,
   inspectInboxRuleMailboxes,
+  replaceInboxRuleInScript,
   stripLeadingSieveRequirements
 } from "./../../inbox/SieveInboxRule.mjs";
 import {
@@ -360,13 +362,51 @@ suite.add("Spam rule search reports shared parameters and source lines", functio
   suite.assertTrue(matches[0].active);
   suite.assertEquals(matches[0].matches[0].type, "sender");
   suite.assertEquals(matches[0].matches[0].occurrences[0].line, 2);
+  suite.assertEquals(matches[0].rules.length, 1);
+  suite.assertTrue(matches[0].rules[0].source.startsWith("if address"));
+});
+
+suite.add("Similar-rule search extracts each matching if into its own block", function () {
+  const script = [
+    '# if address :is "from" "ignored@example.test" { stop; }',
+    'if address :is "from" "person@example.test" {',
+    '  fileinto "Customers";',
+    "}",
+    'if header :contains "Subject" "Expected subject" {',
+    "  if true { keep; }",
+    "} else {",
+    "  stop;",
+    "}",
+    "vacation text:",
+    'if header :contains "Subject" "Expected subject" {',
+    ".",
+    ";"
+  ].join("\n");
+  const blocks = findSieveIfBlocks(script);
+  const matches = findSpamRuleMatches([{
+    name: "active-filter",
+    active: true,
+    content: script
+  }], {
+    senderAddress: "person@example.test",
+    senderDomain: "example.test",
+    subject: "Expected subject"
+  });
+
+  suite.assertEquals(blocks.length, 3);
+  suite.assertEquals(matches[0].rules.length, 2);
+  suite.assertTrue(matches[0].rules[0].source.includes('fileinto "Customers";'));
+  suite.assertTrue(matches[0].rules[1].source.includes("} else {"));
+  suite.assertFalse(matches[0].rules.some((rule) => {
+    return rule.source.includes("vacation text:");
+  }));
 });
 
 suite.add("Inbox rule template and append manage safe requirements", function () {
   const template = createInboxRuleTemplate({
     senderAddress: "Person@Example.Test",
     subject: "Expected subject"
-  }, "Archive/Customers");
+  }, "/Archive/Customers");
 
   suite.assertTrue(template.includes('address :is "from" "person@example.test"'));
   suite.assertTrue(template.includes('fileinto :create "Archive/Customers";'));
@@ -423,6 +463,32 @@ suite.add("Inbox graphical rule serialization removes generated requirements", f
   suite.assertEquals(stripLeadingSieveRequirements(opaque), opaque);
 });
 
+suite.add("Loaded existing Inbox rule is replaced at its exact source range", function () {
+  const original = 'if true { keep; }';
+  const script = `# first\n${original}\n# last\n`;
+  const start = script.indexOf(original);
+  const updated = replaceInboxRuleInScript(script, [
+    'if true {',
+    '  fileinto :create "Customers";',
+    "}"
+  ].join("\n"), {
+    start,
+    end: start + original.length,
+    source: original
+  });
+
+  suite.assertTrue(updated.includes('# first\nif true {\n  fileinto :create "Customers";\n}\n# last'));
+  suite.assertTrue(updated.startsWith('require ["fileinto", "mailbox"];'));
+  suite.assertFalse(updated.includes("# BEGIN sieve-inbox-rule"));
+  suite.assertThrows(() => {
+    replaceInboxRuleInScript(script, "if false { keep; }", {
+      start,
+      end: start + original.length,
+      source: "if false { keep; }"
+    });
+  }, "The selected existing rule changed");
+});
+
 suite.add("Inbox mailbox check ignores opaque fileinto text", function () {
   const snippet = [
     '# fileinto "Comment";',
@@ -444,10 +510,11 @@ suite.add("Inbox mailbox check ignores opaque fileinto text", function () {
   suite.assertEquals(missing.missing[0], "Missing");
   suite.assertEquals(getLiteralFileintoMailboxes([
     '# fileinto "Ignored";',
+    'fileinto "/Archive";',
     'fileinto "INBOX/Customers";',
     'fileinto :copy "INBOX/Customers";',
     'fileinto mailboxVariable;'
-  ].join("\n")).join(","), "INBOX/Customers");
+  ].join("\n")).join(","), "Archive,INBOX/Customers");
 });
 
 suite.add("Direct IMAP Inbox returns envelopes, folders and headers", async function () {
@@ -557,6 +624,50 @@ suite.add("Inbox dates are formatted and sorted chronologically", function () {
   suite.assertEquals(messages[0].id, "older");
 });
 
+suite.add("Inbox refresh requests a Thunderbird folder synchronization", async function () {
+  const refreshButton = { disabled: false };
+  const actionButton = { disabled: false };
+  const tableWrap = {
+    classList: { add() {} }
+  };
+  const calls = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.rendering = false;
+  inbox.root = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-refresh")
+        return refreshButton;
+      if (selector === ".sieve-inbox-table-wrap")
+        return tableWrap;
+      return actionButton;
+    }
+  };
+  inbox.account = {
+    async send(action, payload) {
+      calls.push({ action, payload, disabled: refreshButton.disabled });
+      return {
+        configured: true,
+        folderName: "Inbox",
+        mailboxes: ["INBOX"],
+        messages: [{ id: "fresh" }]
+      };
+    }
+  };
+  inbox.hideContextMenu = () => {};
+  inbox.setStatus = () => {};
+  inbox.string = (_key, fallback) => { return fallback; };
+  inbox.renderRows = () => {};
+
+  await inbox.render(true);
+
+  suite.assertEquals(calls.length, 1);
+  suite.assertEquals(calls[0].action, "account-inbox-list");
+  suite.assertTrue(calls[0].payload.refresh);
+  suite.assertTrue(calls[0].disabled);
+  suite.assertFalse(refreshButton.disabled);
+  suite.assertEquals(inbox.messages[0].id, "fresh");
+});
+
 suite.add("Inbox row context menu selects the right-clicked message", function () {
   const createButton = { disabled: true };
   const applyButton = { disabled: true };
@@ -644,14 +755,24 @@ suite.add("Run Sieve applies the marked Inbox message", async function () {
     }
   };
   inbox.string = (key, fallback) => { return fallback; };
-  inbox.confirmApply = () => { return true; };
+  inbox.confirmApply = () => {
+    throw new Error("Run Sieve must not display a confirmation dialog");
+  };
+  inbox.ensureSieveConnected = async () => {
+    calls.push({ action: "ensure-connected" });
+  };
   inbox.setStatus = () => {};
-  inbox.render = async () => {};
+  inbox.render = async (refresh) => {
+    calls.push({ action: "render", refresh });
+  };
 
   await inbox.applySelected();
-  suite.assertEquals(calls.length, 1);
-  suite.assertEquals(calls[0].action, "account-inbox-apply-selected");
-  suite.assertEquals(calls[0].payload.messageId, "older");
+  suite.assertEquals(calls.length, 3);
+  suite.assertEquals(calls[0].action, "ensure-connected");
+  suite.assertEquals(calls[1].action, "account-inbox-apply-selected");
+  suite.assertEquals(calls[1].payload.messageId, "older");
+  suite.assertEquals(calls[2].action, "render");
+  suite.assertTrue(calls[2].refresh);
   suite.assertFalse(button.disabled);
 });
 
@@ -768,6 +889,63 @@ suite.add("Inbox rule editor formats similar matches from multiple scripts", fun
   suite.assertTrue(summary.includes("Subject: Expected subject"));
 });
 
+suite.add("Existing similar if loads as an exact editor replacement", async function () {
+  const source = [
+    'if address :is "from" "person@example.test" {',
+    '  fileinto "Customers";',
+    "}"
+  ].join("\n");
+  const scriptSelect = { value: "" };
+  const mailboxInput = { value: "INBOX" };
+  const modal = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-rule-script")
+        return scriptSelect;
+      if (selector === ".sieve-inbox-rule-mailbox")
+        return mailboxInput;
+      return null;
+    }
+  };
+  const calls = [];
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.scripts = [{ name: "active-filter", active: true, content: source }];
+  inbox.root = {
+    querySelector(selector) {
+      return selector === ".sieve-inbox-rule-modal" ? modal : null;
+    }
+  };
+  inbox.string = (_key, fallback) => { return fallback; };
+  inbox.setRuleSource = async (value) => { calls.push(`source:${value}`); };
+  inbox.updateRuleActionState = () => { calls.push("actions"); };
+  inbox.updateMailboxStatus = () => { calls.push("mailbox"); };
+  inbox.setEditorStatus = (value, style) => { calls.push(`${style}:${value}`); };
+
+  await inbox.loadSimilarRule({
+    name: "active-filter",
+    active: true,
+    start: 0,
+    end: source.length,
+    line: 1,
+    source
+  });
+
+  suite.assertEquals(scriptSelect.value, "active-filter");
+  suite.assertEquals(mailboxInput.value, "Customers");
+  suite.assertEquals(inbox.editingRule.source, source);
+  suite.assertTrue(calls[0].startsWith("source:if address"));
+  suite.assertTrue(calls.at(-1).includes("Save replaces exactly this rule"));
+
+  inbox.getRuleSource = () => {
+    return source.replace("Customers", "Archive/Customers");
+  };
+  mailboxInput.value = "INBOX";
+  const payload = inbox.getRulePayload();
+  suite.assertEquals(payload.name, "active-filter");
+  suite.assertTrue(payload.snippet.includes('fileinto "Archive/Customers"'));
+  suite.assertFalse(payload.snippet.includes('fileinto "INBOX"'));
+  suite.assertEquals(payload.edit.source, source);
+});
+
 suite.add("Inbox rule editor connects Sieve before loading the script selector", async function () {
   const calls = [];
   let connected = false;
@@ -798,16 +976,79 @@ suite.add("Inbox rule editor connects Sieve before loading the script selector",
   suite.assertEquals(calls.join(","), "is-connected");
 });
 
+suite.add("Inbox rule save reconnects before writing the selected script", async function () {
+  const calls = [];
+  let connected = false;
+  const save = { disabled: false };
+  const modal = {
+    querySelector(selector) {
+      if (selector === ".sieve-inbox-rule-save")
+        return save;
+      return null;
+    }
+  };
+  const inbox = Object.create(SieveInboxUI.prototype);
+  inbox.root = {
+    querySelector(selector) {
+      return selector === ".sieve-inbox-rule-modal" ? modal : null;
+    }
+  };
+  inbox.string = (_key, fallback) => { return fallback; };
+  inbox.setEditorStatus = (status) => { calls.push(`editor-status:${status}`); };
+  inbox.setStatus = (status) => { calls.push(`status:${status}`); };
+  inbox.getRulePayload = () => {
+    calls.push("payload");
+    return { name: "active-filter", expected: "keep;", snippet: "keep;" };
+  };
+  inbox.account = {
+    async isConnected() {
+      calls.push("is-connected");
+      return connected;
+    },
+    async send(action) {
+      calls.push(`send:${action}`);
+      if (action === "account-connect")
+        connected = true;
+    },
+    setConnectionActions(connectedState, connectingState) {
+      calls.push(`connection-actions:${connectedState}:${connectingState}`);
+    }
+  };
+
+  const oldBootstrap = globalThis.bootstrap;
+  globalThis.bootstrap = {
+    Modal: {
+      getOrCreateInstance() {
+        return { hide() { calls.push("modal-hide"); } };
+      }
+    }
+  };
+  try {
+    await inbox.saveRule();
+  } finally {
+    globalThis.bootstrap = oldBootstrap;
+  }
+
+  suite.assertTrue(calls.indexOf("send:account-connect")
+    < calls.indexOf("send:account-inbox-rule-save"));
+  suite.assertTrue(calls.indexOf("send:account-inbox-rule-save")
+    < calls.indexOf("modal-hide"));
+  suite.assertTrue(calls.includes("connection-actions:true:false"));
+  suite.assertFalse(save.disabled);
+});
+
 suite.add("Inbox rule editor fills headers, similar rules and both editor views", async function () {
   const createControl = () => {
     return {
       children: [],
+      listeners: {},
       className: "",
       disabled: false,
       textContent: "",
       value: "",
-      append(child) { this.children.push(child); },
-      replaceChildren() { this.children = []; }
+      addEventListener(type, listener) { this.listeners[type] = listener; },
+      append(...children) { this.children.push(...children); },
+      replaceChildren(...children) { this.children = [...children]; }
     };
   };
   const controls = {
@@ -911,8 +1152,13 @@ suite.add("Inbox rule editor fills headers, similar rules and both editor views"
     "Inbox headers were not rendered");
   suite.assertTrue(controls[".sieve-inbox-rule-source"].value.includes('fileinto :create "INBOX";'),
     "Generated source was not rendered");
-  suite.assertTrue(controls[".sieve-inbox-rule-similar"].value.includes("# active-filter (active)"),
-    "Similar rule source was not rendered");
+  suite.assertEquals(controls[".sieve-inbox-rule-similar"].children.length, 1,
+    "Similar rule card was not rendered");
+  const similarCard = controls[".sieve-inbox-rule-similar"].children[0];
+  suite.assertTrue(similarCard.children[1].value.startsWith("if address"),
+    "Similar if source was not rendered in its own textarea");
+  suite.assertTrue(!!similarCard.children[0].children[1].listeners.click,
+    "Similar rule has no editor-load action");
   suite.assertEquals(controls[".sieve-inbox-rule-script"].value, "active-filter");
   suite.assertFalse(controls[".sieve-inbox-rule-lint"].disabled,
     "Lint was not enabled after loading the selected script");

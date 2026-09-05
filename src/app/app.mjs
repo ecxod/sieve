@@ -62,7 +62,8 @@ import {
 } from "./libs/managesieve.ui/spam/SieveSpamRule.mjs";
 import {
   appendInboxRuleToScript,
-  getLiteralFileintoMailboxes
+  getLiteralFileintoMailboxes,
+  replaceInboxRuleInScript
 } from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 
 const IMAP_DEFAULT_PORT = 993;
@@ -619,8 +620,10 @@ async function createImapFilterClient(account, settings) {
       if (current !== msg.payload.expected)
         throw new Error("The server script changed; reopen the Inbox rule editor");
 
-      await session.checkScript(
-        appendInboxRuleToScript(current, msg.payload.snippet));
+      const updated = msg.payload.edit
+        ? replaceInboxRuleInScript(current, msg.payload.snippet, msg.payload.edit)
+        : appendInboxRuleToScript(current, msg.payload.snippet);
+      await session.checkScript(updated);
       return { valid: true };
     },
 
@@ -639,7 +642,9 @@ async function createImapFilterClient(account, settings) {
       if (current !== msg.payload.expected)
         throw new Error("The server script changed; reopen the Inbox rule editor");
 
-      const updated = appendInboxRuleToScript(current, msg.payload.snippet);
+      const updated = msg.payload.edit
+        ? replaceInboxRuleInScript(current, msg.payload.snippet, msg.payload.edit)
+        : appendInboxRuleToScript(current, msg.payload.snippet);
       await session.checkScript(updated);
       await session.putScript(name, updated);
       return { name };

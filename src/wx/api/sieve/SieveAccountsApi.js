@@ -18,6 +18,7 @@
   const Ci = Components.interfaces;
   const UNKNOWN_VALUE = -1;
   const DISPLAY_INDEX_OFFSET = 1;
+  const INBOX_REFRESH_TIMEOUT = 30000;
 
   /**
    * Get the incoming server for the given account id.
@@ -99,6 +100,109 @@
   }
 
   /**
+   * Extracts a hostname from an IMAP/POP server URI.
+   *
+   * @param {string} uri
+   *   The server URI.
+   * @returns {string}
+   *   The hostname or an empty string.
+   */
+  function getHostnameFromUri(uri) {
+    if (uri === "")
+      return "";
+
+    try {
+      const url = new URL(uri);
+      return url.hostname;
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Resolves an incoming server hostname across Thunderbird API generations.
+   *
+   * @param {object} server
+   *   Thunderbird incoming server.
+   * @returns {string}
+   *   hostname or an empty string.
+   */
+  function getIncomingServerHostname(server) {
+    return firstDefined(
+      getProperty(server, "realHostName"),
+      getProperty(server, "hostName"),
+      getProperty(server, "realHostname"),
+      getProperty(server, "hostname"),
+      getHostnameFromUri(getProperty(server, "serverURI")),
+      getHostnameFromUri(getProperty(server, "serverUri")),
+      getHostnameFromUri(getProperty(server, "URI")));
+  }
+
+  /**
+   * Synchronizes the Thunderbird Inbox database with the incoming server.
+   *
+   * WebExtension messages.list() reads Thunderbird's local folder database.
+   * A direct IMAP Sieve operation can therefore leave it stale until the
+   * folder is explicitly updated.
+   *
+   * @param {string} account
+   *   Thunderbird account id.
+   * @returns {Promise<void>}
+   *   fulfilled after Thunderbird reports that the Inbox was loaded.
+   */
+  async function refreshInbox(account) {
+    const server = getIncomingServer(account);
+    const folder = server.rootFolder
+      .getFolderWithFlags(Ci.nsMsgFolderFlags.Inbox);
+    if (!folder)
+      throw new Error("Thunderbird did not report an Inbox for this account");
+
+    const mailSession = Cc["@mozilla.org/messenger/services/session;1"]
+      .getService(Ci.nsIMsgMailSession);
+
+    await new Promise((resolve, reject) => {
+      let finished = false;
+      let listener = null;
+      const timer = Cc["@mozilla.org/timer;1"]
+        .createInstance(Ci.nsITimer);
+
+      const finish = (error) => {
+        if (finished)
+          return;
+
+        finished = true;
+        timer.cancel();
+        mailSession.RemoveFolderListener(listener);
+        if (error)
+          reject(error);
+        else
+          resolve();
+      };
+
+      listener = {
+        onFolderEvent(eventFolder, event) {
+          if (event !== "FolderLoaded"
+              || getProperty(eventFolder, "URI") !== getProperty(folder, "URI"))
+            return;
+
+          finish();
+        }
+      };
+
+      mailSession.AddFolderListener(listener, Ci.nsIFolderListener.event);
+      timer.initWithCallback(() => {
+        finish(new Error("Timed out while refreshing the Thunderbird Inbox"));
+      }, INBOX_REFRESH_TIMEOUT, Ci.nsITimer.TYPE_ONE_SHOT);
+
+      try {
+        folder.updateFolder(null);
+      } catch (ex) {
+        finish(ex);
+      }
+    });
+  }
+
+  /**
    * Returns direct IMAP connection details and the server-side Sent path.
    *
    * @param {string} account
@@ -133,10 +237,12 @@
     if (!sentFolder)
       throw new Error("Thunderbird did not report the server name of the Sent folder");
 
+    const hostname = getIncomingServerHostname(server);
+    if (!hostname)
+      throw new Error("Thunderbird did not report the IMAP server hostname");
+
     return {
-      hostname: firstDefined(
-        getProperty(server, "realHostName"),
-        getProperty(server, "hostName")),
+      hostname,
       port: port > 0 ? port : (security === "tls" ? 993 : 143),
       security,
       sentFolder
@@ -402,26 +508,6 @@
   }
 
   /**
-   * Extracts a hostname from an IMAP/POP server URI.
-   *
-   * @param {string} uri
-   *   The server URI.
-   * @returns {string}
-   *   The hostname or an empty string.
-   */
-  function getHostnameFromUri(uri) {
-    if (uri === "")
-      return "";
-
-    try {
-      const url = new URL(uri);
-      return url.hostname;
-    } catch {
-      return "";
-    }
-  }
-
-  /**
    * Implements a webextension api for sieve session and connection management.
    */
   class SieveAccountsApi extends ExtensionCommon.ExtensionAPI {
@@ -461,14 +547,7 @@
             async getHostname(id) {
               const server = getIncomingServer(id);
 
-              return await firstDefined(
-                getProperty(server, "realHostName"),
-                getProperty(server, "hostName"),
-                getProperty(server, "realHostname"),
-                getProperty(server, "hostname"),
-                getHostnameFromUri(getProperty(server, "serverURI")),
-                getHostnameFromUri(getProperty(server, "serverUri")),
-                getHostnameFromUri(getProperty(server, "URI")));
+              return await getIncomingServerHostname(server);
             },
 
             async getImapConnection(id) {
@@ -477,6 +556,10 @@
 
             async getFilters(id) {
               return getFilters(id);
+            },
+
+            async refreshInbox(id) {
+              await refreshInbox(id);
             },
 
             async removeFilter(id, index, deleteToken) {

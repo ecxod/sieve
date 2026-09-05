@@ -69,6 +69,19 @@
         ]
       },
       {
+        "name": "refreshInbox",
+        "type": "function",
+        "description": "Synchronizes the account Inbox with its incoming server",
+        "async": true,
+        "parameters": [
+          {
+            "name": "id",
+            "type": "string",
+            "description": "The account key"
+          }
+        ]
+      },
+      {
         "name": "getImapConnection",
         "type": "function",
         "description": "Gets TLS IMAP connection details and the server-side Sent folder path",

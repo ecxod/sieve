@@ -193,6 +193,194 @@ function appendSpamRuleToScript(script, rule) {
 }
 
 /**
+ * Tokenizes only the structural parts needed to locate Sieve if blocks.
+ * Quoted strings, comments and text: literals remain opaque.
+ *
+ * @param {string} source
+ *   complete Sieve source.
+ * @returns {object[]}
+ *   structural words and braces with source offsets.
+ */
+function getSieveStructureTokens(source) {
+  const tokens = [];
+  let offset = 0;
+
+  while (offset < source.length) {
+    if (/\s/u.test(source[offset])) {
+      offset++;
+      continue;
+    }
+
+    if (source[offset] === "#") {
+      const end = source.indexOf("\n", offset);
+      offset = end === -1 ? source.length : end + 1;
+      continue;
+    }
+
+    if (source.startsWith("/*", offset)) {
+      const end = source.indexOf("*/", offset + 2);
+      offset = end === -1 ? source.length : end + 2;
+      continue;
+    }
+
+    if (source[offset] === "\"") {
+      let escaped = false;
+      offset++;
+      while (offset < source.length) {
+        const character = source[offset++];
+        if (character === "\"" && !escaped)
+          break;
+        escaped = character === "\\" && !escaped;
+        if (character !== "\\")
+          escaped = false;
+      }
+      continue;
+    }
+
+    if (source.slice(offset, offset + 5).toLocaleLowerCase() === "text:") {
+      let end = source.indexOf("\n", offset);
+      offset = end === -1 ? source.length : end + 1;
+      while (offset < source.length) {
+        end = source.indexOf("\n", offset);
+        const lineEnd = end === -1 ? source.length : end;
+        const line = source.slice(offset, lineEnd).replace(/\r$/u, "");
+        offset = end === -1 ? source.length : end + 1;
+        if (line === ".")
+          break;
+      }
+      continue;
+    }
+
+    if (source[offset] === "{" || source[offset] === "}"
+        || source[offset] === ";") {
+      tokens.push({ type: "symbol", value: source[offset], start: offset, end: offset + 1 });
+      offset++;
+      continue;
+    }
+
+    if (/[a-z]/iu.test(source[offset])) {
+      const start = offset++;
+      while (offset < source.length && /[a-z0-9_-]/iu.test(source[offset]))
+        offset++;
+      tokens.push({
+        type: "word",
+        value: source.slice(start, offset).toLocaleLowerCase(),
+        start,
+        end: offset
+      });
+      continue;
+    }
+
+    offset++;
+  }
+
+  return tokens;
+}
+
+/**
+ * Finds the opening brace following a conditional keyword.
+ *
+ * @param {object[]} tokens
+ *   structural Sieve tokens.
+ * @param {number} start
+ *   conditional keyword token index.
+ * @returns {number}
+ *   opening-brace token index or -1.
+ */
+function findOpeningBrace(tokens, start) {
+  for (let index = start + 1; index < tokens.length; index++) {
+    if (tokens[index].type !== "symbol")
+      continue;
+    if (tokens[index].value === "{")
+      return index;
+    if (tokens[index].value === ";" || tokens[index].value === "}")
+      return -1;
+  }
+  return -1;
+}
+
+/**
+ * Finds a matching closing brace in structural Sieve tokens.
+ *
+ * @param {object[]} tokens
+ *   structural Sieve tokens.
+ * @param {number} start
+ *   opening-brace token index.
+ * @returns {number}
+ *   closing-brace token index or -1.
+ */
+function findClosingBrace(tokens, start) {
+  let depth = 0;
+  for (let index = start; index < tokens.length; index++) {
+    if (tokens[index].type !== "symbol")
+      continue;
+    if (tokens[index].value === "{")
+      depth++;
+    else if (tokens[index].value === "}" && --depth === 0)
+      return index;
+  }
+  return -1;
+}
+
+/**
+ * Extracts each syntactically complete if/elsif/else chain from a Sieve file.
+ * Nested if statements are returned separately.
+ *
+ * @param {string} source
+ *   complete Sieve source.
+ * @returns {object[]}
+ *   exact source ranges and their conditional source.
+ */
+function findSieveIfBlocks(source) {
+  source = `${source || ""}`;
+  const tokens = getSieveStructureTokens(source);
+  const blocks = [];
+
+  for (let index = 0; index < tokens.length; index++) {
+    if (tokens[index].type !== "word" || tokens[index].value !== "if")
+      continue;
+
+    const open = findOpeningBrace(tokens, index);
+    if (open === -1)
+      continue;
+    let close = findClosingBrace(tokens, open);
+    if (close === -1)
+      continue;
+
+    const conditions = [source.slice(tokens[index].start, tokens[open].start)];
+    let end = tokens[close].end;
+    let cursor = close + 1;
+
+    while (tokens[cursor]?.type === "word"
+        && (tokens[cursor].value === "elsif" || tokens[cursor].value === "else")) {
+      const branch = cursor;
+      const branchOpen = findOpeningBrace(tokens, branch);
+      if (branchOpen === -1)
+        break;
+      close = findClosingBrace(tokens, branchOpen);
+      if (close === -1)
+        break;
+      if (tokens[branch].value === "elsif") {
+        conditions.push(source.slice(
+          tokens[branch].start, tokens[branchOpen].start));
+      }
+      end = tokens[close].end;
+      cursor = close + 1;
+    }
+
+    blocks.push({
+      start: tokens[index].start,
+      end,
+      line: source.slice(0, tokens[index].start).split(/\r?\n/u).length,
+      source: source.slice(tokens[index].start, end),
+      condition: conditions.join("\n")
+    });
+  }
+
+  return blocks;
+}
+
+/**
  * Finds matching message parameters and source lines in server scripts.
  *
  * @param {object[]} scripts
@@ -223,7 +411,8 @@ function findSpamRuleMatches(scripts, details) {
 
   const results = [];
   for (const script of scripts || []) {
-    const lines = `${script.content || ""}`.split(/\r?\n/);
+    const content = `${script.content || ""}`;
+    const lines = content.split(/\r?\n/);
     const matches = [];
     for (const parameter of parameters) {
       const needle = parameter.value.toLocaleLowerCase();
@@ -246,11 +435,20 @@ function findSpamRuleMatches(scripts, details) {
       if (occurrences.length)
         matches.push({ ...parameter, occurrences });
     }
-    if (matches.length) {
+    const rules = findSieveIfBlocks(content).map((rule) => {
+      const condition = rule.condition.toLocaleLowerCase();
+      const matching = parameters.filter((parameter) => {
+        return condition.includes(parameter.value.toLocaleLowerCase());
+      });
+      return { ...rule, matches: matching };
+    }).filter((rule) => { return rule.matches.length; });
+
+    if (rules.length) {
       results.push({
         name: script.name,
         active: !!script.active,
-        matches
+        matches,
+        rules
       });
     }
   }
@@ -261,6 +459,7 @@ export {
   appendSpamRuleToScript,
   createSpamRule,
   findSpamRuleMatches,
+  findSieveIfBlocks,
   getRequirements,
   normalizeAddress,
   quoteSieve

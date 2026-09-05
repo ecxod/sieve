@@ -18,6 +18,34 @@ import {
   quoteImap,
   SieveMozImapFilterClient
 } from "./../SieveMozImapFilterClient.mjs";
+import {
+  listThunderbirdFolderMessages
+} from "./../SieveThunderbirdMessageList.mjs";
+
+suite.add("Thunderbird message listing uses MailFolderId and follows pages", async function () {
+  const calls = [];
+  const messages = await listThunderbirdFolderMessages({
+    async list(folderId) {
+      calls.push(`list:${folderId}`);
+      return { id: "page-2", messages: [{ id: 1 }] };
+    },
+    async continueList(pageId) {
+      calls.push(`continue:${pageId}`);
+      return { messages: [{ id: 2 }] };
+    }
+  }, { id: "account1://INBOX", name: "Inbox" });
+
+  suite.assertEquals(calls.join(","),
+    "list:account1://INBOX,continue:page-2");
+  suite.assertEquals(messages.map((message) => { return message.id; }).join(","), "1,2");
+  let error = null;
+  try {
+    await listThunderbirdFolderMessages({ list() {} }, { name: "Inbox" });
+  } catch (ex) {
+    error = ex;
+  }
+  suite.assertEquals(error?.message, "Thunderbird did not provide a MailFolderId");
+});
 
 suite.add("IMAP Sent filter helpers resolve and compact selections", function () {
   suite.assertEquals(resolveSentFolder([
@@ -164,7 +192,8 @@ suite.add("Thunderbird Inbox filter resolves one Message-ID to the newest UID", 
     });
   };
 
-  const snapshot = await filter.prepareInbox("INBOX", "<newest@example.test>");
+  const snapshot = await filter.prepareInbox("/INBOX", "<newest@example.test>");
+  suite.assertEquals(commands[0], 'SELECT "INBOX"');
   suite.assertEquals(
     commands[1],
     'UID SEARCH UNDELETED HEADER Message-ID "<newest@example.test>"');
@@ -202,4 +231,57 @@ suite.add("Thunderbird filter creates missing mailboxes and exposes server repor
   suite.assertEquals(result.filtered, 1);
   suite.assertEquals(result.warnings, 1);
   suite.assertTrue(result.reports[0].includes("fileinto completed"));
+});
+
+suite.add("Thunderbird Inbox filter safely expunges only the selected UID", async function () {
+  const commands = [];
+  const filter = new SieveMozImapFilterClient({});
+  filter.withConnection = async (callback) => {
+    return await callback({
+      capabilitySet: new Set(["FILTER=SIEVE", "UIDPLUS"]),
+      async command(command) {
+        commands.push(command);
+        if (command.startsWith("SELECT"))
+          return ["* OK [UIDVALIDITY 77] selected", "S0001 OK SELECT done"];
+        if (command.startsWith("UID FILTER"))
+          return ["* 9 FILTERED", "S0002 OK FILTER done"];
+        return ["* 9 EXPUNGE", "S0003 OK UID EXPUNGE done"];
+      }
+    });
+  };
+
+  const result = await filter.apply("active", {
+    folder: "INBOX",
+    uidValidity: "77",
+    uids: [9]
+  }, { expunge: true });
+  suite.assertEquals(commands.at(-1), "UID EXPUNGE 9");
+  suite.assertTrue(result.expunged);
+});
+
+suite.add("Thunderbird Inbox filter requires UIDPLUS before filtering", async function () {
+  const commands = [];
+  const filter = new SieveMozImapFilterClient({});
+  filter.withConnection = async (callback) => {
+    return await callback({
+      capabilitySet: new Set(["FILTER=SIEVE"]),
+      async command(command) {
+        commands.push(command);
+        return [];
+      }
+    });
+  };
+
+  let error = null;
+  try {
+    await filter.apply("active", {
+      folder: "INBOX",
+      uidValidity: "77",
+      uids: [9]
+    }, { expunge: true });
+  } catch (ex) {
+    error = ex;
+  }
+  suite.assertTrue(error?.message.includes("UIDPLUS"));
+  suite.assertEquals(commands.length, 0);
 });

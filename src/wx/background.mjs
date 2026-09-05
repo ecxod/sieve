@@ -27,11 +27,15 @@ import {
 } from "./libs/managesieve.ui/spam/SieveSpamMessage.mjs";
 import {
   appendInboxRuleToScript,
-  getLiteralFileintoMailboxes
+  getLiteralFileintoMailboxes,
+  replaceInboxRuleInScript
 } from "./libs/managesieve.ui/inbox/SieveInboxRule.mjs";
 import {
   SieveMozImapFilterClient
 } from "./libs/managesieve.ui/imap/SieveMozImapFilterClient.mjs";
+import {
+  listThunderbirdFolderMessages
+} from "./libs/managesieve.ui/imap/SieveThunderbirdMessageList.mjs";
 
 initSentry("background");
 
@@ -87,28 +91,6 @@ initSentry("background");
     } catch {
       return await browser.accounts.get(id);
     }
-  }
-
-  /**
-   * Collects every page returned by the Thunderbird messages API.
-   *
-   * @param {object} folder
-   *   source folder.
-   * @returns {Promise<object[]>}
-   *   all message headers in the folder.
-   */
-  async function listFolderMessages(folder) {
-    const messages = [];
-    let page = await browser.messages.list(folder);
-
-    while (page) {
-      messages.push(...page.messages);
-      if (!page.id)
-        break;
-      page = await browser.messages.continueList(page.id);
-    }
-
-    return messages;
   }
 
   /**
@@ -557,7 +539,7 @@ initSentry("background");
       if (!inbox)
         throw new Error("Thunderbird has no inbox for this account");
 
-      const messages = await listFolderMessages(junk);
+      const messages = await listThunderbirdFolderMessages(browser.messages, junk);
       messages.sort((left, right) => {return new Date(right.date) - new Date(left.date);});
 
       return {
@@ -625,12 +607,15 @@ initSentry("background");
     },
 
     "account-inbox-list": async function (msg) {
+      if (msg.payload.refresh === true)
+        await browser.sieve.accounts.refreshInbox(msg.payload.account);
+
       const account = await getMailAccount(msg.payload.account);
       const inbox = findSpecialFolder(account, "inbox");
       if (!inbox)
         throw new Error("Thunderbird has no inbox for this account");
 
-      const messages = await listFolderMessages(inbox);
+      const messages = await listThunderbirdFolderMessages(browser.messages, inbox);
       messages.sort((left, right) => {return new Date(right.date) - new Date(left.date);});
 
       return {
@@ -702,8 +687,10 @@ initSentry("background");
       const createdMailboxes = await filter.ensureMailboxes(
         getLiteralFileintoMailboxes(source));
       const snapshot = await filter.prepareInbox(
-        inbox.path || inbox.name || "INBOX", message.headerMessageId);
-      const result = await filter.apply(active.script, snapshot);
+        "INBOX", message.headerMessageId);
+      const result = await filter.apply(active.script, snapshot, {
+        expunge: true
+      });
       return {
         ...result,
         createdMailboxes,
@@ -778,8 +765,10 @@ initSentry("background");
       if (current !== msg.payload.expected)
         throw new Error("The server script changed; reopen the Inbox rule editor");
 
-      await session.checkScript(
-        appendInboxRuleToScript(current, msg.payload.snippet));
+      const updated = msg.payload.edit
+        ? replaceInboxRuleInScript(current, msg.payload.snippet, msg.payload.edit)
+        : appendInboxRuleToScript(current, msg.payload.snippet);
+      await session.checkScript(updated);
       return { valid: true };
     },
 
@@ -796,7 +785,9 @@ initSentry("background");
       if (current !== msg.payload.expected)
         throw new Error("The server script changed; reopen the Inbox rule editor");
 
-      const updated = appendInboxRuleToScript(current, msg.payload.snippet);
+      const updated = msg.payload.edit
+        ? replaceInboxRuleInScript(current, msg.payload.snippet, msg.payload.edit)
+        : appendInboxRuleToScript(current, msg.payload.snippet);
       await session.checkScript(updated);
       await session.putScript(name, updated);
       return { name };
