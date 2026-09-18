@@ -60,6 +60,11 @@
   "account.details.delete" : "Delete Server",
 
   "account.settings" : "Settings",
+  "account.search" : "Search",
+  "account.search.placeholder" : "Search all scripts...",
+  "account.search.loading" : "Searching scripts...",
+  "account.search.empty" : "No matching scripts.",
+  "account.search.open" : "Open",
   "application.quit" : "Close",
   "application.quitting" : "Closing…",
   "account.newscript" : "New script",
@@ -350,6 +355,8 @@
 
   "texteditor.matchCase" : "Match case",
   "texteditor.backwards" : "Search backward",
+  "texteditor.searchAllScripts" : "In all scripts",
+  "texteditor.otherScriptMatches" : "Matches in other scripts",
 
   "updater.title" : "New version available!",
   "updater.message" : "Click to open update management.",

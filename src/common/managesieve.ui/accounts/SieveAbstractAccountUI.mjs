@@ -14,6 +14,8 @@
 import { SieveIpcClient } from "./../utils/SieveIpcClient.mjs";
 import { SieveLogger } from "./../utils/SieveLogger.mjs";
 import { SieveTemplate } from "./../utils/SieveTemplate.mjs";
+import { SieveI18n } from "./../utils/SieveI18n.mjs";
+import { SieveScriptSearch } from "./../utils/SieveScriptSearch.mjs";
 
 import { SieveScriptUI } from "./SieveScriptUI.mjs";
 import { SieveDebugSettingsUI } from "./../settings/ui/SieveDebugSettingsUI.mjs";
@@ -22,6 +24,7 @@ import { SieveCapabilities } from "./SieveCapabilities.mjs";
 const IS_SMALLER = -1;
 const IS_EQUAL = 0;
 const IS_LARGER = 1;
+const SEARCH_DELAY = 180;
 
 /**
  * A UI renderer for a sieve account
@@ -39,6 +42,8 @@ class SieveAbstractAccountUI {
   constructor(accounts, id) {
     this.accounts = accounts;
     this.id = id;
+    this.searchTimer = null;
+    this.searchRequest = 0;
   }
 
   /**
@@ -49,6 +54,20 @@ class SieveAbstractAccountUI {
    **/
   getLogger() {
     return SieveLogger.getInstance();
+  }
+
+  /**
+   * Gets a localized search label with an English fallback.
+   * @param {string} entity the translation key.
+   * @param {string} fallback the fallback text.
+   * @returns {string} the translated text.
+   */
+  getSearchLabel(entity, fallback) {
+    try {
+      return SieveI18n.getInstance().getString(entity);
+    } catch {
+      return fallback;
+    }
   }
 
   /**
@@ -199,6 +218,20 @@ class SieveAbstractAccountUI {
       .querySelector(".sieve-settings-tab")
       .addEventListener('shown.bs.tab', () => { this.renderSettings(); });
 
+    elm.querySelector(".sieve-search-content").id = `sieve-search-content-${this.id}`;
+    const searchTab = elm.querySelector(".sieve-search-tab");
+    searchTab.href = `#sieve-search-content-${this.id}`;
+    searchTab.textContent = this.getSearchLabel("account.search", "Search");
+    searchTab.addEventListener("shown.bs.tab", () => {
+      elm.querySelector(".sieve-search-input").focus();
+    });
+    const searchInput = elm.querySelector(".sieve-search-input");
+    searchInput.id = `sieve-search-input-${this.id}`;
+    searchInput.placeholder = this.getSearchLabel("account.search.placeholder", "Search all scripts...");
+    elm.querySelector(".sieve-search-label").htmlFor = searchInput.id;
+    elm.querySelector(".sieve-search-label").textContent = this.getSearchLabel("account.search", "Search");
+    searchInput.addEventListener("input", (event) => { this.queueSearch(event.target.value); });
+
     elm.querySelector(".siv-account-name").textContent
       = await this.send("account-get-displayname");
 
@@ -306,6 +339,77 @@ class SieveAbstractAccountUI {
     }
 
     bootstrap.Tab.getOrCreateInstance(elm.querySelector(".sieve-accounts-tab")).show();
+  }
+
+  /**
+   * Defers a search while the user is typing.
+   * @param {string} query the text to find.
+   */
+  queueSearch(query) {
+    const request = ++this.searchRequest;
+    if (this.searchTimer !== null)
+      clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => { this.searchScripts(query, request); }, SEARCH_DELAY);
+  }
+
+  /**
+   * Searches every script on the account.
+   * @param {string} query the text to find.
+   * @param {number} request the current search request number.
+   */
+  async searchScripts(query, request) {
+    const account = document.querySelector(`#siv-account-${this.id}`);
+    const results = account.querySelector(".siv-tpl-search-results");
+    const status = account.querySelector(".sieve-search-status");
+    while (results.firstChild)
+      results.firstChild.remove();
+    query = query.trim();
+    if (query === "") {
+      status.textContent = "";
+      return;
+    }
+    status.textContent = this.getSearchLabel("account.search.loading", "Searching scripts...");
+
+    try {
+      const scripts = await this.send("account-list");
+      const matches = await Promise.all(scripts.map(async (item) => {
+        try {
+          const result = SieveScriptSearch.find(await this.send("script-get", item.script), query);
+          return result === null ? null : { name: item.script, result: result };
+        } catch {
+          return null;
+        }
+      }));
+      if (request !== this.searchRequest)
+        return;
+      const found = matches.filter((item) => { return item !== null; });
+      if (!found.length) {
+        status.textContent = this.getSearchLabel("account.search.empty", "No matching scripts.");
+        return;
+      }
+      status.textContent = "";
+      for (const item of found)
+        await this.renderSearchResult(results, item);
+    } catch {
+      if (request === this.searchRequest)
+        status.textContent = this.getSearchLabel("account.search.empty", "No matching scripts.");
+    }
+  }
+
+  /**
+   * Renders a matching script.
+   * @param {Element} results the target list.
+   * @param {object} item the matching script.
+   */
+  async renderSearchResult(results, item) {
+    const elm = await (new SieveTemplate()).load("./accounts/SieveScriptSearchUI.html");
+    elm.querySelector(".sieve-search-script-name").textContent = item.name;
+    elm.querySelector(".sieve-search-match-count").textContent = item.result.count;
+    elm.querySelector(".sieve-search-script-open").textContent = this.getSearchLabel("account.search.open", "Open");
+    SieveScriptSearch.renderExcerpt(elm.querySelector(".sieve-search-script-excerpt code"), item.result);
+    elm.querySelector(".sieve-search-script-open")
+      .addEventListener("click", () => { this.send("script-edit", item.name); });
+    results.append(elm);
   }
 
   /**

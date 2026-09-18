@@ -11,6 +11,9 @@
         <li class="nav-item sieve-account-expanded">
           <a class="sieve-settings-tab nav-link" data-i18n="account.settings" data-bs-toggle="tab" role="tab"></a>
         </li>
+        <li class="nav-item sieve-account-expanded">
+          <a class="sieve-search-tab nav-link" data-bs-toggle="tab" role="tab">Search</a>
+        </li>
       </ul>
       <div class="align-self-center d-flex">
         <div class="sieve-account-expanded">
@@ -40,6 +43,12 @@
         </ul>
       </div>
       <div class="sieve-settings-content tab-pane fade m-4" role="tabpanel"></div>
+      <div class="sieve-search-content tab-pane fade m-3" role="tabpanel">
+        <label class="visually-hidden sieve-search-label">Search</label>
+        <input type="text" class="form-control sieve-search-input mb-2" placeholder="Search all scripts..."></input>
+        <div class="sieve-search-status small text-muted mb-2"></div>
+        <ul class="list-group list-group-flush siv-tpl-search-results"></ul>
+      </div>
     </div>
   </div>
 </div>

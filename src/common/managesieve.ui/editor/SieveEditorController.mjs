@@ -43,6 +43,31 @@ class SieveEditorController {
   }
 
   /**
+   * Lists scripts on the current account.
+   * @returns {Array<object>} available scripts.
+   */
+  async listScripts() {
+    return await this.send("account-list");
+  }
+
+  /**
+   * Loads a script by name.
+   * @param {string} name the script name.
+   * @returns {string} script content.
+   */
+  async getScript(name) {
+    return await this.send("script-get", name);
+  }
+
+  /**
+   * Opens a script in an editor tab.
+   * @param {string} name the script name.
+   */
+  async editScript(name) {
+    await this.send("script-edit", name);
+  }
+
+  /**
    * Saves the current script.
    *
    * @param {string} script

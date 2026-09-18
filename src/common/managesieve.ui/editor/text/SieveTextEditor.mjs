@@ -12,11 +12,28 @@
 /* global CodeMirror */
 
 import { SieveTemplate } from "./../../utils/SieveTemplate.mjs";
+import { SieveI18n } from "./../../utils/SieveI18n.mjs";
+import { SieveScriptSearch } from "./../../utils/SieveScriptSearch.mjs";
 import { SieveTheme } from "./../../utils/SieveTheme.mjs";
 import { SieveAbstractEditorUI } from "./../SieveAbstractEditor.mjs";
 import { formatSieveScript } from "./SieveFormatter.mjs";
 
 const EDITOR_SCROLL_INTO_VIEW_OFFSET = 200;
+const SEARCH_DELAY = 180;
+
+/**
+ * Gets a translated search label with an English fallback.
+ * @param {string} entity the translation key.
+ * @param {string} fallback the fallback text.
+ * @returns {string} the translated text.
+ */
+function getSearchLabel(entity, fallback) {
+  try {
+    return SieveI18n.getInstance().getString(entity);
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * An text editor ui for sieve scripts.
@@ -44,6 +61,8 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     this.activeLine = null;
 
     this.changed = false;
+    this.searchAllScriptsTimer = null;
+    this.searchAllScriptsRequest = 0;
 
     this.formatMultilineLists = true;
     this.formatMultilineTests = true;
@@ -278,6 +297,11 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
     toolbar.append(
       await loader.load("./editor/text/editor.plaintext.toolbar.html"));
 
+    document.querySelector("label[for=sieve-editor-search-all-scripts]").textContent
+      = getSearchLabel("texteditor.searchAllScripts", "In all scripts");
+    document.querySelector(".sieve-editor-other-script-results-heading").textContent
+      = getSearchLabel("texteditor.otherScriptMatches", "Matches in other scripts");
+
     document
       .querySelector("#sieve-editor-undo")
       .addEventListener("click", () => { this.undo(); });
@@ -311,6 +335,7 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
         const isCaseSensitive = document.querySelector("#sieve-editor-casesensitive").checked;
 
         this.find(token, isCaseSensitive, isReverse);
+        this.queueOtherScriptSearch(token, isCaseSensitive);
       });
 
     document
@@ -328,6 +353,22 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
         this.replace(oldToken, newToken, isCaseSensitive, isReverse);
       });
 
+    document.querySelector("#sieve-editor-txt-find").addEventListener("input", (event) => {
+      this.queueOtherScriptSearch(event.target.value,
+        document.querySelector("#sieve-editor-casesensitive").checked);
+    });
+    document.querySelector("#sieve-editor-casesensitive").addEventListener("change", () => {
+      this.queueOtherScriptSearch(document.querySelector("#sieve-editor-txt-find").value,
+        document.querySelector("#sieve-editor-casesensitive").checked);
+    });
+    document.querySelector("#sieve-editor-search-all-scripts").addEventListener("change", (event) => {
+      if (event.target.checked)
+        this.queueOtherScriptSearch(document.querySelector("#sieve-editor-txt-find").value,
+          document.querySelector("#sieve-editor-casesensitive").checked);
+      else
+        this.clearOtherScriptSearchResults(true);
+    });
+
 
     document
       .querySelector("#sieve-editor-replace-replace")
@@ -336,6 +377,87 @@ class SieveTextEditorUI extends SieveAbstractEditorUI {
       });
 
     await this.renderSettings();
+  }
+
+  /**
+   * Defers a search in other scripts while the user is typing.
+   * @param {string} token the text to find.
+   * @param {boolean} isCaseSensitive whether casing must match.
+   */
+  queueOtherScriptSearch(token, isCaseSensitive) {
+    if (!document.querySelector("#sieve-editor-search-all-scripts").checked) {
+      this.clearOtherScriptSearchResults(true);
+      return;
+    }
+    const request = ++this.searchAllScriptsRequest;
+    if (this.searchAllScriptsTimer !== null)
+      clearTimeout(this.searchAllScriptsTimer);
+    this.searchAllScriptsTimer = setTimeout(() => {
+      this.searchOtherScripts(token.trim(), isCaseSensitive, request);
+    }, SEARCH_DELAY);
+  }
+
+  /**
+   * Searches scripts other than the script open in this editor.
+   * @param {string} token the text to find.
+   * @param {boolean} isCaseSensitive whether casing must match.
+   * @param {number} request the current search request number.
+   */
+  async searchOtherScripts(token, isCaseSensitive, request) {
+    const resultBox = document.querySelector("#sieve-editor-other-script-results");
+    const resultList = resultBox.querySelector(".sieve-editor-other-script-result-list");
+    this.clearOtherScriptSearchResults(false);
+    if (token === "")
+      return;
+    try {
+      const scripts = await this.getController().listScripts();
+      const matches = await Promise.all(scripts.filter((item) => {
+        return item.script !== this.getController().name;
+      }).map(async (item) => {
+        try {
+          const result = SieveScriptSearch.find(
+            await this.getController().getScript(item.script), token, isCaseSensitive);
+          return result === null ? null : { name: item.script, result: result };
+        } catch {
+          return null;
+        }
+      }));
+      if (request !== this.searchAllScriptsRequest)
+        return;
+      for (const item of matches) {
+        if (item === null)
+          continue;
+        const link = document.createElement("button");
+        link.type = "button";
+        link.className = "list-group-item list-group-item-action text-start";
+        const label = document.createElement("span");
+        label.textContent = `${item.name}: `;
+        const excerpt = document.createElement("span");
+        SieveScriptSearch.renderExcerpt(excerpt, item.result);
+        link.append(label, excerpt);
+        link.addEventListener("click", () => { this.getController().editScript(item.name); });
+        resultList.append(link);
+      }
+      if (resultList.firstChild)
+        resultBox.classList.remove("d-none");
+    } catch {
+      if (request === this.searchAllScriptsRequest)
+        this.clearOtherScriptSearchResults(false);
+    }
+  }
+
+  /**
+   * Clears matches in other scripts.
+   * @param {boolean} [invalidate] whether pending requests are stale.
+   */
+  clearOtherScriptSearchResults(invalidate = true) {
+    if (invalidate)
+      this.searchAllScriptsRequest++;
+    const resultBox = document.querySelector("#sieve-editor-other-script-results");
+    const resultList = resultBox.querySelector(".sieve-editor-other-script-result-list");
+    while (resultList.firstChild)
+      resultList.firstChild.remove();
+    resultBox.classList.add("d-none");
   }
 
   /**
