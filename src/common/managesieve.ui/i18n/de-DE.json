@@ -51,6 +51,8 @@
   "account.settings": "Einstellungen",
   "account.search": "Suchen",
   "account.search.placeholder": "Alle Skripte durchsuchen...",
+  "account.search.connecting": "Verbindung zum Server wird hergestellt...",
+  "account.search.connectionFailed": "Verbindung zum Server konnte nicht hergestellt werden.",
   "account.search.loading": "Skripte werden durchsucht...",
   "account.search.empty": "Keine passenden Skripte.",
   "account.search.open": "Öffnen",

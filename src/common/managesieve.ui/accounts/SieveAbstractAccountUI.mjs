@@ -353,6 +353,25 @@ class SieveAbstractAccountUI {
   }
 
   /**
+   * Connects the account when a server search needs it.
+   * @returns {boolean} true when the account is connected.
+   */
+  async ensureSearchConnection() {
+    if (await this.isConnected())
+      return true;
+
+    if (await this.isConnecting())
+      return false;
+
+    this.setConnectionActions(false, true);
+    await this.send("account-connect");
+
+    const connected = await this.isConnected();
+    this.setConnectionActions(connected, false);
+    return connected;
+  }
+
+  /**
    * Searches every script on the account.
    * @param {string} query the text to find.
    * @param {number} request the current search request number.
@@ -368,9 +387,19 @@ class SieveAbstractAccountUI {
       status.textContent = "";
       return;
     }
-    status.textContent = this.getSearchLabel("account.search.loading", "Searching scripts...");
+    status.textContent = this.getSearchLabel("account.search.connecting", "Connecting to server...");
 
     try {
+      if (await this.ensureSearchConnection() === false) {
+        if (request === this.searchRequest)
+          status.textContent = this.getSearchLabel("account.search.connectionFailed", "Could not connect to server.");
+        return;
+      }
+
+      if (request !== this.searchRequest)
+        return;
+
+      status.textContent = this.getSearchLabel("account.search.loading", "Searching scripts...");
       const scripts = await this.send("account-list");
       const matches = await Promise.all(scripts.map(async (item) => {
         try {
@@ -404,7 +433,6 @@ class SieveAbstractAccountUI {
   async renderSearchResult(results, item) {
     const elm = await (new SieveTemplate()).load("./accounts/SieveScriptSearchUI.html");
     elm.querySelector(".sieve-search-script-name").textContent = item.name;
-    elm.querySelector(".sieve-search-match-count").textContent = item.result.count;
     elm.querySelector(".sieve-search-script-open").textContent = this.getSearchLabel("account.search.open", "Open");
     SieveScriptSearch.renderExcerpt(elm.querySelector(".sieve-search-script-excerpt code"), item.result);
     elm.querySelector(".sieve-search-script-open")

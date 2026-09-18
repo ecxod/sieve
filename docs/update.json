@@ -3,6 +3,17 @@
     "sieve-cram-md5@ecxod.github.io": {
       "updates": [
         {
+          "version": "0.9.1",
+          "update_link": "https://github.com/ecxod/sieve/releases/download/v0.9.1/sieve-0.9.1-cram-md5.xpi",
+          "update_info_url": "https://github.com/ecxod/sieve/blob/v0.9.1/README.md#thunderbird-add-on",
+          "browser_specific_settings": {
+            "gecko": {
+              "strict_min_version": "121.0",
+              "strict_max_version": "154.*"
+            }
+          }
+        },
+        {
           "version": "0.9.0",
           "update_link": "https://github.com/ecxod/sieve/releases/download/v0.9.0/sieve-0.9.0-cram-md5.xpi",
           "update_info_url": "https://github.com/ecxod/sieve/blob/v0.9.0/README.md#thunderbird-add-on",

@@ -62,6 +62,8 @@
   "account.settings" : "Settings",
   "account.search" : "Search",
   "account.search.placeholder" : "Search all scripts...",
+  "account.search.connecting" : "Connecting to server...",
+  "account.search.connectionFailed" : "Could not connect to server.",
   "account.search.loading" : "Searching scripts...",
   "account.search.empty" : "No matching scripts.",
   "account.search.open" : "Open",
