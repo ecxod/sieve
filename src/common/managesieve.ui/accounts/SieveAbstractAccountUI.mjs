@@ -24,8 +24,6 @@ import { SieveCapabilities } from "./SieveCapabilities.mjs";
 const IS_SMALLER = -1;
 const IS_EQUAL = 0;
 const IS_LARGER = 1;
-const SEARCH_DELAY = 180;
-
 /**
  * A UI renderer for a sieve account
  */
@@ -42,7 +40,6 @@ class SieveAbstractAccountUI {
   constructor(accounts, id) {
     this.accounts = accounts;
     this.id = id;
-    this.searchTimer = null;
     this.searchRequest = 0;
   }
 
@@ -230,7 +227,14 @@ class SieveAbstractAccountUI {
     searchInput.placeholder = this.getSearchLabel("account.search.placeholder", "Search all scripts...");
     elm.querySelector(".sieve-search-label").htmlFor = searchInput.id;
     elm.querySelector(".sieve-search-label").textContent = this.getSearchLabel("account.search", "Search");
-    searchInput.addEventListener("input", (event) => { this.queueSearch(event.target.value); });
+    searchInput.addEventListener("input", () => { this.cancelSearch(); });
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter")
+        return;
+
+      event.preventDefault();
+      this.startSearch(searchInput.value);
+    });
 
     elm.querySelector(".siv-account-name").textContent
       = await this.send("account-get-displayname");
@@ -342,14 +346,19 @@ class SieveAbstractAccountUI {
   }
 
   /**
-   * Defers a search while the user is typing.
+   * Cancels an active search when its query changes.
+   */
+  cancelSearch() {
+    ++this.searchRequest;
+  }
+
+  /**
+   * Starts a search explicitly requested by the user.
    * @param {string} query the text to find.
    */
-  queueSearch(query) {
+  startSearch(query) {
     const request = ++this.searchRequest;
-    if (this.searchTimer !== null)
-      clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => { this.searchScripts(query, request); }, SEARCH_DELAY);
+    this.searchScripts(query, request);
   }
 
   /**
