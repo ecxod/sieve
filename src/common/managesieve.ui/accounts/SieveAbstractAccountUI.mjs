@@ -346,10 +346,17 @@ class SieveAbstractAccountUI {
   }
 
   /**
-   * Cancels an active search when its query changes.
+   * Cancels an active search and removes its stale results when its query changes.
    */
   cancelSearch() {
     ++this.searchRequest;
+
+    const account = document.querySelector(`#siv-account-${this.id}`);
+    if (!account)
+      return;
+
+    account.querySelector(".siv-tpl-search-results").replaceChildren();
+    account.querySelector(".sieve-search-status").textContent = "";
   }
 
   /**

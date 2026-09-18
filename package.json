@@ -1,6 +1,6 @@
 {
   "name": "sieve",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Configures server-side sieve email filters",
   "main": "main_esm.js",
   "directories": {
